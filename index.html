@@ -1,447 +1,1691 @@
 ﻿<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>MK Chess Volunteer Reputation</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MK Chess Volunteer Reviews</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <style>
-    :root{--bg:#f8f2e6;--card:#fffdf8;--ink:#1f1a16;--muted:#6f665d;--line:#d8cfc0;--brand:#0c6a4b;--brand2:#a46f24;--danger:#943737;--ok:#1f664c}
-    *{box-sizing:border-box} body{margin:0;font-family:"Sora",sans-serif;color:var(--ink);background:radial-gradient(circle at 10% 10%,rgba(12,106,75,.08),transparent 32%),radial-gradient(circle at 90% 16%,rgba(164,111,36,.1),transparent 33%),repeating-linear-gradient(45deg,rgba(0,0,0,.02) 0,rgba(0,0,0,.02) 14px,transparent 14px,transparent 28px),var(--bg)}
-    .wrap{width:min(1120px,94vw);margin:24px auto 48px;display:grid;gap:16px}
-    .hero,.panel{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:0 14px 34px rgba(30,24,17,.08)}
-    .hero{padding:22px;display:grid;gap:10px}.kicker{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--brand);font-weight:800}
-    h1,h2,h3{margin:0;font-family:"Sora",sans-serif;letter-spacing:.02em}h1{font-size:clamp(30px,3.4vw,42px);max-width:14ch;line-height:1.1}h2{font-size:28px;line-height:1.1}h3{font-size:19px}
-    p{margin:0;line-height:1.5}.muted{color:var(--muted)}
-    .stats{display:flex;gap:8px;flex-wrap:wrap}.chip{padding:7px 11px;border-radius:999px;background:#e7f2ed;border:1px solid #b7d4c7;font-size:12px;font-weight:700;color:#1a503c}
-    .panel{padding:16px;display:grid;gap:12px}
-    .split{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-    .card{border:1px solid var(--line);border-radius:12px;background:#fffef9;padding:12px;display:grid;gap:10px;align-content:start}
-    .field{display:grid;gap:6px}.field label{font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#433a30}
-    input,select,textarea{font:inherit;padding:10px 11px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--ink)} textarea{min-height:118px;resize:vertical}
-    .btns{display:flex;gap:8px;flex-wrap:wrap}
-    button{cursor:pointer;font:inherit;font-weight:800;padding:9px 12px;border-radius:9px;border:1px solid #1b5b45;background:linear-gradient(135deg,#0c6a4b,#0a553c);color:#fff}
-    button.alt{background:#fff;color:#174737;border-color:#9bc6b4}button.danger{background:linear-gradient(135deg,#943737,#7a2f2f);border-color:#642424}
-    button:disabled{opacity:.65;cursor:not-allowed}
-    .status{padding:9px 10px;border:1px solid var(--line);border-radius:9px;font-size:13px;background:#faf7ef}.status.ok{color:#164f3b;background:#def0e8;border-color:#a8d1c0}.status.err{color:#7d2525;background:#f8e4e4;border-color:#e2b1b1}
-    .badges{display:flex;gap:7px;flex-wrap:wrap}.badge{font-size:11px;font-weight:700;border-radius:999px;padding:4px 8px;border:1px solid #cfd8d2;background:#f2f9f5;color:#245141}.badge.warn{background:#fbf1e1;border-color:#e0c99f;color:#73561f}.badge.danger{background:#faeaea;border-color:#e2b6b6;color:#782c2c}
-    .grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.rank{border:1px solid var(--line);border-radius:12px;background:linear-gradient(180deg,#fffef9,#fff9ee);padding:11px;display:grid;gap:7px}
-    .score{font:700 27px "Sora",sans-serif;color:#114232}.stars{font-size:14px;letter-spacing:.08em;color:#85561e}
-    .tiny{font-size:12px;color:var(--muted)} .meta{display:flex;gap:6px;flex-wrap:wrap}.pill{font-size:11px;border-radius:999px;border:1px solid #ddd3c3;background:#f7f4eb;padding:4px 7px;color:#584d40;font-weight:700}
-    .ratings{display:grid;grid-template-columns:1fr 1fr;gap:9px}
-    .filters{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}
-    .reviews{display:grid;gap:9px}.review{border:1px solid var(--line);border-radius:12px;background:#fff;padding:11px;display:grid;gap:7px}
-    .head{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}.title{font-size:17px;font-weight:800;line-height:1.3}.body{white-space:pre-wrap}.actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-    .tbtn{padding:6px 10px;border-radius:999px;border:1px solid #cdc7bb;background:#fff;color:#3f372f;font-size:12px;font-weight:700}
-    .rules{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}.rule{border:1px solid var(--line);border-radius:11px;background:#fffbf3;padding:11px;display:grid;gap:4px}
-    details{border:1px solid var(--line);border-radius:10px;padding:10px;background:#fffcf4} summary{cursor:pointer;font-weight:700} pre{margin:8px 0 0;padding:9px;border-radius:9px;background:#1e1b18;color:#f6edd8;font-size:12px;overflow:auto}
-    @media (max-width:960px){.split,.grid3,.rules{grid-template-columns:1fr}.filters{grid-template-columns:1fr 1fr}}
-    @media (max-width:640px){.wrap{width:min(1120px,96vw)}.filters,.ratings{grid-template-columns:1fr}}
+    :root {
+      --bg: #f6f1e7;
+      --card: #fffdf8;
+      --card-2: #fffbf2;
+      --ink: #1f1b17;
+      --muted: #6a625a;
+      --line: #d8cebd;
+      --brand: #0b6b4a;
+      --brand-2: #9b6a22;
+      --ok: #1d6b4e;
+      --err: #8a3030;
+      --warn: #936113;
+      --shadow: 0 14px 30px rgba(25, 20, 14, 0.08);
+      --r-lg: 18px;
+      --r-md: 12px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Sora", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 12% 10%, rgba(11, 107, 74, 0.1), transparent 34%),
+        radial-gradient(circle at 88% 15%, rgba(155, 106, 34, 0.12), transparent 35%),
+        repeating-linear-gradient(45deg, rgba(0, 0, 0, 0.018) 0, rgba(0, 0, 0, 0.018) 12px, transparent 12px, transparent 24px),
+        var(--bg);
+      min-height: 100vh;
+    }
+
+    .app { width: min(1180px, 94vw); margin: 22px auto 48px; display: grid; gap: 14px; }
+
+    .shell {
+      border: 1px solid var(--line);
+      border-radius: var(--r-lg);
+      background: linear-gradient(165deg, rgba(255, 253, 247, 0.96), rgba(250, 243, 229, 0.96));
+      box-shadow: var(--shadow);
+      padding: 14px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .brand { display: grid; gap: 2px; }
+    .brand .kicker { font-size: 10px; letter-spacing: 0.11em; text-transform: uppercase; color: var(--brand); font-weight: 800; }
+    .brand h1 { margin: 0; font-size: clamp(20px, 2.6vw, 28px); line-height: 1.1; }
+
+    .auth-box { display: flex; gap: 8px; align-items: center; }
+    .auth-box input {
+      width: 320px;
+      max-width: 100%;
+      padding: 9px 11px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      font: inherit;
+      background: #fff;
+    }
+
+    button {
+      font: inherit;
+      border-radius: 10px;
+      border: 1px solid #1b5f47;
+      padding: 9px 12px;
+      font-weight: 700;
+      cursor: pointer;
+      color: #fff;
+      background: linear-gradient(135deg, #0b6b4a, #084f38);
+    }
+
+    button.ghost { background: #fff; color: #184d3a; border-color: #9ec7b8; }
+    button.warn { background: linear-gradient(135deg, #9b6a22, #7c531b); border-color: #6a4818; }
+    button.danger { background: linear-gradient(135deg, #8a3030, #6f2727); border-color: #5a2121; }
+    button:disabled { opacity: 0.64; cursor: not-allowed; }
+
+    .badges { display: flex; gap: 7px; flex-wrap: wrap; justify-content: flex-end; }
+    .badge {
+      font-size: 11px;
+      padding: 5px 9px;
+      border-radius: 999px;
+      border: 1px solid #bfd6cd;
+      background: #ecf6f1;
+      color: #1f5b45;
+      font-weight: 700;
+    }
+    .badge.muted { border-color: #d9d0bf; background: #f6f2e8; color: #5f5549; }
+
+    .connect-row {
+      display: grid;
+      grid-template-columns: 1.1fr 1.5fr 0.9fr auto;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .connect-row input {
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      font: inherit;
+      min-width: 0;
+      background: #fff;
+    }
+
+    .connect-actions { display: flex; gap: 7px; flex-wrap: wrap; }
+
+    .status {
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      padding: 9px 10px;
+      font-size: 12px;
+      background: #faf7ef;
+      color: #5c5247;
+    }
+    .status.ok { color: #0f5a40; background: #ddf0e7; border-color: #aad1c1; }
+    .status.err { color: #7a2323; background: #f7e2e2; border-color: #dfb0b0; }
+
+    .tabs { display: flex; gap: 8px; flex-wrap: wrap; }
+    .tab {
+      border: 1px solid #d5cdbd;
+      border-radius: 999px;
+      background: #fff;
+      color: #43392f;
+      padding: 8px 12px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .tab.active { background: #114f3b; border-color: #0f4735; color: #fff; }
+
+    .view { display: none; }
+    .view.active { display: block; }
+
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: var(--r-lg);
+      background: var(--card);
+      box-shadow: var(--shadow);
+      padding: 12px;
+    }
+
+    .discover-layout { display: grid; grid-template-columns: 340px 1fr; gap: 12px; }
+
+    .stack { display: grid; gap: 10px; }
+
+    .card {
+      border: 1px solid var(--line);
+      border-radius: var(--r-md);
+      background: var(--card-2);
+      padding: 10px;
+      display: grid;
+      gap: 9px;
+    }
+
+    .title-row { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+    .title-row h2, .title-row h3 { margin: 0; font-size: 18px; }
+
+    .search input, .search select, .field input, .field select, .field textarea {
+      width: 100%;
+      padding: 9px 10px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      font: inherit;
+      background: #fff;
+      color: var(--ink);
+    }
+
+    .field { display: grid; gap: 5px; }
+    .field label { font-size: 11px; letter-spacing: 0.07em; text-transform: uppercase; color: #4b4035; font-weight: 700; }
+    .field textarea { min-height: 110px; resize: vertical; }
+
+    .vol-grid { display: grid; gap: 8px; }
+    .vol-card {
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 12px;
+      padding: 10px;
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 10px;
+      align-items: center;
+      cursor: pointer;
+    }
+    .vol-card.active { border-color: #8ebea9; box-shadow: 0 0 0 2px rgba(11, 107, 74, 0.12) inset; }
+    .avatar {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      border: 1px solid #d4cab9;
+      background: linear-gradient(140deg, #f8f4e6, #ede3cd);
+      display: grid;
+      place-items: center;
+      font-weight: 800;
+      color: #4e4337;
+      overflow: hidden;
+    }
+    .avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .name { font-size: 14px; font-weight: 700; }
+    .sub { font-size: 12px; color: var(--muted); }
+    .score-pill {
+      font-size: 11px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      border: 1px solid #d5ccb9;
+      background: #f8f2e7;
+      color: #5c5144;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .profile-hero {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 12px;
+      background: linear-gradient(160deg, #fffef9, #fff8ea);
+      display: grid;
+      gap: 11px;
+    }
+
+    .profile-top { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; }
+    .profile-top .avatar { width: 56px; height: 56px; border-radius: 14px; }
+    .profile-name { font-size: 22px; margin: 0; line-height: 1.1; }
+    .tagline { color: var(--muted); font-size: 13px; }
+
+    .stats-row { display: flex; flex-wrap: wrap; gap: 7px; }
+    .stat {
+      border-radius: 999px;
+      border: 1px solid #d8cfbf;
+      background: #f8f3e8;
+      font-size: 11px;
+      padding: 5px 9px;
+      font-weight: 700;
+      color: #5a5145;
+    }
+
+    .metric-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 8px; }
+    .metric {
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      padding: 9px;
+      background: #fff;
+      display: grid;
+      gap: 2px;
+    }
+    .metric .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; }
+    .metric .value { font-size: 20px; font-weight: 800; }
+
+    .review-list { display: grid; gap: 8px; }
+    .review {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #fff;
+      padding: 10px;
+      display: grid;
+      gap: 7px;
+    }
+    .review .head { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; }
+    .review .headline { font-size: 15px; font-weight: 700; margin-top: 2px; }
+    .review .meta { font-size: 12px; color: var(--muted); }
+    .stars { letter-spacing: 0.06em; color: #855722; font-size: 13px; }
+
+    .split { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+    .form-card { border: 1px solid var(--line); border-radius: 14px; background: #fffef8; padding: 12px; display: grid; gap: 10px; }
+    .form-card h2, .form-card h3 { margin: 0; font-size: 20px; }
+
+    .rating-grid { display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 8px; }
+
+    .studio { display: grid; gap: 12px; }
+    .studio-grid { display: grid; grid-template-columns: 1.1fr 1fr; gap: 12px; }
+
+    .analytics { display: grid; gap: 8px; }
+    .analytics-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 8px; }
+
+    .bar-list { display: grid; gap: 7px; }
+    .bar-row { display: grid; grid-template-columns: 120px 1fr auto; gap: 8px; align-items: center; }
+    .bar {
+      height: 9px;
+      border-radius: 999px;
+      background: #f1ebdd;
+      border: 1px solid #e2d8c4;
+      overflow: hidden;
+    }
+    .bar > span { display: block; height: 100%; background: linear-gradient(90deg, #0d6b4a, #2c8c69); }
+
+    details { border: 1px solid var(--line); border-radius: 10px; background: #fffcf5; padding: 9px 10px; }
+    details summary { cursor: pointer; font-weight: 700; font-size: 13px; }
+    .checklist { margin: 8px 0 0; font-size: 12px; color: #5c5348; display: grid; gap: 4px; }
+
+    @media (max-width: 1020px) {
+      .topbar { grid-template-columns: 1fr; }
+      .badges { justify-content: flex-start; }
+      .discover-layout, .studio-grid, .split, .metric-grid, .analytics-grid, .rating-grid { grid-template-columns: 1fr; }
+      .connect-row { grid-template-columns: 1fr; }
+      .auth-box { flex-wrap: wrap; }
+      .auth-box input { width: 100%; }
+    }
   </style>
 </head>
 <body>
-  <main class="wrap">
-    <section class="hero">
-      <div class="kicker">MK Chess Volunteer Trust Board</div>
-      <h1>Public, fair volunteer reputation with verified member feedback</h1>
-      <p class="muted">Designed for Carrd iframe embedding, GitHub Pages hosting, and Supabase backend rules.</p>
-      <div class="stats" id="heroStats"><span class="chip">Loading...</span></div>
-    </section>
-
-    <section class="panel split">
-      <article class="card">
-        <h3>Member Access</h3>
-        <p class="muted">Only approved members should be able to submit reviews/reports.</p>
-        <div class="field"><label for="email">Club Email</label><input id="email" type="email" placeholder="member@yourclubdomain.com"></div>
-        <div class="btns">
-          <button id="signIn">Send Magic Link</button>
-          <button id="signOut" class="alt" type="button">Sign Out</button>
+  <main class="app">
+    <section class="shell">
+      <div class="topbar">
+        <div class="brand">
+          <span class="kicker">MK Chess Club</span>
+          <h1>Volunteer Reviews</h1>
         </div>
-        <p class="status" id="authStatus">Not signed in.</p>
-        <div class="badges" id="memberBadges"></div>
-      </article>
 
-      <article class="card">
-        <h3>Supabase Setup</h3>
-        <p class="muted">Paste once and reconnect. Values are stored in this browser only.</p>
-        <div class="field"><label for="supaUrl">Supabase URL</label><input id="supaUrl" type="url" placeholder="https://PROJECT.supabase.co"></div>
-        <div class="field"><label for="supaKey">Supabase Anon Key</label><input id="supaKey" type="password" placeholder="eyJ..." ></div>
-        <div class="field"><label for="domain">Allowed Email Domain (optional)</label><input id="domain" type="text" placeholder="mkchess.co.uk"></div>
-        <div class="btns">
-          <button id="saveConnect" type="button">Save + Connect</button>
-          <button id="demo" class="alt" type="button">Demo Mode</button>
+        <div class="auth-box">
+          <input id="emailInput" type="email" placeholder="member@yourdomain.com" />
+          <button id="sendLinkBtn" type="button">Send Login Link</button>
+          <button id="signOutBtn" class="ghost" type="button">Sign Out</button>
         </div>
-        <p class="status" id="configStatus">No backend connected yet.</p>
-        <details>
-          <summary>Recommended SQL constraints for anti-manipulation</summary>
-          <pre>unique (reviewer_user_id, volunteer_id, event_id)
-check (overall_rating between 1 and 5)
-only approved members can insert reviews
-only verified attendance can review that event
-public select only moderation_status='published'
-only moderators can change moderation_status
-rate-limit reviews per user/day via policy or trigger</pre>
-        </details>
-      </article>
-    </section>
-    <section class="panel">
-      <h2>Volunteer Reputation Board</h2>
-      <p class="muted">Bayesian score blends average rating, review volume, and unresolved report pressure.</p>
-      <div id="leaderboard" class="grid3"></div>
-    </section>
 
-    <section class="panel split">
-      <form id="reviewForm" class="card">
-        <h3>Leave a Verified Review</h3>
-        <p class="muted">Review must be based on a real event attendance.</p>
-        <div class="field"><label for="eventSel">Event</label><select id="eventSel" required></select></div>
-        <div class="field"><label for="volSel">Volunteer</label><select id="volSel" required></select></div>
-        <div class="ratings">
-          <div class="field"><label for="rOverall">Overall</label><select id="rOverall" required><option value="">Choose...</option><option value="5">5</option><option value="4">4</option><option value="3">3</option><option value="2">2</option><option value="1">1</option></select></div>
-          <div class="field"><label for="rComm">Communication</label><select id="rComm" required><option value="">Choose...</option><option value="5">5</option><option value="4">4</option><option value="3">3</option><option value="2">2</option><option value="1">1</option></select></div>
-          <div class="field"><label for="rRel">Reliability</label><select id="rRel" required><option value="">Choose...</option><option value="5">5</option><option value="4">4</option><option value="3">3</option><option value="2">2</option><option value="1">1</option></select></div>
-          <div class="field"><label for="rFair">Welcoming/Fair</label><select id="rFair" required><option value="">Choose...</option><option value="5">5</option><option value="4">4</option><option value="3">3</option><option value="2">2</option><option value="1">1</option></select></div>
-          <div class="field"><label for="rClear">Chess Clarity</label><select id="rClear" required><option value="">Choose...</option><option value="5">5</option><option value="4">4</option><option value="3">3</option><option value="2">2</option><option value="1">1</option></select></div>
+        <div class="badges">
+          <span class="badge" id="modeBadge">Demo</span>
+          <span class="badge muted" id="userBadge">Guest</span>
+          <span class="badge muted" id="roleBadge">No role</span>
         </div>
-        <div class="field"><label for="rTitle">Headline</label><input id="rTitle" type="text" maxlength="110" placeholder="Example: Clear, supportive help"></div>
-        <div class="field"><label for="rBody">Detailed Feedback</label><textarea id="rBody" maxlength="2000" placeholder="What happened and what should improve?"></textarea><span class="tiny">Minimum 80 chars. 1-star/5-star requires 120+ chars.</span></div>
-        <label class="tiny"><input type="checkbox" id="truth"> I confirm this is truthful and based on real attendance.</label>
-        <div class="btns"><button type="submit" id="submitReview">Submit Review</button></div>
-        <p class="status" id="reviewStatus">Approved members can submit reviews.</p>
-      </form>
-
-      <form id="reportForm" class="card">
-        <h3>Report Volunteer Incident</h3>
-        <p class="muted">Reports are for accountability and safety, separate from ratings.</p>
-        <div class="field"><label for="repVol">Volunteer</label><select id="repVol" required></select></div>
-        <div class="field"><label for="repEvent">Event (optional)</label><select id="repEvent"><option value="">No specific event</option></select></div>
-        <div class="field"><label for="repReason">Reason</label><select id="repReason" required><option value="">Choose...</option><option value="conduct">Conduct issue</option><option value="safety">Safety issue</option><option value="bias">Unfair treatment/bias</option><option value="absence">No-show/reliability</option><option value="other">Other</option></select></div>
-        <div class="field"><label for="repSeverity">Severity</label><select id="repSeverity"><option value="low">Low</option><option value="medium" selected>Medium</option><option value="high">High</option></select></div>
-        <div class="field"><label for="repDetails">Details</label><textarea id="repDetails" maxlength="1500" placeholder="Describe facts, date, and context."></textarea></div>
-        <div class="btns"><button class="danger" type="submit" id="submitReport">Submit Report</button></div>
-        <p class="status" id="reportStatus">Reports require approved member sign-in.</p>
-      </form>
-    </section>
-
-    <section class="panel">
-      <h2>Public Reviews</h2>
-      <p class="muted">Only published reviews are shown publicly.</p>
-      <div class="filters">
-        <div class="field"><label for="fVol">Volunteer</label><select id="fVol"></select></div>
-        <div class="field"><label for="fMin">Min Rating</label><select id="fMin"><option value="0">Any</option><option value="5">5 only</option><option value="4">4+</option><option value="3">3+</option><option value="2">2+</option><option value="1">1+</option></select></div>
-        <div class="field"><label for="fSort">Sort</label><select id="fSort"><option value="latest">Latest</option><option value="highest">Highest rating</option><option value="lowest">Lowest rating</option><option value="helpful">Most helpful</option></select></div>
-        <div class="field"><label for="fSearch">Search</label><input id="fSearch" type="text" placeholder="keyword"></div>
       </div>
-      <div id="reviewList" class="reviews"></div>
+
+      <div class="connect-row">
+        <input id="supaUrlInput" type="url" placeholder="Supabase URL" />
+        <input id="supaKeyInput" type="password" placeholder="Supabase anon key" />
+        <input id="allowedDomainInput" type="text" placeholder="Allowed email domain (optional)" />
+        <div class="connect-actions">
+          <button id="connectBtn" type="button">Connect</button>
+          <button id="demoBtn" class="warn" type="button">Demo</button>
+        </div>
+      </div>
+
+      <p id="authStatus" class="status">Guest mode.</p>
+      <p id="backendStatus" class="status">No backend connection.</p>
     </section>
 
     <section class="panel">
-      <h2>Fraud Resistance Rules</h2>
-      <div class="rules">
-        <article class="rule"><h3>Verified Identity</h3><p>Magic-link auth + approved profile.</p></article>
-        <article class="rule"><h3>Verified Attendance</h3><p>Only attendees of that event can review.</p></article>
-        <article class="rule"><h3>One Review Limit</h3><p>Unique reviewer+volunteer+event.</p></article>
-        <article class="rule"><h3>Rate Limits</h3><p>Daily posting limits block spam bursts.</p></article>
-        <article class="rule"><h3>Moderation Queue</h3><p>Suspicious reviews go pending, not public.</p></article>
-        <article class="rule"><h3>Bayesian Reputation</h3><p>Harder to game with small fake sample sizes.</p></article>
+      <div class="tabs" id="tabs">
+        <button class="tab active" data-view="discover">Discover</button>
+        <button class="tab" data-view="review">Write Review</button>
+        <button class="tab" data-view="studio">Volunteer Studio</button>
       </div>
+    </section>
+
+    <section id="discoverView" class="view active panel">
+      <div class="discover-layout">
+        <aside class="stack">
+          <article class="card search">
+            <div class="title-row"><h2>Volunteers</h2></div>
+            <input id="searchInput" type="text" placeholder="Search volunteer" />
+            <select id="sortSelect">
+              <option value="top">Top rated</option>
+              <option value="reviews">Most reviewed</option>
+              <option value="name">Name A-Z</option>
+            </select>
+          </article>
+          <div id="volunteerGrid" class="vol-grid"></div>
+        </aside>
+
+        <section class="stack">
+          <article id="profilePanel" class="card"></article>
+        </section>
+      </div>
+    </section>
+    <section id="reviewView" class="view panel">
+      <div class="split">
+        <form id="reviewForm" class="form-card">
+          <h2>Write Review</h2>
+          <div class="field">
+            <label for="reviewEventSelect">Event</label>
+            <select id="reviewEventSelect" required></select>
+          </div>
+          <div class="field">
+            <label for="reviewVolunteerSelect">Volunteer</label>
+            <select id="reviewVolunteerSelect" required></select>
+          </div>
+
+          <div class="rating-grid">
+            <div class="field"><label for="overallRating">Overall</label><select id="overallRating" required><option value="">-</option><option value="5">5</option><option value="4">4</option><option value="3">3</option><option value="2">2</option><option value="1">1</option></select></div>
+            <div class="field"><label for="commRating">Communication</label><select id="commRating" required><option value="">-</option><option value="5">5</option><option value="4">4</option><option value="3">3</option><option value="2">2</option><option value="1">1</option></select></div>
+            <div class="field"><label for="relRating">Reliability</label><select id="relRating" required><option value="">-</option><option value="5">5</option><option value="4">4</option><option value="3">3</option><option value="2">2</option><option value="1">1</option></select></div>
+            <div class="field"><label for="warmRating">Welcoming</label><select id="warmRating" required><option value="">-</option><option value="5">5</option><option value="4">4</option><option value="3">3</option><option value="2">2</option><option value="1">1</option></select></div>
+            <div class="field"><label for="clearRating">Clarity</label><select id="clearRating" required><option value="">-</option><option value="5">5</option><option value="4">4</option><option value="3">3</option><option value="2">2</option><option value="1">1</option></select></div>
+          </div>
+
+          <div class="field">
+            <label for="reviewTitleInput">Headline</label>
+            <input id="reviewTitleInput" type="text" maxlength="110" placeholder="Short summary" />
+          </div>
+          <div class="field">
+            <label for="reviewBodyInput">Review</label>
+            <textarea id="reviewBodyInput" maxlength="2000" placeholder="Write specific, factual feedback"></textarea>
+          </div>
+
+          <label class="sub"><input id="truthCheckbox" type="checkbox" /> This is a truthful review from a real event.</label>
+          <button id="submitReviewBtn" type="submit">Submit Review</button>
+          <p id="reviewStatus" class="status">Approved members only.</p>
+        </form>
+
+        <form id="reportForm" class="form-card">
+          <h2>Report Incident</h2>
+          <div class="field">
+            <label for="reportVolunteerSelect">Volunteer</label>
+            <select id="reportVolunteerSelect" required></select>
+          </div>
+          <div class="field">
+            <label for="reportEventSelect">Event</label>
+            <select id="reportEventSelect"><option value="">No specific event</option></select>
+          </div>
+          <div class="field">
+            <label for="reportReasonSelect">Reason</label>
+            <select id="reportReasonSelect" required>
+              <option value="">-</option>
+              <option value="conduct">Conduct</option>
+              <option value="safety">Safety</option>
+              <option value="bias">Bias / unfair treatment</option>
+              <option value="absence">No-show / reliability</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="reportSeveritySelect">Severity</label>
+            <select id="reportSeveritySelect">
+              <option value="low">Low</option>
+              <option value="medium" selected>Medium</option>
+              <option value="high">High</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="reportDetailsInput">Details</label>
+            <textarea id="reportDetailsInput" maxlength="1500" placeholder="Facts, date, what happened"></textarea>
+          </div>
+          <button id="submitReportBtn" class="danger" type="submit">Submit Report</button>
+          <p id="reportStatus" class="status">Approved members only.</p>
+        </form>
+      </div>
+    </section>
+
+    <section id="studioView" class="view panel">
+      <div class="studio" id="studioGate"></div>
+      <div class="studio" id="studioContent" style="display:none;">
+        <div class="studio-grid">
+          <form id="profileForm" class="form-card">
+            <h2>Profile</h2>
+            <div class="field"><label for="profileDisplayName">Display Name</label><input id="profileDisplayName" type="text" maxlength="80" /></div>
+            <div class="field"><label for="profileTagline">Tagline</label><input id="profileTagline" type="text" maxlength="120" placeholder="Example: Junior mentor and tournament helper" /></div>
+            <div class="field"><label for="profileAvatarUrl">Avatar URL</label><input id="profileAvatarUrl" type="url" placeholder="https://..." /></div>
+            <div class="field"><label for="profileBio">Bio</label><textarea id="profileBio" maxlength="800"></textarea></div>
+            <label class="sub"><input id="profileActive" type="checkbox" /> Public profile visible</label>
+            <button id="saveProfileBtn" type="submit">Save Profile</button>
+            <p id="profileStatus" class="status">Volunteer profile settings.</p>
+          </form>
+
+          <article class="form-card analytics">
+            <h2>Analytics</h2>
+            <div id="studioMetrics" class="analytics-grid"></div>
+            <div class="card">
+              <div class="title-row"><h3>Category Scores</h3></div>
+              <div id="categoryBars" class="bar-list"></div>
+            </div>
+            <div class="card">
+              <div class="title-row"><h3>6-Month Trend</h3></div>
+              <div id="trendBars" class="bar-list"></div>
+            </div>
+          </article>
+        </div>
+
+        <div class="split">
+          <article class="form-card">
+            <h3>Recent Reviews</h3>
+            <div id="studioRecentReviews" class="review-list"></div>
+          </article>
+          <article class="form-card">
+            <h3>Open Reports</h3>
+            <div id="studioOpenReports" class="review-list"></div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <details>
+        <summary>Backend checklist</summary>
+        <div class="checklist">
+          <div>1. Only approved members can create reviews/reports.</div>
+          <div>2. Verified attendance required for event-linked review.</div>
+          <div>3. Unique review per reviewer + volunteer + event.</div>
+          <div>4. Public reads only published reviews.</div>
+          <div>5. Volunteer account mapping: `volunteers.user_id` or `volunteer_accounts(user_id, volunteer_id)`.</div>
+        </div>
+      </details>
     </section>
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
-    (function(){
-      const K={url:"mk_supa_url",key:"mk_supa_key",domain:"mk_mail_domain"};
-      const DEMO={
-        user:{id:"demo-user",email:"member@mkchess.co.uk"},
-        member:{display_name:"Demo Member",status:"approved",role:"member",trust_score:1.0,created_at:"2025-06-01T10:00:00Z"},
-        volunteers:[
-          {id:"v1",display_name:"A. Patel",active:true},{id:"v2",display_name:"M. Khan",active:true},{id:"v3",display_name:"S. Wright",active:true},{id:"v4",display_name:"R. Lewis",active:true}
-        ],
-        events:[
-          {id:"e1",title:"Friday Club Night",starts_at:"2026-03-13T18:30:00Z",vols:["v1","v2","v3"]},
-          {id:"e2",title:"Rapid League Round 4",starts_at:"2026-03-28T14:00:00Z",vols:["v2","v4"]},
-          {id:"e3",title:"Beginner Session",starts_at:"2026-04-03T17:00:00Z",vols:["v1","v3"]}
-        ],
-        reviews:[
-          {id:"r1",volunteer_id:"v1",event_id:"e1",overall_rating:5,communication_rating:5,reliability_rating:5,warmth_rating:4,clarity_rating:5,title:"Great onboarding",body:"I was new and they guided pairings clearly and kindly. The room setup felt organised and easy to follow.",helpful_count:8,moderation_status:"published",authenticity_score:10,reviewer_weight:1.05,created_at:"2026-03-14T10:20:00Z"},
-          {id:"r2",volunteer_id:"v2",event_id:"e2",overall_rating:4,communication_rating:4,reliability_rating:5,warmth_rating:4,clarity_rating:4,title:"Consistent support",body:"Helped keep rounds on time and answered questions quickly. Better newcomer guidance would make it excellent.",helpful_count:6,moderation_status:"published",authenticity_score:14,reviewer_weight:1,created_at:"2026-03-29T11:12:00Z"},
-          {id:"r3",volunteer_id:"v4",event_id:"e2",overall_rating:2,communication_rating:2,reliability_rating:2,warmth_rating:3,clarity_rating:2,title:"Start delay",body:"There was a long delay and time control guidance was unclear at first. Hope this improves in future rounds.",helpful_count:5,moderation_status:"published",authenticity_score:22,reviewer_weight:1,created_at:"2026-03-29T20:40:00Z"}
-        ],
-        reports:[{id:"p1",volunteer_id:"v4",status:"open",severity:"medium",created_at:"2026-03-30T19:24:00Z"}]
+    (function () {
+      "use strict";
+
+      const STORAGE = {
+        url: "mk_rev_url",
+        key: "mk_rev_key",
+        domain: "mk_rev_domain"
       };
 
-      const S={supa:null,sub:null,demo:true,user:null,member:null,volunteers:[],events:[],map:{},reviews:[],reports:[]};
-      const el={};
+      const DEMO = {
+        user: { id: "demo-volunteer", email: "volunteer@mkchess.co.uk" },
+        member: { display_name: "Demo Volunteer", status: "approved", role: "volunteer", trust_score: 1.1, created_at: "2025-10-01T10:00:00Z" },
+        volunteerLink: { volunteer_id: "v1", source: "demo" },
+        volunteers: [
+          { id: "v1", display_name: "A. Patel", tagline: "Beginner support and pairings", bio: "I help new attendees settle in quickly.", avatar_url: "", active: true },
+          { id: "v2", display_name: "M. Khan", tagline: "Junior mentor", bio: "Focus on junior coaching and confidence.", avatar_url: "", active: true },
+          { id: "v3", display_name: "S. Wright", tagline: "Tournament desk", bio: "Time controls, desk ops, and rapid rounds.", avatar_url: "", active: true },
+          { id: "v4", display_name: "R. Lewis", tagline: "Setup and logistics", bio: "Board setup, clocks, room flow.", avatar_url: "", active: true }
+        ],
+        events: [
+          { id: "e1", title: "Friday Club Night", starts_at: "2026-03-13T18:30:00Z" },
+          { id: "e2", title: "Rapid League R4", starts_at: "2026-03-28T14:00:00Z" },
+          { id: "e3", title: "Beginner Coaching", starts_at: "2026-04-03T17:00:00Z" }
+        ],
+        eventVolunteerMap: {
+          e1: ["v1", "v2", "v3"],
+          e2: ["v2", "v4"],
+          e3: ["v1", "v3"]
+        },
+        reviews: [
+          { id: "r1", volunteer_id: "v1", event_id: "e1", overall_rating: 5, communication_rating: 5, reliability_rating: 5, warmth_rating: 5, clarity_rating: 5, title: "Excellent with new members", body: "Super clear and calm. Made first-time attendance easy and friendly.", helpful_count: 12, moderation_status: "published", authenticity_score: 8, reviewer_weight: 1.1, created_at: "2026-03-14T11:20:00Z" },
+          { id: "r2", volunteer_id: "v1", event_id: "e3", overall_rating: 4, communication_rating: 4, reliability_rating: 5, warmth_rating: 4, clarity_rating: 4, title: "Strong support", body: "Helpful and respectful. Good explanations for beginners.", helpful_count: 5, moderation_status: "published", authenticity_score: 12, reviewer_weight: 1.0, created_at: "2026-04-04T10:00:00Z" },
+          { id: "r3", volunteer_id: "v2", event_id: "e1", overall_rating: 4, communication_rating: 4, reliability_rating: 4, warmth_rating: 5, clarity_rating: 4, title: "Great junior mentor", body: "Kids stayed engaged and felt supported during games.", helpful_count: 9, moderation_status: "published", authenticity_score: 10, reviewer_weight: 1.0, created_at: "2026-03-14T12:40:00Z" },
+          { id: "r4", volunteer_id: "v3", event_id: "e1", overall_rating: 3, communication_rating: 3, reliability_rating: 4, warmth_rating: 3, clarity_rating: 3, title: "Solid desk support", body: "Got things done, but explanations could be clearer.", helpful_count: 4, moderation_status: "published", authenticity_score: 16, reviewer_weight: 0.95, created_at: "2026-03-14T14:10:00Z" },
+          { id: "r5", volunteer_id: "v4", event_id: "e2", overall_rating: 2, communication_rating: 2, reliability_rating: 2, warmth_rating: 3, clarity_rating: 2, title: "Start delay", body: "Round started late and some clock details were unclear.", helpful_count: 7, moderation_status: "published", authenticity_score: 20, reviewer_weight: 1.0, created_at: "2026-03-29T20:00:00Z" },
+          { id: "r6", volunteer_id: "v2", event_id: "e2", overall_rating: 5, communication_rating: 5, reliability_rating: 5, warmth_rating: 5, clarity_rating: 5, title: "Excellent control", body: "Fast responses and very fair handling throughout rounds.", helpful_count: 11, moderation_status: "published", authenticity_score: 9, reviewer_weight: 1.1, created_at: "2026-03-29T16:40:00Z" }
+        ],
+        reports: [
+          { id: "rep1", volunteer_id: "v4", status: "open", severity: "medium", reason: "absence", details: "Late setup caused delay.", created_at: "2026-03-30T18:00:00Z" },
+          { id: "rep2", volunteer_id: "v3", status: "resolved", severity: "low", reason: "conduct", details: "Resolved with follow-up.", created_at: "2026-03-20T18:00:00Z" }
+        ]
+      };
 
-      document.addEventListener("DOMContentLoaded",init);
-      async function init(){
-        ids(["heroStats","email","signIn","signOut","authStatus","memberBadges","supaUrl","supaKey","domain","saveConnect","demo","configStatus","leaderboard","reviewForm","eventSel","volSel","rOverall","rComm","rRel","rFair","rClear","rTitle","rBody","truth","reviewStatus","reportForm","repVol","repEvent","repReason","repSeverity","repDetails","reportStatus","fVol","fMin","fSort","fSearch","reviewList"]);
-        bind();
-        restoreCfg();
-        await connect();
+      const state = {
+        supabase: null,
+        authSub: null,
+        demoMode: true,
+        user: null,
+        member: null,
+        volunteerLink: null,
+        volunteers: [],
+        events: [],
+        eventVolunteerMap: {},
+        reviews: [],
+        reports: [],
+        selectedVolunteerId: null,
+        activeView: "discover"
+      };
+
+      const el = {};
+
+      document.addEventListener("DOMContentLoaded", init);
+
+      async function init() {
+        cacheEls();
+        bindEvents();
+        restoreConfig();
+        await connectWithStoredConfig();
         await refreshSession();
-        await loadAll();
-        render();
+        await loadAllData();
+        renderAll();
       }
 
-      function ids(a){a.forEach(id=>el[id]=document.getElementById(id));}
-      function bind(){
-        el.saveConnect.onclick=onSaveConnect; el.demo.onclick=onDemo;
-        el.signIn.onclick=onSignIn; el.signOut.onclick=onSignOut;
-        el.eventSel.onchange=renderVolSelect;
-        el.reviewForm.onsubmit=onReviewSubmit; el.reportForm.onsubmit=onReportSubmit;
-        [el.fVol,el.fMin,el.fSort].forEach(x=>x.onchange=renderReviews); el.fSearch.oninput=renderReviews;
-        el.reviewList.addEventListener("click",onReviewAction);
+      function cacheEls() {
+        [
+          "emailInput", "sendLinkBtn", "signOutBtn", "modeBadge", "userBadge", "roleBadge", "supaUrlInput", "supaKeyInput", "allowedDomainInput",
+          "connectBtn", "demoBtn", "authStatus", "backendStatus", "tabs", "discoverView", "reviewView", "studioView", "searchInput", "sortSelect",
+          "volunteerGrid", "profilePanel", "reviewForm", "reviewEventSelect", "reviewVolunteerSelect", "overallRating", "commRating", "relRating", "warmRating",
+          "clearRating", "reviewTitleInput", "reviewBodyInput", "truthCheckbox", "submitReviewBtn", "reviewStatus", "reportForm", "reportVolunteerSelect", "reportEventSelect",
+          "reportReasonSelect", "reportSeveritySelect", "reportDetailsInput", "submitReportBtn", "reportStatus", "studioGate", "studioContent", "profileForm",
+          "profileDisplayName", "profileTagline", "profileAvatarUrl", "profileBio", "profileActive", "saveProfileBtn", "profileStatus", "studioMetrics", "categoryBars",
+          "trendBars", "studioRecentReviews", "studioOpenReports"
+        ].forEach(function (id) { el[id] = document.getElementById(id); });
       }
 
-      function restoreCfg(){
-        el.supaUrl.value=localStorage.getItem(K.url)||"";
-        el.supaKey.value=localStorage.getItem(K.key)||"";
-        el.domain.value=localStorage.getItem(K.domain)||"";
+      function bindEvents() {
+        el.connectBtn.addEventListener("click", onConnectClick);
+        el.demoBtn.addEventListener("click", onDemoClick);
+        el.sendLinkBtn.addEventListener("click", onSendMagicLink);
+        el.signOutBtn.addEventListener("click", onSignOut);
+        el.tabs.addEventListener("click", onTabClick);
+        el.searchInput.addEventListener("input", renderVolunteerList);
+        el.sortSelect.addEventListener("change", renderVolunteerList);
+        el.volunteerGrid.addEventListener("click", onVolunteerCardClick);
+        el.profilePanel.addEventListener("click", onProfilePanelClick);
+        el.reviewEventSelect.addEventListener("change", renderReviewVolunteerOptions);
+        el.reviewForm.addEventListener("submit", onSubmitReview);
+        el.reportForm.addEventListener("submit", onSubmitReport);
+        el.profileForm.addEventListener("submit", onSaveProfile);
       }
 
-      async function onSaveConnect(){
-        localStorage.setItem(K.url,(el.supaUrl.value||"").trim());
-        localStorage.setItem(K.key,(el.supaKey.value||"").trim());
-        localStorage.setItem(K.domain,normDomain(el.domain.value));
-        await connect(); await refreshSession(); await loadAll(); render();
+      function restoreConfig() {
+        el.supaUrlInput.value = localStorage.getItem(STORAGE.url) || "";
+        el.supaKeyInput.value = localStorage.getItem(STORAGE.key) || "";
+        el.allowedDomainInput.value = localStorage.getItem(STORAGE.domain) || "";
       }
 
-      async function onDemo(){
-        S.demo=true; S.supa=null; unSub();
-        S.user=DEMO.user; S.member=DEMO.member;
-        status(el.configStatus,"Demo mode enabled.","ok");
-        await loadAll(); render();
+      async function onConnectClick() {
+        localStorage.setItem(STORAGE.url, (el.supaUrlInput.value || "").trim());
+        localStorage.setItem(STORAGE.key, (el.supaKeyInput.value || "").trim());
+        localStorage.setItem(STORAGE.domain, normalizeDomain(el.allowedDomainInput.value || ""));
+        await connectWithStoredConfig();
+        await refreshSession();
+        await loadAllData();
+        renderAll();
       }
 
-      async function connect(){
-        const url=(localStorage.getItem(K.url)||"").trim();
-        const key=(localStorage.getItem(K.key)||"").trim();
-        if(!url||!key){S.demo=true;S.supa=null;S.user=DEMO.user;S.member=DEMO.member;status(el.configStatus,"No credentials. Demo mode active.","err");return;}
-        try{
-          S.supa=window.supabase.createClient(url,key,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
-          S.demo=false; subAuth(); status(el.configStatus,"Supabase connected.","ok");
-        }catch(e){S.demo=true;S.supa=null;S.user=DEMO.user;S.member=DEMO.member;status(el.configStatus,"Supabase connect failed. Demo mode active.","err");}
+      async function onDemoClick() {
+        state.demoMode = true;
+        state.supabase = null;
+        detachAuthSubscription();
+        state.user = DEMO.user;
+        state.member = DEMO.member;
+        state.volunteerLink = DEMO.volunteerLink;
+        setStatus(el.backendStatus, "Demo mode enabled.", "ok");
+        await loadAllData();
+        renderAll();
       }
 
-      function subAuth(){unSub(); S.sub=S.supa.auth.onAuthStateChange(async(_evt,session)=>{S.user=session?session.user:null;await loadMember();await loadAll();render();});}
-      function unSub(){if(S.sub&&S.sub.data&&S.sub.data.subscription)S.sub.data.subscription.unsubscribe();S.sub=null;}
+      async function connectWithStoredConfig() {
+        const url = (localStorage.getItem(STORAGE.url) || "").trim();
+        const key = (localStorage.getItem(STORAGE.key) || "").trim();
 
-      async function refreshSession(){
-        if(S.demo||!S.supa){S.user=DEMO.user;S.member=DEMO.member;return;}
-        const res=await S.supa.auth.getSession(); S.user=res.data&&res.data.session?res.data.session.user:null; await loadMember();
-      }
-
-      async function loadMember(){
-        S.member=null; if(S.demo){S.member=DEMO.member;return;} if(!S.user)return;
-        const r=await S.supa.from("member_profiles").select("display_name,status,role,trust_score,created_at").eq("user_id",S.user.id).maybeSingle();
-        if(r.error){S.member={display_name:S.user.email||"Member",status:"pending",role:"member",trust_score:1,created_at:new Date().toISOString()}; status(el.authStatus,"Signed in but member profile lookup failed: "+r.error.message,"err"); return;}
-        S.member=r.data||{display_name:S.user.email||"Member",status:"pending",role:"member",trust_score:1,created_at:new Date().toISOString()};
-      }
-
-      async function loadAll(){
-        if(S.demo){S.volunteers=[...DEMO.volunteers];S.events=DEMO.events.map(e=>({id:e.id,title:e.title,starts_at:e.starts_at}));S.map={};DEMO.events.forEach(e=>S.map[e.id]=[...e.vols]);S.reviews=[...DEMO.reviews];S.reports=[...DEMO.reports];return;}
-        await Promise.all([loadVolunteers(),loadReviews(),loadReports(),loadEvents()]);
-      }
-
-      async function loadVolunteers(){
-        const r=await S.supa.from("volunteers").select("id,display_name,active").eq("active",true).order("display_name",{ascending:true});
-        if(r.error){status(el.configStatus,"Could not load volunteers.","err");S.volunteers=[];return;} S.volunteers=r.data||[];
-      }
-
-      async function loadReviews(){
-        const r=await S.supa.from("reviews").select("id,volunteer_id,event_id,overall_rating,communication_rating,reliability_rating,warmth_rating,clarity_rating,title,body,helpful_count,moderation_status,status,authenticity_score,reviewer_weight,created_at,volunteers(display_name),club_events(title)").order("created_at",{ascending:false}).limit(250);
-        if(r.error){status(el.configStatus,"Could not load reviews.","err");S.reviews=[];return;}
-        S.reviews=(r.data||[]).filter(x=>(x.moderation_status||x.status||"published")==="published");
-      }
-
-      async function loadReports(){
-        const r=await S.supa.from("volunteer_reports").select("id,volunteer_id,status,severity,created_at").in("status",["open","investigating"]);
-        S.reports=r.error?[]:(r.data||[]);
-      }
-
-      async function loadEvents(){
-        S.events=[]; S.map={}; if(!S.user)return;
-        const a=await S.supa.from("event_attendance").select("event_id,verified,club_events(id,title,starts_at)").eq("member_user_id",S.user.id).eq("verified",true);
-        if(a.error){status(el.reviewStatus,"Could not load attendance-linked events.","err");return;}
-        const em={}; const now=Date.now();
-        (a.data||[]).forEach(x=>{const ev=x.club_events;if(!ev||!ev.id)return; if(new Date(ev.starts_at).getTime()<=now)em[ev.id]={id:ev.id,title:ev.title,starts_at:ev.starts_at};});
-        S.events=Object.values(em);
-        if(!S.events.length)return;
-        const ids=S.events.map(e=>e.id);
-        const sh=await S.supa.from("volunteer_event_shifts").select("event_id,volunteer_id").in("event_id",ids);
-        if(sh.error)return;
-        (sh.data||[]).forEach(r=>{if(!S.map[r.event_id])S.map[r.event_id]=[];S.map[r.event_id].push(r.volunteer_id);});
-      }
-
-      async function onSignIn(){
-        const email=(el.email.value||"").trim().toLowerCase();
-        if(!email||!email.includes("@")){status(el.authStatus,"Enter valid email first.","err");return;}
-        const d=normDomain(localStorage.getItem(K.domain)||""); if(d&&!email.endsWith("@"+d)){status(el.authStatus,"Email must end with @"+d,"err");return;}
-        if(S.demo||!S.supa){status(el.authStatus,"Connect Supabase first (or keep demo mode).","err");return;}
-        const red=window.location.origin+window.location.pathname;
-        const r=await S.supa.auth.signInWithOtp({email:email,options:{emailRedirectTo:red}});
-        if(r.error){status(el.authStatus,"Login failed: "+r.error.message,"err");return;}
-        status(el.authStatus,"Magic link sent. Check email.","ok");
-      }
-
-      async function onSignOut(){if(S.demo){S.user=null;S.member=null;render();return;} if(S.supa)await S.supa.auth.signOut(); S.user=null;S.member=null;await loadAll();render();}
-      function approved(){return !!(S.user&&S.member&&S.member.status==="approved");}
-
-      async function onReviewSubmit(e){
-        e.preventDefault();
-        if(!approved()){status(el.reviewStatus,"Only approved signed-in members can submit reviews.","err");return;}
-        const c=collectReview(); if(!c.ok){status(el.reviewStatus,c.msg,"err");return;}
-        const rv=c.review; const sig=authSignals(rv); const mod=sig.score>=50?"pending":"published"; const w=reviewWeight(sig.score);
-
-        if(S.demo){
-          S.reviews.unshift({...rv,id:"demo-"+Math.random().toString(16).slice(2),moderation_status:mod,authenticity_score:sig.score,reviewer_weight:w,helpful_count:0,created_at:new Date().toISOString()});
-          status(el.reviewStatus,mod==="published"?"Review published in demo mode.":"Review sent to moderation in demo mode.",mod==="published"?"ok":"err");
-          el.reviewForm.reset(); render(); return;
+        if (!url || !key) {
+          state.demoMode = true;
+          state.supabase = null;
+          state.user = DEMO.user;
+          state.member = DEMO.member;
+          state.volunteerLink = DEMO.volunteerLink;
+          setStatus(el.backendStatus, "No Supabase credentials found. Demo mode active.", "err");
+          return;
         }
 
-        const dupe=await S.supa.from("reviews").select("id").eq("reviewer_user_id",S.user.id).eq("event_id",rv.event_id).eq("volunteer_id",rv.volunteer_id).limit(1);
-        if(dupe.error){status(el.reviewStatus,"Could not verify duplicate rule: "+dupe.error.message,"err");return;}
-        if((dupe.data||[]).length){status(el.reviewStatus,"You already reviewed this volunteer for this event.","err");return;}
-
-        const day=new Date(); day.setHours(0,0,0,0);
-        const lim=await S.supa.from("reviews").select("id",{count:"exact",head:true}).eq("reviewer_user_id",S.user.id).gte("created_at",day.toISOString());
-        if(!lim.error&&(lim.count||0)>=4){status(el.reviewStatus,"Daily limit reached (4/day).","err");return;}
-
-        let payload={volunteer_id:rv.volunteer_id,event_id:rv.event_id,reviewer_user_id:S.user.id,overall_rating:rv.overall_rating,communication_rating:rv.communication_rating,reliability_rating:rv.reliability_rating,warmth_rating:rv.warmth_rating,clarity_rating:rv.clarity_rating,title:rv.title,body:rv.body,moderation_status:mod,authenticity_score:sig.score,authenticity_flags:sig.flags,reviewer_weight:w};
-        let ins=await S.supa.from("reviews").insert(payload).select().maybeSingle();
-        if(ins.error&&/column/i.test(ins.error.message||"")){
-          payload={volunteer_id:rv.volunteer_id,event_id:rv.event_id,reviewer_user_id:S.user.id,overall_rating:rv.overall_rating,communication_rating:rv.communication_rating,reliability_rating:rv.reliability_rating,warmth_rating:rv.warmth_rating,clarity_rating:rv.clarity_rating,title:rv.title,body:rv.body,status:mod};
-          ins=await S.supa.from("reviews").insert(payload).select().maybeSingle();
+        try {
+          state.supabase = window.supabase.createClient(url, key, {
+            auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+          });
+          state.demoMode = false;
+          attachAuthSubscription();
+          setStatus(el.backendStatus, "Connected to Supabase.", "ok");
+        } catch (err) {
+          state.demoMode = true;
+          state.supabase = null;
+          state.user = DEMO.user;
+          state.member = DEMO.member;
+          state.volunteerLink = DEMO.volunteerLink;
+          setStatus(el.backendStatus, "Supabase connection failed. Demo mode active.", "err");
         }
-        if(ins.error){status(el.reviewStatus,"Review failed: "+ins.error.message,"err");return;}
-
-        status(el.reviewStatus,mod==="published"?"Review published.":"Review queued for moderation.",mod==="published"?"ok":"err");
-        el.reviewForm.reset(); await loadAll(); render();
+      }
+      function attachAuthSubscription() {
+        detachAuthSubscription();
+        state.authSub = state.supabase.auth.onAuthStateChange(async function (_event, session) {
+          state.user = session ? session.user : null;
+          await loadMemberProfile();
+          await loadVolunteerLink();
+          await loadAllData();
+          renderAll();
+        });
       }
 
-      function collectReview(){
-        const r={event_id:(el.eventSel.value||"").trim(),volunteer_id:(el.volSel.value||"").trim(),overall_rating:+el.rOverall.value,communication_rating:+el.rComm.value,reliability_rating:+el.rRel.value,warmth_rating:+el.rFair.value,clarity_rating:+el.rClear.value,title:(el.rTitle.value||"").trim(),body:(el.rBody.value||"").trim()};
-        if(!r.event_id||!r.volunteer_id)return{ok:false,msg:"Select event and volunteer."};
-        if(!r.overall_rating||!r.communication_rating||!r.reliability_rating||!r.warmth_rating||!r.clarity_rating)return{ok:false,msg:"All rating categories are required."};
-        if(r.title.length<8)return{ok:false,msg:"Headline must be at least 8 characters."};
-        if(r.body.length<80)return{ok:false,msg:"Feedback must be at least 80 characters."};
-        if(!el.truth.checked)return{ok:false,msg:"Confirm truthful review checkbox."};
-        if((r.overall_rating===1||r.overall_rating===5)&&r.body.length<120)return{ok:false,msg:"1-star/5-star reviews need 120+ chars."};
-        return{ok:true,review:r};
+      function detachAuthSubscription() {
+        if (state.authSub && state.authSub.data && state.authSub.data.subscription) {
+          state.authSub.data.subscription.unsubscribe();
+        }
+        state.authSub = null;
       }
 
-      function authSignals(r){
-        const flags=[]; let score=0; const b=r.body||""; const words=b.split(/\s+/).filter(Boolean); const caps=(b.match(/[A-Z]/g)||[]).length; const letters=(b.match(/[A-Za-z]/g)||[]).length||1; const capRatio=caps/letters;
-        if(b.length<100){flags.push("short-detail");score+=12;}
-        if(capRatio>.35){flags.push("high-caps");score+=16;}
-        if(/(.)\1{6,}/.test(b)){flags.push("repeat-chars");score+=18;}
-        if((b.match(/https?:\/\/|www\./gi)||[]).length>1){flags.push("many-links");score+=20;}
-        if(words.length>20){const u=new Set(words.map(x=>x.toLowerCase())); if(u.size/words.length<.42){flags.push("low-uniqueness");score+=14;}}
-        ["best ever","worst ever","totally perfect","absolute garbage"].forEach(p=>{if(b.toLowerCase().includes(p)){if(!flags.includes("loaded-language"))flags.push("loaded-language");score+=8;}});
-        if(S.member&&S.member.created_at){const age=(Date.now()-new Date(S.member.created_at).getTime())/(1000*60*60*24); if(isFinite(age)&&age<7){flags.push("new-account");score+=18;}}
-        return{score:Math.max(0,Math.min(100,score)),flags};
+      async function refreshSession() {
+        if (state.demoMode || !state.supabase) {
+          state.user = DEMO.user;
+          state.member = DEMO.member;
+          state.volunteerLink = DEMO.volunteerLink;
+          return;
+        }
+
+        const sessionResp = await state.supabase.auth.getSession();
+        state.user = sessionResp.data && sessionResp.data.session ? sessionResp.data.session.user : null;
+        await loadMemberProfile();
+        await loadVolunteerLink();
       }
 
-      function reviewWeight(risk){const base=Number(S.member&&S.member.trust_score||1); if(risk>=70)return round(base*.45,2); if(risk>=50)return round(base*.7,2); if(risk<=12)return round(base*1.05,2); return round(base,2);}
+      async function loadMemberProfile() {
+        if (state.demoMode) {
+          state.member = DEMO.member;
+          return;
+        }
 
-      async function onReportSubmit(e){
-        e.preventDefault();
-        if(!approved()){status(el.reportStatus,"Only approved members can submit reports.","err");return;}
-        const vol=(el.repVol.value||"").trim(), reason=(el.repReason.value||"").trim(), severity=(el.repSeverity.value||"medium").trim(), details=(el.repDetails.value||"").trim(), evt=(el.repEvent.value||"").trim();
-        if(!vol||!reason){status(el.reportStatus,"Choose volunteer and reason.","err");return;}
-        if(details.length<60){status(el.reportStatus,"Report details must be 60+ chars.","err");return;}
-        if(S.demo){S.reports.push({id:"demo-p"+Math.random().toString(16).slice(2),volunteer_id:vol,status:"open",severity:severity,created_at:new Date().toISOString()});status(el.reportStatus,"Report submitted in demo mode.","ok");el.reportForm.reset();render();return;}
+        state.member = null;
+        if (!state.user) return;
 
-        const r=await S.supa.from("volunteer_reports").insert({volunteer_id:vol,event_id:evt||null,reporter_user_id:S.user.id,reason:reason,severity:severity,details:details,status:"open"}).select().maybeSingle();
-        if(r.error){status(el.reportStatus,"Report failed: "+r.error.message,"err");return;}
-        status(el.reportStatus,"Report submitted.","ok"); el.reportForm.reset(); await loadAll(); render();
+        const resp = await state.supabase
+          .from("member_profiles")
+          .select("display_name,status,role,trust_score,created_at")
+          .eq("user_id", state.user.id)
+          .maybeSingle();
+
+        if (resp.error) {
+          state.member = {
+            display_name: state.user.email || "Member",
+            status: "pending",
+            role: "member",
+            trust_score: 1.0,
+            created_at: new Date().toISOString()
+          };
+          return;
+        }
+
+        state.member = resp.data || {
+          display_name: state.user.email || "Member",
+          status: "pending",
+          role: "member",
+          trust_score: 1.0,
+          created_at: new Date().toISOString()
+        };
       }
 
-      async function onReviewAction(e){
-        const b=e.target.closest("[data-helpful]"); if(!b)return; const id=b.getAttribute("data-helpful"); if(!id)return;
-        if(!S.user){status(el.authStatus,"Sign in to vote helpful.","err");return;}
-        const row=S.reviews.find(x=>String(x.id)===String(id)); if(!row)return;
-        if(S.demo){row.helpful_count=Number(row.helpful_count||0)+1; renderReviews(); return;}
-        const up=await S.supa.from("review_helpfulness").upsert({review_id:id,voter_user_id:S.user.id,vote:1},{onConflict:"review_id,voter_user_id"});
-        if(up.error){status(el.authStatus,"Helpful vote failed: "+up.error.message,"err");return;}
-        row.helpful_count=Number(row.helpful_count||0)+1; renderReviews();
-      }
-      function render(){renderAuth(); renderSelectors(); renderVolSelect(); renderReportSelectors(); renderBoard(); renderReviews(); renderHero();}
+      async function loadVolunteerLink() {
+        if (state.demoMode) {
+          state.volunteerLink = DEMO.volunteerLink;
+          return;
+        }
 
-      function renderAuth(){
-        if(!S.user){status(el.authStatus,"Not signed in.",""); el.memberBadges.innerHTML=""; lockForms(true); return;}
-        const name=S.member&&S.member.display_name?S.member.display_name:(S.user.email||"Member");
-        const st=S.member&&S.member.status?S.member.status:"pending";
-        status(el.authStatus,"Signed in as "+name+" ("+(S.user.email||"no email")+"). Member status: "+st+".",st==="approved"?"ok":"err");
-        const role=S.member&&S.member.role?S.member.role:"member"; const trust=Number(S.member&&S.member.trust_score||1).toFixed(2);
-        el.memberBadges.innerHTML='<span class="badge">Role: '+esc(role)+'</span><span class="badge">Trust: '+trust+'</span>'+(S.demo?'<span class="badge warn">Demo mode</span>':'');
-        lockForms(st!=="approved");
-      }
+        state.volunteerLink = null;
+        if (!state.user) return;
 
-      function lockForms(disable){[el.submitReview,el.submitReport,el.eventSel,el.volSel,el.rOverall,el.rComm,el.rRel,el.rFair,el.rClear,el.rTitle,el.rBody,el.truth,el.repVol,el.repEvent,el.repReason,el.repSeverity,el.repDetails].forEach(x=>{if(x)x.disabled=disable;});}
+        let found = null;
 
-      function renderSelectors(){
-        el.fVol.innerHTML='<option value="">All volunteers</option>'+S.volunteers.map(v=>'<option value="'+esc(v.id)+'">'+esc(v.display_name)+'</option>').join("");
-        const events=[...S.events].sort((a,b)=>new Date(b.starts_at)-new Date(a.starts_at));
-        el.eventSel.innerHTML='<option value="">Select event...</option>'+events.map(ev=>'<option value="'+esc(ev.id)+'">'+esc(ev.title)+' ('+fmtDate(ev.starts_at)+')</option>').join("");
-      }
+        const direct = await state.supabase
+          .from("volunteers")
+          .select("id")
+          .eq("user_id", state.user.id)
+          .maybeSingle();
 
-      function renderVolSelect(){
-        const e=(el.eventSel.value||"").trim(); const allow=e?(S.map[e]||[]):[];
-        let vols=S.volunteers.filter(v=>!e||allow.includes(v.id)); if(!vols.length&&e)vols=[...S.volunteers];
-        el.volSel.innerHTML='<option value="">Select volunteer...</option>'+vols.map(v=>'<option value="'+esc(v.id)+'">'+esc(v.display_name)+'</option>').join("");
-      }
+        if (!direct.error && direct.data && direct.data.id) {
+          found = { volunteer_id: direct.data.id, source: "volunteers.user_id" };
+        }
 
-      function renderReportSelectors(){
-        el.repVol.innerHTML='<option value="">Select volunteer...</option>'+S.volunteers.map(v=>'<option value="'+esc(v.id)+'">'+esc(v.display_name)+'</option>').join("");
-        el.repEvent.innerHTML='<option value="">No specific event</option>'+S.events.map(ev=>'<option value="'+esc(ev.id)+'">'+esc(ev.title)+' ('+fmtDate(ev.starts_at)+')</option>').join("");
-      }
+        if (!found) {
+          const mapped = await state.supabase
+            .from("volunteer_accounts")
+            .select("volunteer_id")
+            .eq("user_id", state.user.id)
+            .maybeSingle();
+          if (!mapped.error && mapped.data && mapped.data.volunteer_id) {
+            found = { volunteer_id: mapped.data.volunteer_id, source: "volunteer_accounts" };
+          }
+        }
 
-      function renderHero(){
-        const pub=published(), avg=mean(pub.map(r=>+r.overall_rating||0));
-        const open=S.reports.filter(x=>x.status==="open"||x.status==="investigating").length;
-        el.heroStats.innerHTML=[chip(S.volunteers.length+" volunteers tracked"),chip(pub.length+" published reviews"),chip((isFinite(avg)?avg.toFixed(2):"0.00")+" average rating"),chip(open+" unresolved reports"),chip(S.demo?"Demo mode":"Live mode")].join("");
-      }
+        if (!found) {
+          const fromProfile = await state.supabase
+            .from("member_profiles")
+            .select("volunteer_id")
+            .eq("user_id", state.user.id)
+            .maybeSingle();
+          if (!fromProfile.error && fromProfile.data && fromProfile.data.volunteer_id) {
+            found = { volunteer_id: fromProfile.data.volunteer_id, source: "member_profiles.volunteer_id" };
+          }
+        }
 
-      function renderBoard(){
-        const pub=published(); let global=mean(pub.map(r=>+r.overall_rating||0)); if(!isFinite(global)||global<=0)global=4.0; const m=8;
-        let cards=S.volunteers.map(v=>{
-          const list=pub.filter(r=>r.volunteer_id===v.id); const open=S.reports.filter(r=>r.volunteer_id===v.id&&(r.status==="open"||r.status==="investigating")).length;
-          let ws=0,wt=0,vals=[]; list.forEach(r=>{const x=+r.overall_rating||0,w=+r.reviewer_weight||1;if(x>0&&w>0){ws+=x*w;wt+=w;vals.push(x);}});
-          const avg=wt?ws/wt:global; const bay=(wt/(wt+m))*avg+(m/(wt+m))*global; const cons=Math.max(0,8-std(vals)*2); const pen=open*4.5; const score=clamp((((bay-1)/4)*100)+cons-pen,0,100); const conf=clamp(Math.round((wt/(wt+9))*100),5,99);
-          const band=score>=85?"Trusted":score>=70?"Strong":score>=55?"Developing":"Needs attention";
-          return{v,avg,score,conf,band,count:list.length,open};
-        }).sort((a,b)=>b.score-a.score);
-        if(!cards.length){el.leaderboard.innerHTML='<p class="muted">No volunteers yet.</p>';return;}
-        el.leaderboard.innerHTML=cards.map((c,i)=>'<article class="rank"><div class="tiny">Rank #'+(i+1)+'</div><div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline"><h3>'+esc(c.v.display_name)+'</h3><div class="score">'+Math.round(c.score)+'</div></div><div class="stars">'+stars(c.avg)+' '+c.avg.toFixed(2)+'/5</div><div class="meta"><span class="pill">'+c.count+' reviews</span><span class="pill">'+c.conf+'% confidence</span><span class="pill">'+esc(c.band)+'</span></div><div class="badges">'+(c.open?'<span class="badge danger">'+c.open+' open reports</span>':'<span class="badge">No open reports</span>')+'</div></article>').join("");
+        state.volunteerLink = found;
       }
 
-      function renderReviews(){
-        const vix=ix(S.volunteers,"id"), eix=ix(S.events,"id");
-        const fv=(el.fVol.value||"").trim(), min=+el.fMin.value||0, sort=(el.fSort.value||"latest"), q=(el.fSearch.value||"").trim().toLowerCase();
-        let rows=published().filter(r=>{if(fv&&r.volunteer_id!==fv)return false; if(min&&(+r.overall_rating||0)<min)return false; if(q){const hay=((r.title||"")+" "+(r.body||"")).toLowerCase(); if(!hay.includes(q))return false;} return true;});
-        rows.sort((a,b)=>sort==="highest"?(+b.overall_rating||0)-(+a.overall_rating||0):sort==="lowest"?(+a.overall_rating||0)-(+b.overall_rating||0):sort==="helpful"?(+b.helpful_count||0)-(+a.helpful_count||0):new Date(b.created_at)-new Date(a.created_at));
-        if(!rows.length){el.reviewList.innerHTML='<p class="muted">No reviews match this filter.</p>';return;}
-        el.reviewList.innerHTML=rows.map(r=>{const vn=(r.volunteers&&r.volunteers.display_name)||(vix[r.volunteer_id]&&vix[r.volunteer_id].display_name)||"Volunteer"; const en=(r.club_events&&r.club_events.title)||(eix[r.event_id]&&eix[r.event_id].title)||"Event"; const o=+r.overall_rating||0; const sig=+r.authenticity_score||0; return '<article class="review"><div class="head"><div><div class="stars">'+stars(o)+' '+o+'/5</div><div class="title">'+esc(r.title||"Review")+'</div><p class="tiny">For <strong>'+esc(vn)+'</strong> at '+esc(en)+' • '+rel(r.created_at)+'</p></div><div class="badges">'+(sig>=50?'<span class="badge warn">Moderation risk '+sig+'</span>':'<span class="badge">Verified attendance</span>')+'</div></div><div class="meta"><span class="pill">Communication '+(+r.communication_rating||o)+'</span><span class="pill">Reliability '+(+r.reliability_rating||o)+'</span><span class="pill">Welcoming '+(+r.warmth_rating||o)+'</span><span class="pill">Clarity '+(+r.clarity_rating||o)+'</span></div><p class="body">'+esc(r.body||"")+'</p><div class="actions"><button class="tbtn" data-helpful="'+esc(r.id)+'">Helpful ('+(+r.helpful_count||0)+')</button></div></article>';}).join("");
+      async function loadAllData() {
+        if (state.demoMode) {
+          state.volunteers = DEMO.volunteers.slice();
+          state.events = DEMO.events.slice();
+          state.eventVolunteerMap = JSON.parse(JSON.stringify(DEMO.eventVolunteerMap));
+          state.reviews = DEMO.reviews.slice();
+          state.reports = DEMO.reports.slice();
+          if (!state.selectedVolunteerId && state.volunteers[0]) state.selectedVolunteerId = state.volunteers[0].id;
+          return;
+        }
+
+        await loadVolunteers();
+        await Promise.all([loadReviews(), loadReports(), loadReviewEvents()]);
+
+        if (!state.selectedVolunteerId && state.volunteers[0]) {
+          state.selectedVolunteerId = state.volunteers[0].id;
+        }
       }
 
-      function published(){return S.reviews.filter(r=>(r.moderation_status||r.status||"published")==="published");}
-      function status(node,text,type){node.textContent=text;node.className="status"+(type?" "+type:"");}
-      function normDomain(v){return String(v||"").trim().toLowerCase().replace(/^@/,"");}
-      function mean(a){return a.length?a.reduce((x,y)=>x+Number(y||0),0)/a.length:0;}
-      function std(a){if(!a||a.length<2)return 0; const m=mean(a); return Math.sqrt(mean(a.map(n=>(n-m)*(n-m))));}
-      function clamp(v,min,max){return Math.max(min,Math.min(max,v));}
-      function round(v,p){const m=Math.pow(10,p||0); return Math.round(v*m)/m;}
-      function stars(n){const r=clamp(Math.round(Number(n||0)),0,5); return "★".repeat(r)+"☆".repeat(5-r);}
-      function fmtDate(x){const d=new Date(x); if(!isFinite(d.getTime()))return "Unknown"; return d.toLocaleDateString(undefined,{year:"numeric",month:"short",day:"numeric"});}
-      function rel(x){const d=new Date(x),diff=Date.now()-d.getTime(); if(!isFinite(diff))return "unknown"; const m=Math.floor(diff/60000); if(m<60)return m+"m ago"; const h=Math.floor(m/60); if(h<24)return h+"h ago"; const dd=Math.floor(h/24); return dd<30?dd+"d ago":fmtDate(x);}
-      function esc(v){return String(v==null?"":v).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\"/g,"&quot;").replace(/'/g,"&#39;");}
-      function ix(a,k){return (a||[]).reduce((m,x)=>(m[x[k]]=x,m),{});}
-      function chip(t){return '<span class="chip">'+esc(t)+'</span>';}
+      async function loadVolunteers() {
+        let resp = await state.supabase
+          .from("volunteers")
+          .select("id,display_name,tagline,bio,avatar_url,active")
+          .eq("active", true)
+          .order("display_name", { ascending: true });
+
+        if (resp.error) {
+          resp = await state.supabase
+            .from("volunteers")
+            .select("id,display_name,bio,avatar_url,active")
+            .eq("active", true)
+            .order("display_name", { ascending: true });
+        }
+
+        state.volunteers = resp.error ? [] : (resp.data || []);
+      }
+
+      async function loadReviews() {
+        const resp = await state.supabase
+          .from("reviews")
+          .select("id,volunteer_id,event_id,overall_rating,communication_rating,reliability_rating,warmth_rating,clarity_rating,title,body,helpful_count,moderation_status,status,authenticity_score,reviewer_weight,created_at,volunteers(display_name,avatar_url),club_events(title,starts_at)")
+          .order("created_at", { ascending: false })
+          .limit(400);
+
+        if (resp.error) {
+          state.reviews = [];
+          return;
+        }
+
+        state.reviews = (resp.data || []).filter(function (row) {
+          const status = row.moderation_status || row.status || "published";
+          return status === "published";
+        });
+      }
+
+      async function loadReports() {
+        const resp = await state.supabase
+          .from("volunteer_reports")
+          .select("id,volunteer_id,status,severity,reason,details,created_at")
+          .order("created_at", { ascending: false })
+          .limit(200);
+
+        state.reports = resp.error ? [] : (resp.data || []);
+      }
+
+      async function loadReviewEvents() {
+        state.events = [];
+        state.eventVolunteerMap = {};
+
+        if (!state.user || !state.member || state.member.status !== "approved") {
+          const fallback = await state.supabase
+            .from("club_events")
+            .select("id,title,starts_at")
+            .lte("starts_at", new Date().toISOString())
+            .order("starts_at", { ascending: false })
+            .limit(40);
+
+          state.events = fallback.error ? [] : (fallback.data || []);
+          wireAllVolunteersToEvents();
+          return;
+        }
+
+        const attendance = await state.supabase
+          .from("event_attendance")
+          .select("event_id,verified,club_events(id,title,starts_at)")
+          .eq("member_user_id", state.user.id)
+          .eq("verified", true);
+
+        if (attendance.error) {
+          const fallback = await state.supabase
+            .from("club_events")
+            .select("id,title,starts_at")
+            .lte("starts_at", new Date().toISOString())
+            .order("starts_at", { ascending: false })
+            .limit(40);
+          state.events = fallback.error ? [] : (fallback.data || []);
+          wireAllVolunteersToEvents();
+          return;
+        }
+
+        const map = {};
+        (attendance.data || []).forEach(function (row) {
+          if (row.club_events && row.club_events.id) {
+            map[row.club_events.id] = row.club_events;
+          }
+        });
+        state.events = Object.values(map);
+
+        if (!state.events.length) {
+          wireAllVolunteersToEvents();
+          return;
+        }
+
+        const eventIds = state.events.map(function (e) { return e.id; });
+        const shifts = await state.supabase
+          .from("volunteer_event_shifts")
+          .select("event_id,volunteer_id")
+          .in("event_id", eventIds);
+
+        if (!shifts.error) {
+          (shifts.data || []).forEach(function (row) {
+            if (!state.eventVolunteerMap[row.event_id]) state.eventVolunteerMap[row.event_id] = [];
+            state.eventVolunteerMap[row.event_id].push(row.volunteer_id);
+          });
+        }
+
+        if (!Object.keys(state.eventVolunteerMap).length) {
+          wireAllVolunteersToEvents();
+        }
+      }
+
+      function wireAllVolunteersToEvents() {
+        const ids = state.volunteers.map(function (v) { return v.id; });
+        state.events.forEach(function (ev) {
+          state.eventVolunteerMap[ev.id] = ids.slice();
+        });
+      }
+      async function onSendMagicLink() {
+        const email = (el.emailInput.value || "").trim().toLowerCase();
+        if (!email || email.indexOf("@") < 0) {
+          setStatus(el.authStatus, "Enter a valid email.", "err");
+          return;
+        }
+
+        const domain = normalizeDomain(localStorage.getItem(STORAGE.domain) || "");
+        if (domain && !email.endsWith("@" + domain)) {
+          setStatus(el.authStatus, "Email must end with @" + domain, "err");
+          return;
+        }
+
+        if (state.demoMode || !state.supabase) {
+          setStatus(el.authStatus, "Connect Supabase first or use demo mode.", "err");
+          return;
+        }
+
+        const redirect = window.location.origin + window.location.pathname;
+        const resp = await state.supabase.auth.signInWithOtp({ email: email, options: { emailRedirectTo: redirect } });
+
+        if (resp.error) {
+          setStatus(el.authStatus, "Login failed: " + resp.error.message, "err");
+          return;
+        }
+
+        setStatus(el.authStatus, "Magic link sent.", "ok");
+      }
+
+      async function onSignOut() {
+        if (!state.demoMode && state.supabase) {
+          await state.supabase.auth.signOut();
+        }
+
+        if (state.demoMode) {
+          state.user = null;
+          state.member = null;
+          state.volunteerLink = null;
+          renderAll();
+          return;
+        }
+
+        state.user = null;
+        state.member = null;
+        state.volunteerLink = null;
+        await loadAllData();
+        renderAll();
+      }
+
+      function onTabClick(event) {
+        const btn = event.target.closest("[data-view]");
+        if (!btn) return;
+        state.activeView = btn.getAttribute("data-view") || "discover";
+        renderTabs();
+      }
+
+      function onVolunteerCardClick(event) {
+        const card = event.target.closest("[data-volunteer]");
+        if (!card) return;
+        state.selectedVolunteerId = card.getAttribute("data-volunteer");
+        renderVolunteerList();
+        renderProfilePanel();
+      }
+
+      function onProfilePanelClick(event) {
+        const writeBtn = event.target.closest("[data-action='write-review']");
+        const reportBtn = event.target.closest("[data-action='write-report']");
+        const helpfulBtn = event.target.closest("[data-helpful]");
+
+        if (writeBtn) {
+          state.activeView = "review";
+          renderTabs();
+          if (state.selectedVolunteerId) {
+            el.reviewVolunteerSelect.value = state.selectedVolunteerId;
+            el.reportVolunteerSelect.value = state.selectedVolunteerId;
+          }
+          return;
+        }
+
+        if (reportBtn) {
+          state.activeView = "review";
+          renderTabs();
+          if (state.selectedVolunteerId) {
+            el.reportVolunteerSelect.value = state.selectedVolunteerId;
+          }
+          return;
+        }
+
+        if (helpfulBtn) {
+          markReviewHelpful(helpfulBtn.getAttribute("data-helpful"));
+        }
+      }
+
+      function memberApproved() {
+        return !!(state.user && state.member && state.member.status === "approved");
+      }
+
+      async function onSubmitReview(event) {
+        event.preventDefault();
+
+        if (!memberApproved()) {
+          setStatus(el.reviewStatus, "Approved member login required.", "err");
+          return;
+        }
+
+        const payload = collectReviewForm();
+        if (!payload.ok) {
+          setStatus(el.reviewStatus, payload.message, "err");
+          return;
+        }
+
+        const signal = computeAuthenticity(payload.review);
+        const moderationStatus = signal.score >= 50 ? "pending" : "published";
+        const reviewerWeight = computeReviewerWeight(signal.score);
+
+        if (state.demoMode) {
+          const row = Object.assign({}, payload.review, {
+            id: "demo-" + Math.random().toString(16).slice(2),
+            moderation_status: moderationStatus,
+            authenticity_score: signal.score,
+            reviewer_weight: reviewerWeight,
+            helpful_count: 0,
+            created_at: new Date().toISOString()
+          });
+          state.reviews.unshift(row);
+          setStatus(el.reviewStatus, moderationStatus === "published" ? "Review published." : "Review queued for moderation.", moderationStatus === "published" ? "ok" : "err");
+          el.reviewForm.reset();
+          renderAll();
+          return;
+        }
+
+        const duplicate = await state.supabase
+          .from("reviews")
+          .select("id")
+          .eq("reviewer_user_id", state.user.id)
+          .eq("volunteer_id", payload.review.volunteer_id)
+          .eq("event_id", payload.review.event_id)
+          .limit(1);
+
+        if (!duplicate.error && (duplicate.data || []).length > 0) {
+          setStatus(el.reviewStatus, "You already reviewed this volunteer for this event.", "err");
+          return;
+        }
+
+        const dayStart = new Date();
+        dayStart.setHours(0, 0, 0, 0);
+        const limitResp = await state.supabase
+          .from("reviews")
+          .select("id", { count: "exact", head: true })
+          .eq("reviewer_user_id", state.user.id)
+          .gte("created_at", dayStart.toISOString());
+
+        if (!limitResp.error && (limitResp.count || 0) >= 4) {
+          setStatus(el.reviewStatus, "Daily limit reached (4/day).", "err");
+          return;
+        }
+
+        let insert = {
+          volunteer_id: payload.review.volunteer_id,
+          event_id: payload.review.event_id,
+          reviewer_user_id: state.user.id,
+          overall_rating: payload.review.overall_rating,
+          communication_rating: payload.review.communication_rating,
+          reliability_rating: payload.review.reliability_rating,
+          warmth_rating: payload.review.warmth_rating,
+          clarity_rating: payload.review.clarity_rating,
+          title: payload.review.title,
+          body: payload.review.body,
+          moderation_status: moderationStatus,
+          authenticity_score: signal.score,
+          authenticity_flags: signal.flags,
+          reviewer_weight: reviewerWeight
+        };
+
+        let resp = await state.supabase.from("reviews").insert(insert).select().maybeSingle();
+        if (resp.error) {
+          insert = Object.assign({}, insert);
+          delete insert.moderation_status;
+          delete insert.authenticity_score;
+          delete insert.authenticity_flags;
+          delete insert.reviewer_weight;
+          insert.status = moderationStatus;
+          resp = await state.supabase.from("reviews").insert(insert).select().maybeSingle();
+        }
+
+        if (resp.error) {
+          setStatus(el.reviewStatus, "Submit failed: " + resp.error.message, "err");
+          return;
+        }
+
+        setStatus(el.reviewStatus, moderationStatus === "published" ? "Review published." : "Review queued for moderation.", moderationStatus === "published" ? "ok" : "err");
+        el.reviewForm.reset();
+        await loadAllData();
+        renderAll();
+      }
+
+      function collectReviewForm() {
+        const review = {
+          event_id: (el.reviewEventSelect.value || "").trim(),
+          volunteer_id: (el.reviewVolunteerSelect.value || "").trim(),
+          overall_rating: Number(el.overallRating.value || 0),
+          communication_rating: Number(el.commRating.value || 0),
+          reliability_rating: Number(el.relRating.value || 0),
+          warmth_rating: Number(el.warmRating.value || 0),
+          clarity_rating: Number(el.clearRating.value || 0),
+          title: (el.reviewTitleInput.value || "").trim(),
+          body: (el.reviewBodyInput.value || "").trim()
+        };
+
+        if (!review.event_id || !review.volunteer_id) return { ok: false, message: "Choose event + volunteer." };
+        if (!review.overall_rating || !review.communication_rating || !review.reliability_rating || !review.warmth_rating || !review.clarity_rating) return { ok: false, message: "Complete all ratings." };
+        if (review.title.length < 6) return { ok: false, message: "Add a headline." };
+        if (review.body.length < 80) return { ok: false, message: "Review should be at least 80 characters." };
+        if ((review.overall_rating === 1 || review.overall_rating === 5) && review.body.length < 120) return { ok: false, message: "1-star and 5-star reviews need more detail (120+ chars)." };
+        if (!el.truthCheckbox.checked) return { ok: false, message: "Confirm truthful review." };
+
+        return { ok: true, review: review };
+      }
+
+      async function onSubmitReport(event) {
+        event.preventDefault();
+
+        if (!memberApproved()) {
+          setStatus(el.reportStatus, "Approved member login required.", "err");
+          return;
+        }
+
+        const volunteerId = (el.reportVolunteerSelect.value || "").trim();
+        const eventId = (el.reportEventSelect.value || "").trim();
+        const reason = (el.reportReasonSelect.value || "").trim();
+        const severity = (el.reportSeveritySelect.value || "medium").trim();
+        const details = (el.reportDetailsInput.value || "").trim();
+
+        if (!volunteerId || !reason) {
+          setStatus(el.reportStatus, "Choose volunteer + reason.", "err");
+          return;
+        }
+        if (details.length < 50) {
+          setStatus(el.reportStatus, "Add at least 50 chars of factual details.", "err");
+          return;
+        }
+
+        if (state.demoMode) {
+          state.reports.unshift({
+            id: "demo-report-" + Math.random().toString(16).slice(2),
+            volunteer_id: volunteerId,
+            status: "open",
+            severity: severity,
+            reason: reason,
+            details: details,
+            created_at: new Date().toISOString()
+          });
+          setStatus(el.reportStatus, "Report submitted.", "ok");
+          el.reportForm.reset();
+          renderAll();
+          return;
+        }
+
+        const resp = await state.supabase.from("volunteer_reports").insert({
+          volunteer_id: volunteerId,
+          event_id: eventId || null,
+          reporter_user_id: state.user.id,
+          reason: reason,
+          severity: severity,
+          details: details,
+          status: "open"
+        });
+
+        if (resp.error) {
+          setStatus(el.reportStatus, "Report failed: " + resp.error.message, "err");
+          return;
+        }
+
+        setStatus(el.reportStatus, "Report submitted.", "ok");
+        el.reportForm.reset();
+        await loadAllData();
+        renderAll();
+      }
+      async function markReviewHelpful(reviewId) {
+        if (!reviewId) return;
+        const target = state.reviews.find(function (r) { return String(r.id) === String(reviewId); });
+        if (!target) return;
+
+        if (state.demoMode) {
+          target.helpful_count = Number(target.helpful_count || 0) + 1;
+          renderProfilePanel();
+          renderStudio();
+          return;
+        }
+
+        if (!state.user) {
+          setStatus(el.authStatus, "Sign in to mark helpful.", "err");
+          return;
+        }
+
+        const vote = await state.supabase
+          .from("review_helpfulness")
+          .upsert({ review_id: reviewId, voter_user_id: state.user.id, vote: 1 }, { onConflict: "review_id,voter_user_id" });
+
+        if (vote.error) {
+          setStatus(el.authStatus, "Helpful vote failed: " + vote.error.message, "err");
+          return;
+        }
+
+        target.helpful_count = Number(target.helpful_count || 0) + 1;
+        renderProfilePanel();
+        renderStudio();
+      }
+
+      async function onSaveProfile(event) {
+        event.preventDefault();
+
+        if (!state.volunteerLink || !state.volunteerLink.volunteer_id) {
+          setStatus(el.profileStatus, "No linked volunteer account found.", "err");
+          return;
+        }
+
+        const payload = {
+          display_name: (el.profileDisplayName.value || "").trim(),
+          tagline: (el.profileTagline.value || "").trim(),
+          avatar_url: (el.profileAvatarUrl.value || "").trim(),
+          bio: (el.profileBio.value || "").trim(),
+          active: !!el.profileActive.checked
+        };
+
+        if (!payload.display_name) {
+          setStatus(el.profileStatus, "Display name is required.", "err");
+          return;
+        }
+
+        if (state.demoMode) {
+          const idx = state.volunteers.findIndex(function (v) { return v.id === state.volunteerLink.volunteer_id; });
+          if (idx >= 0) state.volunteers[idx] = Object.assign({}, state.volunteers[idx], payload);
+          setStatus(el.profileStatus, "Profile saved.", "ok");
+          renderAll();
+          return;
+        }
+
+        let resp = await state.supabase
+          .from("volunteers")
+          .update(payload)
+          .eq("id", state.volunteerLink.volunteer_id)
+          .select()
+          .maybeSingle();
+
+        if (resp.error) {
+          const fallback = {
+            display_name: payload.display_name,
+            avatar_url: payload.avatar_url,
+            bio: payload.bio,
+            active: payload.active
+          };
+          resp = await state.supabase
+            .from("volunteers")
+            .update(fallback)
+            .eq("id", state.volunteerLink.volunteer_id)
+            .select()
+            .maybeSingle();
+        }
+
+        if (resp.error) {
+          setStatus(el.profileStatus, "Save failed: " + resp.error.message, "err");
+          return;
+        }
+
+        setStatus(el.profileStatus, "Profile saved.", "ok");
+        await loadAllData();
+        renderAll();
+      }
+
+      function renderAll() {
+        renderTopBadges();
+        renderTabs();
+        renderReviewSelectors();
+        renderReportSelectors();
+        renderVolunteerList();
+        renderProfilePanel();
+        renderStudio();
+      }
+
+      function renderTopBadges() {
+        el.modeBadge.textContent = state.demoMode ? "Demo" : "Live";
+        el.userBadge.textContent = state.user ? (state.user.email || "Signed in") : "Guest";
+
+        const role = state.member ? (state.member.role || "member") : "no role";
+        const status = state.member ? (state.member.status || "pending") : "guest";
+        el.roleBadge.textContent = role + " / " + status;
+
+        if (!state.user) {
+          setStatus(el.authStatus, "Guest mode.", "");
+          return;
+        }
+
+        const name = state.member && state.member.display_name ? state.member.display_name : (state.user.email || "Member");
+        setStatus(el.authStatus, "Signed in as " + name + ".", memberApproved() ? "ok" : "err");
+      }
+
+      function renderTabs() {
+        ["discover", "review", "studio"].forEach(function (view) {
+          const tab = el.tabs.querySelector("[data-view='" + view + "']");
+          const panel = el[view + "View"];
+          if (!tab || !panel) return;
+          const active = state.activeView === view;
+          tab.classList.toggle("active", active);
+          panel.classList.toggle("active", active);
+        });
+      }
+
+      function renderVolunteerList() {
+        const search = (el.searchInput.value || "").trim().toLowerCase();
+        const sort = (el.sortSelect.value || "top").trim();
+
+        const list = state.volunteers
+          .filter(function (v) {
+            const blob = ((v.display_name || "") + " " + (v.tagline || "") + " " + (v.bio || "")).toLowerCase();
+            return !search || blob.indexOf(search) >= 0;
+          })
+          .map(function (v) {
+            const stats = volunteerStats(v.id);
+            return { volunteer: v, stats: stats };
+          });
+
+        list.sort(function (a, b) {
+          if (sort === "reviews") return b.stats.reviewCount - a.stats.reviewCount;
+          if (sort === "name") return (a.volunteer.display_name || "").localeCompare(b.volunteer.display_name || "");
+          return b.stats.score - a.stats.score;
+        });
+
+        if (!list.length) {
+          el.volunteerGrid.innerHTML = '<div class="card">No volunteers found.</div>';
+          return;
+        }
+
+        const visibleIds = list.map(function (x) { return x.volunteer.id; });
+        if (!visibleIds.includes(state.selectedVolunteerId)) {
+          state.selectedVolunteerId = visibleIds[0];
+        }
+
+        el.volunteerGrid.innerHTML = list.map(function (row) {
+          const v = row.volunteer;
+          const s = row.stats;
+          const avatar = avatarHtml(v, 44);
+          return '<article class="vol-card ' + (state.selectedVolunteerId === v.id ? "active" : "") + '" data-volunteer="' + esc(v.id) + '">' +
+            avatar +
+            '<div><div class="name">' + esc(v.display_name || "Volunteer") + '</div><div class="sub">' + esc(v.tagline || "Volunteer") + '</div><div class="sub">' + stars(s.avgRating) + ' ' + s.avgRating.toFixed(2) + ' · ' + s.reviewCount + '</div></div>' +
+            '<div class="score-pill">Rep ' + Math.round(s.score) + '</div>' +
+          '</article>';
+        }).join("");
+      }
+
+      function renderProfilePanel() {
+        const volunteer = state.volunteers.find(function (v) { return v.id === state.selectedVolunteerId; });
+
+        if (!volunteer) {
+          el.profilePanel.innerHTML = '<div class="sub">Select a volunteer.</div>';
+          return;
+        }
+
+        const stats = volunteerStats(volunteer.id);
+        const reviews = reviewsForVolunteer(volunteer.id);
+
+        const metrics = [
+          metricBox("Rating", stats.avgRating.toFixed(2)),
+          metricBox("Reputation", String(Math.round(stats.score))),
+          metricBox("Positive", stats.positiveRate + "%"),
+          metricBox("Open Reports", String(stats.openReports))
+        ].join("");
+
+        const reviewCards = reviews.slice(0, 8).map(function (r) {
+          return '<article class="review">' +
+            '<div class="head"><div><div class="stars">' + stars(r.overall_rating) + ' ' + Number(r.overall_rating || 0).toFixed(0) + '/5</div><div class="headline">' + esc(r.title || "Review") + '</div><div class="meta">' + relDate(r.created_at) + '</div></div><button class="ghost" type="button" data-helpful="' + esc(r.id) + '">Helpful (' + Number(r.helpful_count || 0) + ')</button></div>' +
+            '<div>' + esc(r.body || "") + '</div>' +
+          '</article>';
+        }).join("");
+
+        el.profilePanel.innerHTML =
+          '<section class="profile-hero">' +
+            '<div class="profile-top">' +
+              avatarHtml(volunteer, 56) +
+              '<div><h2 class="profile-name">' + esc(volunteer.display_name || "Volunteer") + '</h2><div class="tagline">' + esc(volunteer.tagline || volunteer.bio || "") + '</div></div>' +
+              '<div class="stack"><button type="button" data-action="write-review">Write Review</button><button class="ghost" type="button" data-action="write-report">Report</button></div>' +
+            '</div>' +
+            '<div class="stats-row"><span class="stat">' + stars(stats.avgRating) + ' ' + stats.avgRating.toFixed(2) + '</span><span class="stat">' + stats.reviewCount + ' reviews</span><span class="stat">Rep ' + Math.round(stats.score) + '</span><span class="stat">Confidence ' + stats.confidence + '%</span></div>' +
+            '<div class="sub">' + esc(volunteer.bio || "") + '</div>' +
+          '</section>' +
+          '<section class="metric-grid">' + metrics + '</section>' +
+          '<section class="review-list">' + (reviewCards || '<div class="card">No reviews yet.</div>') + '</section>';
+      }
+
+      function renderReviewSelectors() {
+        const events = state.events.slice().sort(function (a, b) { return new Date(b.starts_at) - new Date(a.starts_at); });
+        el.reviewEventSelect.innerHTML = '<option value="">Select event</option>' + events.map(function (ev) {
+          return '<option value="' + esc(ev.id) + '">' + esc(ev.title || "Event") + ' · ' + formatDate(ev.starts_at) + '</option>';
+        }).join("");
+
+        renderReviewVolunteerOptions();
+      }
+
+      function renderReviewVolunteerOptions() {
+        const eventId = (el.reviewEventSelect.value || "").trim();
+        const allowed = eventId ? (state.eventVolunteerMap[eventId] || []) : state.volunteers.map(function (v) { return v.id; });
+        const options = state.volunteers.filter(function (v) { return allowed.includes(v.id); });
+        el.reviewVolunteerSelect.innerHTML = '<option value="">Select volunteer</option>' + options.map(function (v) {
+          return '<option value="' + esc(v.id) + '">' + esc(v.display_name || "Volunteer") + '</option>';
+        }).join("");
+
+        if (state.selectedVolunteerId && options.some(function (v) { return v.id === state.selectedVolunteerId; })) {
+          el.reviewVolunteerSelect.value = state.selectedVolunteerId;
+        }
+      }
+
+      function renderReportSelectors() {
+        el.reportVolunteerSelect.innerHTML = '<option value="">Select volunteer</option>' + state.volunteers.map(function (v) {
+          return '<option value="' + esc(v.id) + '">' + esc(v.display_name || "Volunteer") + '</option>';
+        }).join("");
+
+        el.reportEventSelect.innerHTML = '<option value="">No specific event</option>' + state.events.map(function (ev) {
+          return '<option value="' + esc(ev.id) + '">' + esc(ev.title || "Event") + ' · ' + formatDate(ev.starts_at) + '</option>';
+        }).join("");
+
+        if (state.selectedVolunteerId) {
+          el.reportVolunteerSelect.value = state.selectedVolunteerId;
+        }
+      }
+
+      function renderStudio() {
+        if (!state.user) {
+          el.studioGate.innerHTML = '<article class="card">Sign in first to access Volunteer Studio.</article>';
+          el.studioContent.style.display = "none";
+          return;
+        }
+
+        if (!state.volunteerLink || !state.volunteerLink.volunteer_id) {
+          el.studioGate.innerHTML = '<article class="card">No volunteer account linked to this login. Map `user_id` to a volunteer profile.</article>';
+          el.studioContent.style.display = "none";
+          return;
+        }
+
+        const volunteer = state.volunteers.find(function (v) { return v.id === state.volunteerLink.volunteer_id; });
+        if (!volunteer) {
+          el.studioGate.innerHTML = '<article class="card">Linked volunteer profile not found.</article>';
+          el.studioContent.style.display = "none";
+          return;
+        }
+
+        el.studioGate.innerHTML = '';
+        el.studioContent.style.display = "grid";
+
+        el.profileDisplayName.value = volunteer.display_name || "";
+        el.profileTagline.value = volunteer.tagline || "";
+        el.profileAvatarUrl.value = volunteer.avatar_url || "";
+        el.profileBio.value = volunteer.bio || "";
+        el.profileActive.checked = volunteer.active !== false;
+
+        const stats = volunteerStats(volunteer.id);
+        el.studioMetrics.innerHTML = [
+          metricBox("Avg rating", stats.avgRating.toFixed(2)),
+          metricBox("Reviews", String(stats.reviewCount)),
+          metricBox("Helpful", String(stats.helpfulTotal)),
+          metricBox("Open reports", String(stats.openReports))
+        ].join("");
+
+        renderCategoryBars(volunteer.id);
+        renderTrendBars(volunteer.id);
+
+        const recent = reviewsForVolunteer(volunteer.id).slice(0, 6);
+        el.studioRecentReviews.innerHTML = recent.length ? recent.map(function (r) {
+          return '<article class="review"><div class="head"><div><div class="stars">' + stars(r.overall_rating) + '</div><div class="headline">' + esc(r.title || "Review") + '</div><div class="meta">' + relDate(r.created_at) + '</div></div></div><div>' + esc(r.body || "") + '</div></article>';
+        }).join("") : '<div class="card">No reviews yet.</div>';
+
+        const openReports = state.reports.filter(function (rp) { return rp.volunteer_id === volunteer.id && (rp.status === "open" || rp.status === "investigating"); });
+        el.studioOpenReports.innerHTML = openReports.length ? openReports.map(function (rp) {
+          return '<article class="review"><div class="headline">' + esc((rp.reason || "report").toUpperCase()) + ' · ' + esc(rp.severity || "medium") + '</div><div class="meta">' + relDate(rp.created_at) + '</div><div>' + esc(rp.details || "") + '</div></article>';
+        }).join("") : '<div class="card">No open reports.</div>';
+      }
+
+      function renderCategoryBars(volunteerId) {
+        const rows = reviewsForVolunteer(volunteerId);
+        const categories = [
+          { label: "Overall", key: "overall_rating" },
+          { label: "Communication", key: "communication_rating" },
+          { label: "Reliability", key: "reliability_rating" },
+          { label: "Welcoming", key: "warmth_rating" },
+          { label: "Clarity", key: "clarity_rating" }
+        ];
+
+        el.categoryBars.innerHTML = categories.map(function (cat) {
+          const avg = mean(rows.map(function (r) { return Number(r[cat.key] || 0); }));
+          const pct = clamp((avg / 5) * 100, 0, 100);
+          return '<div class="bar-row"><div class="sub">' + esc(cat.label) + '</div><div class="bar"><span style="width:' + pct.toFixed(1) + '%"></span></div><div class="sub">' + (avg ? avg.toFixed(2) : "0.00") + '</div></div>';
+        }).join("");
+      }
+
+      function renderTrendBars(volunteerId) {
+        const rows = reviewsForVolunteer(volunteerId);
+        const months = [];
+        const now = new Date();
+        for (let i = 5; i >= 0; i -= 1) {
+          const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+          const key = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+          months.push({ key: key, label: d.toLocaleDateString(undefined, { month: "short" }) });
+        }
+
+        el.trendBars.innerHTML = months.map(function (m) {
+          const monthRows = rows.filter(function (r) {
+            const d = new Date(r.created_at);
+            const key = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+            return key === m.key;
+          });
+          const avg = mean(monthRows.map(function (r) { return Number(r.overall_rating || 0); }));
+          const pct = clamp((avg / 5) * 100, 0, 100);
+          return '<div class="bar-row"><div class="sub">' + esc(m.label) + '</div><div class="bar"><span style="width:' + pct.toFixed(1) + '%"></span></div><div class="sub">' + (avg ? avg.toFixed(2) : "-") + '</div></div>';
+        }).join("");
+      }
+
+      function reviewsForVolunteer(volunteerId) {
+        return state.reviews.filter(function (r) { return r.volunteer_id === volunteerId; }).sort(function (a, b) {
+          return new Date(b.created_at) - new Date(a.created_at);
+        });
+      }
+
+      function volunteerStats(volunteerId) {
+        const rows = reviewsForVolunteer(volunteerId);
+        const openReports = state.reports.filter(function (rp) {
+          return rp.volunteer_id === volunteerId && (rp.status === "open" || rp.status === "investigating");
+        }).length;
+
+        const reviewCount = rows.length;
+        const helpfulTotal = rows.reduce(function (sum, r) { return sum + Number(r.helpful_count || 0); }, 0);
+
+        const globalMean = mean(state.reviews.map(function (r) { return Number(r.overall_rating || 0); })) || 4;
+        const m = 8;
+
+        let weightedSum = 0;
+        let weightTotal = 0;
+        rows.forEach(function (r) {
+          const rating = Number(r.overall_rating || 0);
+          const weight = Number(r.reviewer_weight || 1);
+          if (rating > 0 && weight > 0) {
+            weightedSum += rating * weight;
+            weightTotal += weight;
+          }
+        });
+
+        const avgRating = weightTotal > 0 ? weightedSum / weightTotal : globalMean;
+        const bayesian = ((weightTotal / (weightTotal + m)) * avgRating) + ((m / (weightTotal + m)) * globalMean);
+        const score = clamp((((bayesian - 1) / 4) * 100) - (openReports * 4.5), 0, 100);
+        const confidence = clamp(Math.round((weightTotal / (weightTotal + 9)) * 100), 5, 99);
+
+        const positives = rows.filter(function (r) { return Number(r.overall_rating || 0) >= 4; }).length;
+        const positiveRate = reviewCount ? Math.round((positives / reviewCount) * 100) : 0;
+
+        return {
+          avgRating: avgRating || 0,
+          reviewCount: reviewCount,
+          score: score,
+          confidence: confidence,
+          openReports: openReports,
+          helpfulTotal: helpfulTotal,
+          positiveRate: positiveRate
+        };
+      }
+
+      function computeAuthenticity(review) {
+        const flags = [];
+        let score = 0;
+        const body = review.body || "";
+        const words = body.split(/\s+/).filter(Boolean);
+
+        if (body.length < 100) { flags.push("short-detail"); score += 12; }
+        if ((body.match(/[A-Z]/g) || []).length / ((body.match(/[A-Za-z]/g) || []).length || 1) > 0.35) { flags.push("high-caps"); score += 16; }
+        if ((body.match(/https?:\/\/|www\./gi) || []).length > 1) { flags.push("many-links"); score += 20; }
+        if (/(.)\1{6,}/.test(body)) { flags.push("repeat-chars"); score += 18; }
+        if (words.length > 20) {
+          const unique = new Set(words.map(function (w) { return w.toLowerCase(); }));
+          if (unique.size / words.length < 0.42) { flags.push("low-uniqueness"); score += 12; }
+        }
+
+        if (state.member && state.member.created_at) {
+          const ageDays = (Date.now() - new Date(state.member.created_at).getTime()) / (1000 * 60 * 60 * 24);
+          if (isFinite(ageDays) && ageDays < 7) { flags.push("new-account"); score += 18; }
+        }
+
+        return { score: clamp(score, 0, 100), flags: flags };
+      }
+
+      function computeReviewerWeight(riskScore) {
+        const base = Number((state.member && state.member.trust_score) || 1);
+        if (riskScore >= 70) return round(base * 0.45, 2);
+        if (riskScore >= 50) return round(base * 0.7, 2);
+        if (riskScore <= 12) return round(base * 1.05, 2);
+        return round(base, 2);
+      }
+
+      function metricBox(label, value) {
+        return '<article class="metric"><span class="label">' + esc(label) + '</span><span class="value">' + esc(value) + '</span></article>';
+      }
+
+      function avatarHtml(volunteer, size) {
+        const style = 'style="width:' + Number(size || 44) + 'px;height:' + Number(size || 44) + 'px;"';
+        if (volunteer.avatar_url) {
+          return '<div class="avatar" ' + style + '><img src="' + esc(volunteer.avatar_url) + '" alt="avatar" loading="lazy"/></div>';
+        }
+        const initials = initialsOf(volunteer.display_name || "Volunteer");
+        return '<div class="avatar" ' + style + '>' + esc(initials) + '</div>';
+      }
+
+      function initialsOf(name) {
+        const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
+        if (!parts.length) return "V";
+        if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+        return (parts[0][0] + parts[1][0]).toUpperCase();
+      }
+
+      function normalizeDomain(value) {
+        return String(value || "").trim().toLowerCase().replace(/^@/, "");
+      }
+
+      function setStatus(node, text, type) {
+        node.textContent = text;
+        node.className = "status" + (type ? " " + type : "");
+      }
+
+      function mean(values) {
+        if (!values.length) return 0;
+        return values.reduce(function (sum, v) { return sum + Number(v || 0); }, 0) / values.length;
+      }
+
+      function clamp(value, min, max) {
+        return Math.max(min, Math.min(max, value));
+      }
+
+      function round(value, places) {
+        const p = Math.pow(10, places || 0);
+        return Math.round(value * p) / p;
+      }
+
+      function stars(rating) {
+        const r = clamp(Math.round(Number(rating || 0)), 0, 5);
+        return "★".repeat(r) + "☆".repeat(5 - r);
+      }
+
+      function formatDate(iso) {
+        const d = new Date(iso);
+        if (!isFinite(d.getTime())) return "Unknown";
+        return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+      }
+
+      function relDate(iso) {
+        const d = new Date(iso);
+        const diff = Date.now() - d.getTime();
+        if (!isFinite(diff)) return "unknown";
+        const mins = Math.floor(diff / 60000);
+        if (mins < 60) return mins + "m ago";
+        const hours = Math.floor(mins / 60);
+        if (hours < 24) return hours + "h ago";
+        const days = Math.floor(hours / 24);
+        if (days < 30) return days + "d ago";
+        return formatDate(iso);
+      }
+
+      function esc(value) {
+        return String(value == null ? "" : value)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/\"/g, "&quot;")
+          .replace(/'/g, "&#39;");
+      }
     })();
   </script>
 </body>
