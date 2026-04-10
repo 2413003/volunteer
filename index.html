@@ -103,6 +103,8 @@
       align-items: center;
     }
 
+    .settings-launch { padding-inline: 12px; }
+
     .pill {
       border: 1px solid #d7d3cb;
       border-radius: 999px;
@@ -149,11 +151,7 @@
       font-size: 12px;
     }
 
-    .status-row {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
+    .status-row { display: none; }
 
     .status {
       border: 1px solid var(--line);
@@ -178,26 +176,7 @@
 
     .status:empty { display: none; }
 
-    .settings {
-      border: 1px solid var(--line);
-      border-radius: 10px;
-      background: #fcfaf4;
-      padding: 7px 9px;
-    }
-
-    .settings summary {
-      cursor: pointer;
-      font-size: 12px;
-      font-weight: 700;
-      color: #4f473e;
-      list-style: none;
-      user-select: none;
-    }
-
-    .settings summary::-webkit-details-marker { display: none; }
-
     .settings-grid {
-      margin-top: 8px;
       display: grid;
       grid-template-columns: 1.1fr 1.3fr 0.8fr auto;
       gap: 8px;
@@ -508,25 +487,12 @@
           <span id="modeChip" class="pill">Demo</span>
           <span id="userChip" class="pill">Guest</span>
           <span id="roleChip" class="pill">role / status</span>
+          <button id="openSettingsBtn" type="button" class="ghost mini settings-launch">Settings</button>
         </div>
       </div>
 
-      <details class="settings">
-        <summary>Settings</summary>
-        <div class="settings-grid">
-          <input id="supaUrlInput" type="url" placeholder="Supabase URL" />
-          <input id="supaKeyInput" type="password" placeholder="Supabase anon key" />
-          <input id="allowedDomainInput" type="text" placeholder="Email domain" />
-          <div class="settings-actions">
-            <button id="connectBtn" type="button" class="mini">Connect</button>
-            <button id="demoBtn" type="button" class="mini warn">Demo</button>
-          </div>
-        </div>
-      </details>
-
       <div class="status-row">
         <p id="authStatus" class="status"></p>
-        <p id="backendStatus" class="status"></p>
       </div>
     </header>
 
@@ -547,6 +513,26 @@
         <div id="profileSurface" class="profile"></div>
       </section>
     </section>
+
+    <dialog id="settingsDialog" class="dialog">
+      <div class="dialog-body">
+        <div class="dialog-head">
+          <h3>Settings</h3>
+          <button type="button" class="ghost mini" data-close="settingsDialog">Close</button>
+        </div>
+        <div class="settings-grid">
+          <input id="supaUrlInput" type="url" placeholder="Supabase URL" />
+          <input id="supaKeyInput" type="password" placeholder="Supabase anon key" />
+          <input id="allowedDomainInput" type="text" placeholder="Email domain" />
+          <div class="settings-actions">
+            <button id="connectBtn" type="button" class="mini">Connect</button>
+            <button id="demoBtn" type="button" class="mini warn">Demo</button>
+          </div>
+        </div>
+        <p id="backendStatus" class="status"></p>
+      </div>
+    </dialog>
+
     <dialog id="reviewDialog" class="dialog">
       <div class="dialog-body">
         <div class="dialog-head">
@@ -749,7 +735,7 @@
       function cacheEls() {
         [
           "emailInput", "sendLinkBtn", "signOutBtn", "modeChip", "userChip", "roleChip", "supaUrlInput", "supaKeyInput", "allowedDomainInput",
-          "connectBtn", "demoBtn", "authStatus", "backendStatus", "searchInput", "sortSelect", "volunteerList", "profileSurface",
+          "openSettingsBtn", "settingsDialog", "connectBtn", "demoBtn", "authStatus", "backendStatus", "searchInput", "sortSelect", "volunteerList", "profileSurface",
           "reviewDialog", "reviewForm", "reviewEventSelect", "reviewVolunteerSelect", "overallRating", "commRating", "relRating", "warmRating", "clearRating",
           "reviewTitleInput", "reviewBodyInput", "truthCheckbox", "submitReviewBtn", "reviewStatus",
           "reportDialog", "reportForm", "reportVolunteerSelect", "reportEventSelect", "reportReasonSelect", "reportSeveritySelect", "reportDetailsInput", "submitReportBtn", "reportStatus",
@@ -759,6 +745,7 @@
       }
 
       function bindEvents() {
+        el.openSettingsBtn.addEventListener("click", function () { el.settingsDialog.showModal(); });
         el.connectBtn.addEventListener("click", onConnectClick);
         el.demoBtn.addEventListener("click", onDemoClick);
         el.sendLinkBtn.addEventListener("click", onSendMagicLink);
