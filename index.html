@@ -129,6 +129,11 @@
       padding: 10px 13px;
     }
 
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
     button.ghost {
       background: #fff;
       color: #1b5a45;
@@ -151,7 +156,11 @@
       font-size: 12px;
     }
 
-    .status-row { display: none; }
+    .status-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
 
     .status {
       border: 1px solid var(--line);
@@ -480,7 +489,7 @@
         <div class="login">
           <input id="emailInput" type="email" placeholder="member@yourdomain.com" />
           <button id="sendLinkBtn" type="button">Send Link</button>
-          <button id="signOutBtn" type="button" class="ghost">Sign Out</button>
+          <button id="signOutBtn" type="button" class="ghost" style="display:none;">Sign Out</button>
         </div>
 
         <div class="meta">
@@ -713,7 +722,8 @@
         eventVolunteerMap: {},
         reviews: [],
         reports: [],
-        selectedVolunteerId: null
+        selectedVolunteerId: null,
+        helpfulVotedIds: {}
       };
 
       const el = {};
@@ -742,7 +752,9 @@
       }
 
       function bindEvents() {
-        el.openSettingsBtn.addEventListener("click", function () { el.settingsDialog.showModal(); });
+        el.openSettingsBtn.addEventListener("click", function () {
+          if (!el.settingsDialog.open) el.settingsDialog.showModal();
+        });
         el.connectBtn.addEventListener("click", onConnectClick);
         el.demoBtn.addEventListener("click", onDemoClick);
         el.sendLinkBtn.addEventListener("click", onSendMagicLink);
@@ -781,18 +793,25 @@
         await refreshSession();
         await loadAllData();
         renderAll();
+        if (!state.demoMode && el.settingsDialog.open) {
+          el.settingsDialog.close();
+        }
       }
 
       async function onDemoClick() {
         state.demoMode = true;
         state.supabase = null;
         detachAuthSubscription();
-        state.user = DEMO.user;
-        state.member = DEMO.member;
-        state.volunteerLink = DEMO.volunteerLink;
+        state.user = null;
+        state.member = null;
+        state.volunteerLink = null;
+        state.helpfulVotedIds = {};
         setStatus(el.backendStatus, "Backend: demo mode", "ok");
         await loadAllData();
         renderAll();
+        if (el.settingsDialog.open) {
+          el.settingsDialog.close();
+        }
       }
 
       async function connectWithStoredConfig() {
@@ -802,9 +821,10 @@
         if (!url || !key) {
           state.demoMode = true;
           state.supabase = null;
-          state.user = DEMO.user;
-          state.member = DEMO.member;
-          state.volunteerLink = DEMO.volunteerLink;
+          state.user = null;
+          state.member = null;
+          state.volunteerLink = null;
+          state.helpfulVotedIds = {};
           setStatus(el.backendStatus, "Backend: no credentials (demo)", "err");
           return;
         }
@@ -819,9 +839,10 @@
         } catch (_err) {
           state.demoMode = true;
           state.supabase = null;
-          state.user = DEMO.user;
-          state.member = DEMO.member;
-          state.volunteerLink = DEMO.volunteerLink;
+          state.user = null;
+          state.member = null;
+          state.volunteerLink = null;
+          state.helpfulVotedIds = {};
           setStatus(el.backendStatus, "Backend: connection failed (demo)", "err");
         }
       }
@@ -830,6 +851,7 @@
         detachAuthSubscription();
         state.authSub = state.supabase.auth.onAuthStateChange(async function (_event, session) {
           state.user = session ? session.user : null;
+          state.helpfulVotedIds = {};
           await loadMemberProfile();
           await loadVolunteerLink();
           await loadAllData();
@@ -846,21 +868,23 @@
 
       async function refreshSession() {
         if (state.demoMode || !state.supabase) {
-          state.user = DEMO.user;
-          state.member = DEMO.member;
-          state.volunteerLink = DEMO.volunteerLink;
+          state.user = null;
+          state.member = null;
+          state.volunteerLink = null;
+          state.helpfulVotedIds = {};
           return;
         }
 
         const sessionResp = await state.supabase.auth.getSession();
         state.user = sessionResp.data && sessionResp.data.session ? sessionResp.data.session.user : null;
+        state.helpfulVotedIds = {};
         await loadMemberProfile();
         await loadVolunteerLink();
       }
 
       async function loadMemberProfile() {
         if (state.demoMode) {
-          state.member = DEMO.member;
+          state.member = state.user ? DEMO.member : null;
           return;
         }
 
@@ -895,7 +919,7 @@
 
       async function loadVolunteerLink() {
         if (state.demoMode) {
-          state.volunteerLink = DEMO.volunteerLink;
+          state.volunteerLink = state.user ? DEMO.volunteerLink : null;
           return;
         }
 
@@ -938,7 +962,7 @@
         }
 
         await loadVolunteers();
-        await Promise.all([loadReviews(), loadReports(), loadReviewEvents()]);
+        await Promise.all([loadReviews(), loadReports(), loadReviewEvents(), loadHelpfulVotes()]);
 
         if (!state.selectedVolunteerId && state.volunteers[0]) {
           state.selectedVolunteerId = state.volunteers[0].id;
@@ -960,7 +984,13 @@
             .order("display_name", { ascending: true });
         }
 
-        state.volunteers = resp.error ? [] : (resp.data || []);
+        if (resp.error) {
+          state.volunteers = [];
+          setStatus(el.backendStatus, "Data load issue: volunteers", "err");
+          return;
+        }
+
+        state.volunteers = resp.data || [];
       }
 
       async function loadReviews() {
@@ -972,6 +1002,7 @@
 
         if (resp.error) {
           state.reviews = [];
+          setStatus(el.backendStatus, "Data load issue: reviews", "err");
           return;
         }
 
@@ -988,7 +1019,35 @@
           .order("created_at", { ascending: false })
           .limit(200);
 
-        state.reports = resp.error ? [] : (resp.data || []);
+        if (resp.error) {
+          state.reports = [];
+          setStatus(el.backendStatus, "Data load issue: reports", "err");
+          return;
+        }
+
+        state.reports = resp.data || [];
+      }
+
+      async function loadHelpfulVotes() {
+        if (state.demoMode || !state.supabase || !state.user) {
+          state.helpfulVotedIds = {};
+          return;
+        }
+
+        const resp = await state.supabase
+          .from("review_helpfulness")
+          .select("review_id,vote")
+          .eq("voter_user_id", state.user.id)
+          .gt("vote", 0)
+          .limit(1000);
+
+        if (resp.error) return;
+
+        const map = {};
+        (resp.data || []).forEach(function (row) {
+          if (row.review_id != null) map[String(row.review_id)] = true;
+        });
+        state.helpfulVotedIds = map;
       }
       async function loadReviewEvents() {
         state.events = [];
@@ -1055,6 +1114,11 @@
       }
 
       async function onSendMagicLink() {
+        if (state.user) {
+          setStatus(el.authStatus, "Already signed in.", "ok");
+          return;
+        }
+
         const email = (el.emailInput.value || "").trim().toLowerCase();
         if (!email || email.indexOf("@") < 0) {
           setStatus(el.authStatus, "Enter valid email.", "err");
@@ -1069,32 +1133,36 @@
 
         if (state.demoMode || !state.supabase) {
           setStatus(el.authStatus, "Connect backend first.", "err");
+          setStatus(el.backendStatus, "Open Settings and connect Supabase.", "err");
+          if (el.settingsDialog && typeof el.settingsDialog.showModal === "function" && !el.settingsDialog.open) {
+            el.settingsDialog.showModal();
+          }
           return;
         }
 
-        const redirect = window.location.origin + window.location.pathname;
-        const resp = await state.supabase.auth.signInWithOtp({ email: email, options: { emailRedirectTo: redirect } });
-        if (resp.error) {
-          setStatus(el.authStatus, "Login failed.", "err");
-          return;
+        el.sendLinkBtn.disabled = true;
+        try {
+          const redirect = window.location.origin + window.location.pathname;
+          const resp = await state.supabase.auth.signInWithOtp({ email: email, options: { emailRedirectTo: redirect } });
+          if (resp.error) {
+            setStatus(el.authStatus, "Login failed. Check settings/domain.", "err");
+            return;
+          }
+          setStatus(el.authStatus, "Login link sent. Check your inbox.", "ok");
+        } catch (_err) {
+          setStatus(el.authStatus, "Login failed. Network error.", "err");
+        } finally {
+          el.sendLinkBtn.disabled = false;
         }
-
-        setStatus(el.authStatus, "Login link sent.", "ok");
       }
 
       async function onSignOut() {
         if (!state.demoMode && state.supabase) await state.supabase.auth.signOut();
-        if (state.demoMode) {
-          state.user = null;
-          state.member = null;
-          state.volunteerLink = null;
-          renderAll();
-          return;
-        }
-
         state.user = null;
         state.member = null;
         state.volunteerLink = null;
+        state.helpfulVotedIds = {};
+        clearStatus(el.authStatus);
         await loadAllData();
         renderAll();
       }
@@ -1128,20 +1196,32 @@
       function openReviewDialog() {
         renderReviewSelectors();
         if (state.selectedVolunteerId) el.reviewVolunteerSelect.value = state.selectedVolunteerId;
-        clearStatus(el.reviewStatus);
-        el.reviewDialog.showModal();
+        const canSubmit = memberApproved() && state.events.length > 0 && state.volunteers.length > 0;
+        el.submitReviewBtn.disabled = !canSubmit;
+        if (canSubmit) {
+          clearStatus(el.reviewStatus);
+        } else {
+          setStatus(el.reviewStatus, memberApproved() ? "No eligible events available." : "Approved member required.", "err");
+        }
+        if (!el.reviewDialog.open) el.reviewDialog.showModal();
       }
 
       function openReportDialog() {
         renderReportSelectors();
         if (state.selectedVolunteerId) el.reportVolunteerSelect.value = state.selectedVolunteerId;
-        clearStatus(el.reportStatus);
-        el.reportDialog.showModal();
+        const canSubmit = memberApproved() && state.volunteers.length > 0;
+        el.submitReportBtn.disabled = !canSubmit;
+        if (canSubmit) {
+          clearStatus(el.reportStatus);
+        } else {
+          setStatus(el.reportStatus, memberApproved() ? "No volunteers available." : "Approved member required.", "err");
+        }
+        if (!el.reportDialog.open) el.reportDialog.showModal();
       }
 
       function openStudioDialog() {
         renderStudio();
-        el.studioDialog.showModal();
+        if (!el.studioDialog.open) el.studioDialog.showModal();
       }
 
       function memberApproved() {
@@ -1166,16 +1246,19 @@
         const reviewerWeight = computeReviewerWeight(signal.score);
 
         if (state.demoMode) {
-          state.reviews.unshift(Object.assign({}, payload.review, {
+          const newReview = Object.assign({}, payload.review, {
             id: "demo-" + Math.random().toString(16).slice(2),
             moderation_status: moderationStatus,
             authenticity_score: signal.score,
             reviewer_weight: reviewerWeight,
             helpful_count: 0,
             created_at: new Date().toISOString()
-          }));
+          });
+          state.reviews.unshift(newReview);
+          DEMO.reviews.unshift(newReview);
           setStatus(el.reviewStatus, moderationStatus === "published" ? "Review published." : "Queued for moderation.", moderationStatus === "published" ? "ok" : "err");
           el.reviewForm.reset();
+          if (el.reviewDialog.open) el.reviewDialog.close();
           renderAll();
           return;
         }
@@ -1186,6 +1269,11 @@
           .eq("volunteer_id", payload.review.volunteer_id)
           .eq("event_id", payload.review.event_id)
           .limit(1);
+
+        if (duplicate.error) {
+          setStatus(el.reviewStatus, "Could not verify duplicate rule.", "err");
+          return;
+        }
 
         if (!duplicate.error && (duplicate.data || []).length > 0) {
           setStatus(el.reviewStatus, "Already reviewed this event.", "err");
@@ -1198,6 +1286,11 @@
           .select("id", { count: "exact", head: true })
           .eq("reviewer_user_id", state.user.id)
           .gte("created_at", dayStart.toISOString());
+
+        if (limitResp.error) {
+          setStatus(el.reviewStatus, "Could not verify daily limit.", "err");
+          return;
+        }
 
         if (!limitResp.error && (limitResp.count || 0) >= 4) {
           setStatus(el.reviewStatus, "Daily limit reached.", "err");
@@ -1233,12 +1326,13 @@
         }
 
         if (resp.error) {
-          setStatus(el.reviewStatus, "Submit failed.", "err");
+          setStatus(el.reviewStatus, "Submit failed. Please try again.", "err");
           return;
         }
 
         setStatus(el.reviewStatus, moderationStatus === "published" ? "Review published." : "Queued for moderation.", moderationStatus === "published" ? "ok" : "err");
         el.reviewForm.reset();
+        if (el.reviewDialog.open) el.reviewDialog.close();
         await loadAllData();
         renderAll();
       }
@@ -1282,9 +1376,12 @@
         if (details.length < 50) { setStatus(el.reportStatus, "Add at least 50 chars.", "err"); return; }
 
         if (state.demoMode) {
-          state.reports.unshift({ id: "demo-report-" + Math.random().toString(16).slice(2), volunteer_id: volunteerId, status: "open", severity: severity, reason: reason, details: details, created_at: new Date().toISOString() });
+          const newReport = { id: "demo-report-" + Math.random().toString(16).slice(2), volunteer_id: volunteerId, status: "open", severity: severity, reason: reason, details: details, created_at: new Date().toISOString() };
+          state.reports.unshift(newReport);
+          DEMO.reports.unshift(newReport);
           setStatus(el.reportStatus, "Report submitted.", "ok");
           el.reportForm.reset();
+          if (el.reportDialog.open) el.reportDialog.close();
           renderAll();
           return;
         }
@@ -1297,15 +1394,18 @@
 
         setStatus(el.reportStatus, "Report submitted.", "ok");
         el.reportForm.reset();
+        if (el.reportDialog.open) el.reportDialog.close();
         await loadAllData();
         renderAll();
       }
       async function markHelpful(reviewId) {
         if (!reviewId) return;
+        if (hasVotedHelpful(reviewId)) return;
         const target = state.reviews.find(function (r) { return String(r.id) === String(reviewId); });
         if (!target) return;
 
         if (state.demoMode) {
+          state.helpfulVotedIds[String(reviewId)] = true;
           target.helpful_count = Number(target.helpful_count || 0) + 1;
           renderProfile();
           renderStudio();
@@ -1314,6 +1414,19 @@
 
         if (!state.user) {
           setStatus(el.authStatus, "Sign in to vote.", "err");
+          return;
+        }
+
+        const existing = await state.supabase
+          .from("review_helpfulness")
+          .select("vote")
+          .eq("review_id", reviewId)
+          .eq("voter_user_id", state.user.id)
+          .maybeSingle();
+
+        if (!existing.error && existing.data && Number(existing.data.vote || 0) > 0) {
+          state.helpfulVotedIds[String(reviewId)] = true;
+          renderProfile();
           return;
         }
 
@@ -1326,6 +1439,7 @@
           return;
         }
 
+        state.helpfulVotedIds[String(reviewId)] = true;
         target.helpful_count = Number(target.helpful_count || 0) + 1;
         renderProfile();
         renderStudio();
@@ -1355,6 +1469,8 @@
         if (state.demoMode) {
           const idx = state.volunteers.findIndex(function (v) { return v.id === state.volunteerLink.volunteer_id; });
           if (idx >= 0) state.volunteers[idx] = Object.assign({}, state.volunteers[idx], payload);
+          const dIdx = DEMO.volunteers.findIndex(function (v) { return v.id === state.volunteerLink.volunteer_id; });
+          if (dIdx >= 0) DEMO.volunteers[dIdx] = Object.assign({}, DEMO.volunteers[dIdx], payload);
           setStatus(el.profileStatus, "Saved.", "ok");
           renderAll();
           return;
@@ -1386,13 +1502,18 @@
       }
 
       function renderHeader() {
+        el.signOutBtn.style.display = state.user ? "" : "none";
         if (!state.user) {
-          setStatus(el.authStatus, "Status: guest", "");
+          clearStatus(el.authStatus);
           return;
         }
 
         const name = state.member && state.member.display_name ? state.member.display_name : (state.user.email || "Member");
-        setStatus(el.authStatus, "Signed in: " + name, memberApproved() ? "ok" : "err");
+        if (memberApproved()) {
+          setStatus(el.authStatus, "Signed in: " + name, "ok");
+        } else {
+          setStatus(el.authStatus, "Signed in: " + name + " (approval required to submit)", "err");
+        }
       }
 
       function renderVolunteerList() {
@@ -1442,8 +1563,10 @@
         const reviews = reviewsForVolunteer(volunteer.id);
 
         const reviewHtml = reviews.slice(0, 8).map(function (r) {
+          const alreadyVoted = hasVotedHelpful(r.id);
+          const voteLabel = alreadyVoted ? "Voted" : ("Helpful " + Number(r.helpful_count || 0));
           return '<article class="review">' +
-            '<div class="review-head"><div><div class="stars">' + stars(r.overall_rating) + '</div><div class="headline">' + esc(r.title || "Review") + '</div><div class="muted">' + relDate(r.created_at) + '</div></div><button class="mini ghost" type="button" data-helpful="' + esc(r.id) + '">Helpful ' + Number(r.helpful_count || 0) + '</button></div>' +
+            '<div class="review-head"><div><div class="stars">' + stars(r.overall_rating) + '</div><div class="headline">' + esc(r.title || "Review") + '</div><div class="muted">' + relDate(r.created_at) + '</div></div><button class="mini ghost" type="button" data-helpful="' + esc(r.id) + '"' + (alreadyVoted ? " disabled" : "") + ">" + voteLabel + '</button></div>' +
             '<div>' + esc(r.body || "") + '</div>' +
           '</article>';
         }).join("");
@@ -1584,7 +1707,7 @@
       }
 
       function reviewsForVolunteer(volunteerId) {
-        return state.reviews.filter(function (r) { return r.volunteer_id === volunteerId; }).sort(function (a, b) { return new Date(b.created_at) - new Date(a.created_at); });
+        return publishedReviews().filter(function (r) { return r.volunteer_id === volunteerId; }).sort(function (a, b) { return new Date(b.created_at) - new Date(a.created_at); });
       }
 
       function volunteerStats(volunteerId) {
@@ -1593,7 +1716,7 @@
         const reviewCount = rows.length;
         const helpfulTotal = rows.reduce(function (sum, r) { return sum + Number(r.helpful_count || 0); }, 0);
 
-        const globalMean = mean(state.reviews.map(function (r) { return Number(r.overall_rating || 0); })) || 4;
+        const globalMean = mean(publishedReviews().map(function (r) { return Number(r.overall_rating || 0); })) || 4;
         const m = 8;
         let weightedSum = 0;
         let weightTotal = 0;
@@ -1614,6 +1737,13 @@
         const positiveRate = reviewCount ? Math.round((positives / reviewCount) * 100) : 0;
 
         return { avgRating: avgRating || 0, reviewCount: reviewCount, score: score, confidence: confidence, openReports: openReports, helpfulTotal: helpfulTotal, positiveRate: positiveRate };
+      }
+
+      function publishedReviews() {
+        return state.reviews.filter(function (row) {
+          const st = row.moderation_status || row.status || "published";
+          return st === "published";
+        });
       }
 
       function computeAuthenticity(review) {
@@ -1662,6 +1792,10 @@
         if (!parts.length) return "V";
         if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
         return (parts[0][0] + parts[1][0]).toUpperCase();
+      }
+
+      function hasVotedHelpful(reviewId) {
+        return !!state.helpfulVotedIds[String(reviewId)];
       }
 
       function clearStatus(node) { node.textContent = ""; node.className = "status"; }
