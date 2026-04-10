@@ -3,26 +3,26 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>MK Chess Volunteer Reviews</title>
+  <title>MK Chess Club Reviews</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <style>
     :root {
-      --bg: #f6f1e7;
-      --card: #fffdf8;
-      --card-2: #fffbf2;
-      --ink: #1f1b17;
-      --muted: #6a625a;
-      --line: #d8cebd;
-      --brand: #0b6b4a;
-      --brand-2: #9b6a22;
-      --ok: #1d6b4e;
-      --err: #8a3030;
-      --warn: #936113;
-      --shadow: 0 14px 30px rgba(25, 20, 14, 0.08);
-      --r-lg: 18px;
-      --r-md: 12px;
+      --bg: #f4f3ef;
+      --panel: #ffffff;
+      --line: #e2dfd8;
+      --line-strong: #d4d0c8;
+      --ink: #1f1d19;
+      --muted: #6d675f;
+      --brand: #106d4d;
+      --brand-soft: #e7f2ed;
+      --warn: #8f5f1d;
+      --danger: #8b3434;
+      --radius-xl: 18px;
+      --radius-lg: 14px;
+      --radius-md: 10px;
+      --shadow: 0 12px 28px rgba(20, 16, 10, 0.06);
     }
 
     * { box-sizing: border-box; }
@@ -31,378 +31,538 @@
       margin: 0;
       font-family: "Sora", sans-serif;
       color: var(--ink);
-      background: linear-gradient(180deg, #f7f5ef, #f2eee4);
-      min-height: 100vh;
+      background: linear-gradient(180deg, #f7f6f2, #f2efe8);
     }
 
-    .app { width: min(1180px, 94vw); margin: 22px auto 48px; display: grid; gap: 14px; }
+    .app {
+      width: min(1200px, 96vw);
+      margin: 16px auto 40px;
+      display: grid;
+      gap: 12px;
+    }
 
-    .shell {
+    .top {
+      background: var(--panel);
       border: 1px solid var(--line);
-      border-radius: var(--r-lg);
-      background: #fff;
+      border-radius: var(--radius-xl);
       box-shadow: var(--shadow);
-      padding: 14px;
+      padding: 12px;
       display: grid;
       gap: 10px;
     }
 
-    .topbar {
+    .top-row {
       display: grid;
       grid-template-columns: auto 1fr auto;
-      gap: 10px;
       align-items: center;
+      gap: 10px;
     }
 
-    .brand { display: grid; gap: 2px; }
-    .brand .kicker { font-size: 10px; letter-spacing: 0.11em; text-transform: uppercase; color: var(--brand); font-weight: 800; }
-    .brand h1 { margin: 0; font-size: clamp(20px, 2.6vw, 28px); line-height: 1.1; }
+    .brand {
+      display: grid;
+      gap: 2px;
+      line-height: 1;
+    }
 
-    .auth-box { display: flex; gap: 8px; align-items: center; }
-    .auth-box input {
-      width: 320px;
-      max-width: 100%;
-      padding: 9px 11px;
-      border-radius: 10px;
-      border: 1px solid var(--line);
+    .brand small {
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      font-weight: 800;
+      color: var(--brand);
+    }
+
+    .brand h1 {
+      margin: 0;
+      font-size: clamp(24px, 3vw, 34px);
+      letter-spacing: -0.02em;
+      font-weight: 800;
+    }
+
+    .login {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .login input {
+      width: min(360px, 100%);
+      padding: 10px 12px;
+      border: 1px solid var(--line-strong);
+      border-radius: 12px;
       font: inherit;
       background: #fff;
     }
+
+    .meta {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      align-items: center;
+    }
+
+    .pill {
+      border: 1px solid #d7d3cb;
+      border-radius: 999px;
+      padding: 5px 10px;
+      font-size: 11px;
+      font-weight: 700;
+      background: #f9f7f2;
+      color: #504a42;
+      white-space: nowrap;
+    }
+
+    .pill.live { background: var(--brand-soft); border-color: #b7d5c7; color: #1e5a44; }
 
     button {
       font: inherit;
-      border-radius: 10px;
-      border: 1px solid #1b5f47;
-      padding: 9px 12px;
       font-weight: 700;
       cursor: pointer;
+      border-radius: 11px;
+      border: 1px solid #0e5b41;
+      background: #0f6f4e;
       color: #fff;
-      background: linear-gradient(135deg, #0b6b4a, #084f38);
+      padding: 10px 13px;
     }
 
-    button.ghost { background: #fff; color: #184d3a; border-color: #9ec7b8; }
-    button.warn { background: linear-gradient(135deg, #9b6a22, #7c531b); border-color: #6a4818; }
-    button.danger { background: linear-gradient(135deg, #8a3030, #6f2727); border-color: #5a2121; }
-    button:disabled { opacity: 0.64; cursor: not-allowed; }
-
-    .badges { display: flex; gap: 7px; flex-wrap: wrap; justify-content: flex-end; }
-    .badge {
-      font-size: 11px;
-      padding: 5px 9px;
-      border-radius: 999px;
-      border: 1px solid #bfd6cd;
-      background: #ecf6f1;
-      color: #1f5b45;
-      font-weight: 700;
-    }
-    .badge.muted { border-color: #d9d0bf; background: #f6f2e8; color: #5f5549; }
-
-    .connect-row {
-      display: grid;
-      grid-template-columns: 1.1fr 1.5fr 0.9fr auto;
-      gap: 8px;
-      align-items: center;
-    }
-
-    .connect-row input {
-      padding: 8px 10px;
-      border-radius: 10px;
-      border: 1px solid var(--line);
-      font: inherit;
-      min-width: 0;
+    button.ghost {
       background: #fff;
+      color: #1b5a45;
+      border-color: #9dc7b6;
     }
 
-    .connect-actions { display: flex; gap: 7px; flex-wrap: wrap; }
+    button.warn {
+      background: #8f5f1d;
+      border-color: #764f18;
+    }
+
+    button.danger {
+      background: #8b3434;
+      border-color: #6d2727;
+    }
+
+    button.mini {
+      padding: 7px 10px;
+      border-radius: 9px;
+      font-size: 12px;
+    }
+
+    .status-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .status {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 8px 10px;
+      font-size: 12px;
+      color: #585148;
+      background: #faf8f3;
+    }
+
+    .status.ok {
+      color: #0f5a41;
+      border-color: #acd0c0;
+      background: #e3f1ea;
+    }
+
+    .status.err {
+      color: #7a2626;
+      border-color: #deb4b4;
+      background: #f8e7e7;
+    }
+
+    .status:empty { display: none; }
 
     .settings {
       border: 1px solid var(--line);
       border-radius: 10px;
-      padding: 8px;
       background: #fcfaf4;
+      padding: 7px 9px;
     }
 
     .settings summary {
       cursor: pointer;
       font-size: 12px;
       font-weight: 700;
-      color: #4b4136;
+      color: #4f473e;
       list-style: none;
+      user-select: none;
     }
 
     .settings summary::-webkit-details-marker { display: none; }
 
-    .status {
-      border-radius: 10px;
-      border: 1px solid var(--line);
-      padding: 9px 10px;
-      font-size: 12px;
-      background: #faf7ef;
-      color: #5c5247;
+    .settings-grid {
+      margin-top: 8px;
+      display: grid;
+      grid-template-columns: 1.1fr 1.3fr 0.8fr auto;
+      gap: 8px;
+      align-items: center;
     }
-    .status:empty { display: none; }
-    .status.ok { color: #0f5a40; background: #ddf0e7; border-color: #aad1c1; }
-    .status.err { color: #7a2323; background: #f7e2e2; border-color: #dfb0b0; }
 
-    .tabs { display: flex; gap: 8px; flex-wrap: wrap; }
-    .tab {
-      border: 1px solid #d5cdbd;
-      border-radius: 999px;
-      background: #fff;
-      color: #43392f;
-      padding: 8px 12px;
-      font-size: 12px;
-      font-weight: 700;
-      cursor: pointer;
+    .settings-grid input {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid var(--line-strong);
+      border-radius: 9px;
+      font: inherit;
+      min-width: 0;
     }
-    .tab.active { background: #114f3b; border-color: #0f4735; color: #fff; }
 
-    .view { display: none; }
-    .view.active { display: block; }
+    .settings-actions { display: flex; gap: 6px; }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 290px 1fr;
+      gap: 12px;
+    }
 
     .panel {
+      background: var(--panel);
       border: 1px solid var(--line);
-      border-radius: var(--r-lg);
-      background: var(--card);
+      border-radius: var(--radius-xl);
       box-shadow: var(--shadow);
       padding: 12px;
+      display: grid;
+      gap: 10px;
     }
-
-    .discover-layout { display: grid; grid-template-columns: 340px 1fr; gap: 12px; }
 
     .stack { display: grid; gap: 10px; }
 
-    .card {
-      border: 1px solid var(--line);
-      border-radius: var(--r-md);
-      background: var(--card-2);
-      padding: 10px;
+    .left-head {
       display: grid;
-      gap: 9px;
+      gap: 8px;
     }
 
-    .title-row { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
-    .title-row h2, .title-row h3 { margin: 0; font-size: 18px; }
-
-    .search input, .search select, .field input, .field select, .field textarea {
+    .left-head input,
+    .left-head select,
+    .field input,
+    .field select,
+    .field textarea {
       width: 100%;
-      padding: 9px 10px;
-      border: 1px solid var(--line);
+      border: 1px solid var(--line-strong);
       border-radius: 10px;
+      padding: 9px 10px;
       font: inherit;
       background: #fff;
       color: var(--ink);
     }
 
-    .field { display: grid; gap: 5px; }
-    .field label { font-size: 11px; letter-spacing: 0.07em; text-transform: uppercase; color: #4b4035; font-weight: 700; }
-    .field textarea { min-height: 110px; resize: vertical; }
+    .vol-list {
+      display: grid;
+      gap: 7px;
+      max-height: calc(100vh - 250px);
+      overflow: auto;
+      padding-right: 2px;
+    }
 
-    .vol-grid { display: grid; gap: 8px; }
-    .vol-card {
+    .vol-item {
       border: 1px solid var(--line);
-      background: #fff;
       border-radius: 12px;
-      padding: 10px;
+      background: #fff;
+      padding: 9px;
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 8px;
+      align-items: center;
+      cursor: pointer;
+    }
+
+    .vol-item.active {
+      border-color: #9ec4b4;
+      box-shadow: 0 0 0 2px rgba(16, 109, 77, 0.11) inset;
+    }
+
+    .avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 11px;
+      border: 1px solid #d8d2c6;
+      background: #f2eee3;
+      display: grid;
+      place-items: center;
+      font-size: 12px;
+      font-weight: 800;
+      color: #4c4338;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+    .vol-item h3 {
+      margin: 0;
+      font-size: 14px;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+
+    .muted { color: var(--muted); font-size: 12px; }
+
+    .score {
+      border: 1px solid #ddd5c7;
+      border-radius: 999px;
+      padding: 4px 8px;
+      font-size: 11px;
+      font-weight: 700;
+      color: #5b5247;
+      background: #f8f4ea;
+      white-space: nowrap;
+    }
+
+    .profile {
+      display: grid;
+      gap: 10px;
+    }
+
+    .hero {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #fffef9;
+      padding: 12px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .hero-top {
       display: grid;
       grid-template-columns: auto 1fr auto;
       gap: 10px;
       align-items: center;
-      cursor: pointer;
     }
-    .vol-card.active { border-color: #8ebea9; box-shadow: 0 0 0 2px rgba(11, 107, 74, 0.12) inset; }
-    .avatar {
-      width: 44px;
-      height: 44px;
-      border-radius: 12px;
-      border: 1px solid #d4cab9;
-      background: linear-gradient(140deg, #f8f4e6, #ede3cd);
-      display: grid;
-      place-items: center;
-      font-weight: 800;
-      color: #4e4337;
-      overflow: hidden;
+
+    .hero-top .avatar { width: 58px; height: 58px; border-radius: 14px; }
+
+    .hero h2 {
+      margin: 0;
+      font-size: clamp(22px, 2.4vw, 30px);
+      line-height: 1.05;
+      letter-spacing: -0.02em;
     }
-    .avatar img { width: 100%; height: 100%; object-fit: cover; }
-    .name { font-size: 14px; font-weight: 700; }
-    .sub { font-size: 12px; color: var(--muted); }
-    .score-pill {
-      font-size: 11px;
-      padding: 4px 8px;
+
+    .actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+    .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+
+    .chip {
+      border: 1px solid #d9d2c4;
       border-radius: 999px;
-      border: 1px solid #d5ccb9;
-      background: #f8f2e7;
-      color: #5c5144;
-      font-weight: 700;
-      white-space: nowrap;
-    }
-
-    .profile-hero {
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      padding: 12px;
-      background: linear-gradient(160deg, #fffef9, #fff8ea);
-      display: grid;
-      gap: 11px;
-    }
-
-    .profile-top { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; }
-    .profile-top .avatar { width: 56px; height: 56px; border-radius: 14px; }
-    .profile-name { font-size: 22px; margin: 0; line-height: 1.1; }
-    .tagline { color: var(--muted); font-size: 13px; }
-
-    .stats-row { display: flex; flex-wrap: wrap; gap: 7px; }
-    .stat {
-      border-radius: 999px;
-      border: 1px solid #d8cfbf;
-      background: #f8f3e8;
-      font-size: 11px;
       padding: 5px 9px;
+      font-size: 11px;
       font-weight: 700;
-      color: #5a5145;
+      color: #594f43;
+      background: #f8f4ea;
     }
 
-    .metric-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 8px; }
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+    }
+
     .metric {
       border: 1px solid var(--line);
       border-radius: 11px;
-      padding: 9px;
       background: #fff;
+      padding: 9px;
       display: grid;
       gap: 2px;
     }
-    .metric .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; }
-    .metric .value { font-size: 20px; font-weight: 800; }
 
-    .review-list { display: grid; gap: 8px; }
+    .metric .k { font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: #736c63; }
+    .metric .v { font-size: 19px; font-weight: 800; line-height: 1; }
+
+    .reviews {
+      display: grid;
+      gap: 8px;
+    }
+
     .review {
       border: 1px solid var(--line);
       border-radius: 12px;
       background: #fff;
       padding: 10px;
       display: grid;
+      gap: 6px;
+    }
+
+    .review-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: flex-start;
+    }
+
+    .headline { font-size: 15px; font-weight: 700; margin-top: 2px; }
+    .stars { font-size: 13px; letter-spacing: 0.06em; color: #845922; }
+
+    .dialog {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      width: min(780px, 95vw);
+      max-height: 88vh;
+      overflow: auto;
+      background: #fff;
+      box-shadow: 0 20px 46px rgba(17, 13, 8, 0.22);
+      padding: 0;
+    }
+
+    .dialog::backdrop { background: rgba(18, 15, 12, 0.42); }
+
+    .dialog-body {
+      padding: 12px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .dialog-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .dialog-head h3 { margin: 0; font-size: 20px; }
+
+    .field { display: grid; gap: 5px; }
+    .field label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; color: #544b40; font-weight: 700; }
+    .field textarea { min-height: 115px; resize: vertical; }
+
+    .rating-grid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
       gap: 7px;
     }
-    .review .head { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; }
-    .review .headline { font-size: 15px; font-weight: 700; margin-top: 2px; }
-    .review .meta { font-size: 12px; color: var(--muted); }
-    .stars { letter-spacing: 0.06em; color: #855722; font-size: 13px; }
 
-    .split { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .split {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
 
-    .form-card { border: 1px solid var(--line); border-radius: 14px; background: #fffef8; padding: 12px; display: grid; gap: 10px; }
-    .form-card h2, .form-card h3 { margin: 0; font-size: 20px; }
-
-    .rating-grid { display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 8px; }
-
-    .studio { display: grid; gap: 12px; }
-    .studio-grid { display: grid; grid-template-columns: 1.1fr 1fr; gap: 12px; }
-
-    .analytics { display: grid; gap: 8px; }
-    .analytics-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 8px; }
-
-    .bar-list { display: grid; gap: 7px; }
+    .bars { display: grid; gap: 7px; }
     .bar-row { display: grid; grid-template-columns: 120px 1fr auto; gap: 8px; align-items: center; }
-    .bar {
-      height: 9px;
+
+    .bar-track {
+      height: 8px;
       border-radius: 999px;
-      background: #f1ebdd;
-      border: 1px solid #e2d8c4;
+      border: 1px solid #e2dac8;
+      background: #f3efe3;
       overflow: hidden;
     }
-    .bar > span { display: block; height: 100%; background: linear-gradient(90deg, #0d6b4a, #2c8c69); }
 
-    details { border: 1px solid var(--line); border-radius: 10px; background: #fffcf5; padding: 9px 10px; }
-    details summary { cursor: pointer; font-weight: 700; font-size: 13px; }
+    .bar-track > span { height: 100%; display: block; background: linear-gradient(90deg, #0f6f4f, #2f8d6b); }
 
-    @media (max-width: 1020px) {
-      .topbar { grid-template-columns: 1fr; }
-      .badges { justify-content: flex-start; }
-      .discover-layout, .studio-grid, .split, .metric-grid, .analytics-grid, .rating-grid { grid-template-columns: 1fr; }
-      .connect-row { grid-template-columns: 1fr; }
-      .auth-box { flex-wrap: wrap; }
-      .auth-box input { width: 100%; }
+    .empty {
+      border: 1px dashed var(--line-strong);
+      border-radius: 11px;
+      background: #fbfaf6;
+      padding: 12px;
+      color: #6c665d;
+      font-size: 13px;
+      text-align: center;
+    }
+
+    @media (max-width: 1080px) {
+      .top-row { grid-template-columns: 1fr; }
+      .meta { justify-content: flex-start; }
+      .login { justify-content: flex-start; flex-wrap: wrap; }
+      .layout { grid-template-columns: 1fr; }
+      .vol-list { max-height: 320px; }
+      .metric-grid { grid-template-columns: 1fr 1fr; }
+      .settings-grid { grid-template-columns: 1fr; }
+      .rating-grid { grid-template-columns: 1fr 1fr; }
+      .split { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 680px) {
+      .app { width: 98vw; margin-top: 10px; }
+      .hero-top { grid-template-columns: 1fr; }
+      .hero-top .actions { justify-content: flex-start; }
+      .metric-grid { grid-template-columns: 1fr; }
+      .rating-grid { grid-template-columns: 1fr; }
+      .dialog { width: 97vw; }
     }
   </style>
 </head>
 <body>
   <main class="app">
-    <section class="shell">
-      <div class="topbar">
+    <header class="top">
+      <div class="top-row">
         <div class="brand">
-          <span class="kicker">MK Chess Club</span>
+          <small>MK Chess Club</small>
           <h1>Volunteer Reviews</h1>
         </div>
 
-        <div class="auth-box">
+        <div class="login">
           <input id="emailInput" type="email" placeholder="member@yourdomain.com" />
-          <button id="sendLinkBtn" type="button">Send Login Link</button>
-          <button id="signOutBtn" class="ghost" type="button">Sign Out</button>
+          <button id="sendLinkBtn" type="button">Send Link</button>
+          <button id="signOutBtn" type="button" class="ghost">Sign Out</button>
         </div>
 
-        <div class="badges">
-          <span class="badge" id="modeBadge">Demo</span>
-          <span class="badge muted" id="userBadge">Guest</span>
-          <span class="badge muted" id="roleBadge">No role</span>
+        <div class="meta">
+          <span id="modeChip" class="pill">Demo</span>
+          <span id="userChip" class="pill">Guest</span>
+          <span id="roleChip" class="pill">role / status</span>
         </div>
       </div>
 
       <details class="settings">
         <summary>Settings</summary>
-        <div class="connect-row">
+        <div class="settings-grid">
           <input id="supaUrlInput" type="url" placeholder="Supabase URL" />
           <input id="supaKeyInput" type="password" placeholder="Supabase anon key" />
-          <input id="allowedDomainInput" type="text" placeholder="Allowed email domain" />
-          <div class="connect-actions">
-            <button id="connectBtn" type="button">Connect</button>
-            <button id="demoBtn" class="warn" type="button">Demo</button>
+          <input id="allowedDomainInput" type="text" placeholder="Email domain" />
+          <div class="settings-actions">
+            <button id="connectBtn" type="button" class="mini">Connect</button>
+            <button id="demoBtn" type="button" class="mini warn">Demo</button>
           </div>
         </div>
-        <p id="backendStatus" class="status">Backend: not connected</p>
       </details>
 
-      <p id="authStatus" class="status">Status: guest</p>
-    </section>
-
-    <section class="panel">
-      <div class="tabs" id="tabs">
-        <button class="tab active" data-view="discover">Discover</button>
-        <button class="tab" data-view="review">Reviews</button>
-        <button class="tab" data-view="studio">Studio</button>
+      <div class="status-row">
+        <p id="authStatus" class="status"></p>
+        <p id="backendStatus" class="status"></p>
       </div>
-    </section>
+    </header>
 
-    <section id="discoverView" class="view active panel">
-      <div class="discover-layout">
-        <aside class="stack">
-          <article class="card search">
-            <div class="title-row"><h2>Volunteers</h2></div>
-            <input id="searchInput" type="text" placeholder="Search volunteer" />
-            <select id="sortSelect">
-              <option value="top">Top rated</option>
-              <option value="reviews">Most reviewed</option>
-              <option value="name">Name A-Z</option>
-            </select>
-          </article>
-          <div id="volunteerGrid" class="vol-grid"></div>
-        </aside>
+    <section class="layout">
+      <aside class="panel">
+        <div class="left-head">
+          <input id="searchInput" type="text" placeholder="Search volunteers" />
+          <select id="sortSelect">
+            <option value="top">Top rated</option>
+            <option value="reviews">Most reviewed</option>
+            <option value="name">Name A-Z</option>
+          </select>
+        </div>
+        <div id="volunteerList" class="vol-list"></div>
+      </aside>
 
-        <section class="stack">
-          <article id="profilePanel" class="card"></article>
-        </section>
-      </div>
+      <section class="panel">
+        <div id="profileSurface" class="profile"></div>
+      </section>
     </section>
-    <section id="reviewView" class="view panel">
-      <div class="split">
-        <form id="reviewForm" class="form-card">
-          <h2>Review</h2>
-          <div class="field">
-            <label for="reviewEventSelect">Event</label>
-            <select id="reviewEventSelect" required></select>
-          </div>
-          <div class="field">
-            <label for="reviewVolunteerSelect">Volunteer</label>
-            <select id="reviewVolunteerSelect" required></select>
+    <dialog id="reviewDialog" class="dialog">
+      <div class="dialog-body">
+        <div class="dialog-head">
+          <h3>Write Review</h3>
+          <button type="button" class="ghost mini" data-close="reviewDialog">Close</button>
+        </div>
+        <form id="reviewForm" class="stack">
+          <div class="split">
+            <div class="field">
+              <label for="reviewEventSelect">Event</label>
+              <select id="reviewEventSelect" required></select>
+            </div>
+            <div class="field">
+              <label for="reviewVolunteerSelect">Volunteer</label>
+              <select id="reviewVolunteerSelect" required></select>
+            </div>
           </div>
 
           <div class="rating-grid">
@@ -422,92 +582,99 @@
             <textarea id="reviewBodyInput" maxlength="2000" placeholder="Details"></textarea>
           </div>
 
-          <label class="sub"><input id="truthCheckbox" type="checkbox" /> Real event, truthful review.</label>
+          <label class="muted"><input id="truthCheckbox" type="checkbox" /> Real event, truthful review</label>
           <button id="submitReviewBtn" type="submit">Submit Review</button>
           <p id="reviewStatus" class="status"></p>
         </form>
+      </div>
+    </dialog>
 
-        <form id="reportForm" class="form-card">
-          <h2>Report</h2>
-          <div class="field">
-            <label for="reportVolunteerSelect">Volunteer</label>
-            <select id="reportVolunteerSelect" required></select>
+    <dialog id="reportDialog" class="dialog">
+      <div class="dialog-body">
+        <div class="dialog-head">
+          <h3>Report</h3>
+          <button type="button" class="ghost mini" data-close="reportDialog">Close</button>
+        </div>
+        <form id="reportForm" class="stack">
+          <div class="split">
+            <div class="field">
+              <label for="reportVolunteerSelect">Volunteer</label>
+              <select id="reportVolunteerSelect" required></select>
+            </div>
+            <div class="field">
+              <label for="reportEventSelect">Event</label>
+              <select id="reportEventSelect"><option value="">No event</option></select>
+            </div>
           </div>
-          <div class="field">
-            <label for="reportEventSelect">Event</label>
-            <select id="reportEventSelect"><option value="">No event</option></select>
+
+          <div class="split">
+            <div class="field">
+              <label for="reportReasonSelect">Reason</label>
+              <select id="reportReasonSelect" required>
+                <option value="">-</option>
+                <option value="conduct">Conduct</option>
+                <option value="safety">Safety</option>
+                <option value="bias">Bias</option>
+                <option value="absence">No-show</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="reportSeveritySelect">Severity</label>
+              <select id="reportSeveritySelect">
+                <option value="low">Low</option>
+                <option value="medium" selected>Medium</option>
+                <option value="high">High</option>
+              </select>
+            </div>
           </div>
-          <div class="field">
-            <label for="reportReasonSelect">Reason</label>
-            <select id="reportReasonSelect" required>
-              <option value="">-</option>
-              <option value="conduct">Conduct</option>
-              <option value="safety">Safety</option>
-              <option value="bias">Bias / unfair treatment</option>
-              <option value="absence">No-show / reliability</option>
-              <option value="other">Other</option>
-            </select>
-          </div>
-          <div class="field">
-            <label for="reportSeveritySelect">Severity</label>
-            <select id="reportSeveritySelect">
-              <option value="low">Low</option>
-              <option value="medium" selected>Medium</option>
-              <option value="high">High</option>
-            </select>
-          </div>
+
           <div class="field">
             <label for="reportDetailsInput">Details</label>
-            <textarea id="reportDetailsInput" maxlength="1500" placeholder="Facts, date, what happened"></textarea>
+            <textarea id="reportDetailsInput" maxlength="1500" placeholder="Facts and context"></textarea>
           </div>
+
           <button id="submitReportBtn" class="danger" type="submit">Submit Report</button>
           <p id="reportStatus" class="status"></p>
         </form>
       </div>
-    </section>
+    </dialog>
 
-    <section id="studioView" class="view panel">
-      <div class="studio" id="studioGate"></div>
-      <div class="studio" id="studioContent" style="display:none;">
-        <div class="studio-grid">
-          <form id="profileForm" class="form-card">
-            <h2>Profile</h2>
-            <div class="field"><label for="profileDisplayName">Display Name</label><input id="profileDisplayName" type="text" maxlength="80" /></div>
-            <div class="field"><label for="profileTagline">Tagline</label><input id="profileTagline" type="text" maxlength="120" placeholder="Example: Junior mentor and tournament helper" /></div>
-            <div class="field"><label for="profileAvatarUrl">Avatar URL</label><input id="profileAvatarUrl" type="url" placeholder="https://..." /></div>
-            <div class="field"><label for="profileBio">Bio</label><textarea id="profileBio" maxlength="800"></textarea></div>
-            <label class="sub"><input id="profileActive" type="checkbox" /> Public profile visible</label>
-            <button id="saveProfileBtn" type="submit">Save Profile</button>
-            <p id="profileStatus" class="status"></p>
-          </form>
-
-          <article class="form-card analytics">
-            <h2>Analytics</h2>
-            <div id="studioMetrics" class="analytics-grid"></div>
-            <div class="card">
-              <div class="title-row"><h3>Category Scores</h3></div>
-              <div id="categoryBars" class="bar-list"></div>
-            </div>
-            <div class="card">
-              <div class="title-row"><h3>6-Month Trend</h3></div>
-              <div id="trendBars" class="bar-list"></div>
-            </div>
-          </article>
+    <dialog id="studioDialog" class="dialog">
+      <div class="dialog-body">
+        <div class="dialog-head">
+          <h3>Volunteer Studio</h3>
+          <button type="button" class="ghost mini" data-close="studioDialog">Close</button>
         </div>
 
-        <div class="split">
-          <article class="form-card">
-            <h3>Recent Reviews</h3>
-            <div id="studioRecentReviews" class="review-list"></div>
-          </article>
-          <article class="form-card">
-            <h3>Open Reports</h3>
-            <div id="studioOpenReports" class="review-list"></div>
-          </article>
-        </div>
+        <div id="studioGate" class="empty"></div>
+
+        <section id="studioContent" style="display:none;">
+          <div class="split">
+            <form id="profileForm" class="stack">
+              <div class="field"><label for="profileDisplayName">Display Name</label><input id="profileDisplayName" type="text" maxlength="80" /></div>
+              <div class="field"><label for="profileTagline">Tagline</label><input id="profileTagline" type="text" maxlength="120" /></div>
+              <div class="field"><label for="profileAvatarUrl">Avatar URL</label><input id="profileAvatarUrl" type="url" /></div>
+              <div class="field"><label for="profileBio">Bio</label><textarea id="profileBio" maxlength="800"></textarea></div>
+              <label class="muted"><input id="profileActive" type="checkbox" /> Public profile visible</label>
+              <button id="saveProfileBtn" type="submit">Save Profile</button>
+              <p id="profileStatus" class="status"></p>
+            </form>
+
+            <section class="stack">
+              <div id="studioMetrics" class="metric-grid"></div>
+              <div class="panel" style="padding:8px; box-shadow:none;"><div class="bars" id="categoryBars"></div></div>
+              <div class="panel" style="padding:8px; box-shadow:none;"><div class="bars" id="trendBars"></div></div>
+            </section>
+          </div>
+
+          <div class="split">
+            <section class="stack"><div class="muted">Recent reviews</div><div id="studioRecentReviews" class="reviews"></div></section>
+            <section class="stack"><div class="muted">Open reports</div><div id="studioOpenReports" class="reviews"></div></section>
+          </div>
+        </section>
       </div>
-    </section>
-
+    </dialog>
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -526,28 +693,24 @@
         member: { display_name: "Demo Volunteer", status: "approved", role: "volunteer", trust_score: 1.1, created_at: "2025-10-01T10:00:00Z" },
         volunteerLink: { volunteer_id: "v1", source: "demo" },
         volunteers: [
-          { id: "v1", display_name: "A. Patel", tagline: "Beginner support and pairings", bio: "I help new attendees settle in quickly.", avatar_url: "", active: true },
-          { id: "v2", display_name: "M. Khan", tagline: "Junior mentor", bio: "Focus on junior coaching and confidence.", avatar_url: "", active: true },
-          { id: "v3", display_name: "S. Wright", tagline: "Tournament desk", bio: "Time controls, desk ops, and rapid rounds.", avatar_url: "", active: true },
-          { id: "v4", display_name: "R. Lewis", tagline: "Setup and logistics", bio: "Board setup, clocks, room flow.", avatar_url: "", active: true }
+          { id: "v1", display_name: "A. Patel", tagline: "Beginner support", bio: "I help new attendees settle in quickly.", avatar_url: "", active: true },
+          { id: "v2", display_name: "M. Khan", tagline: "Junior mentor", bio: "Junior coaching and confidence.", avatar_url: "", active: true },
+          { id: "v3", display_name: "S. Wright", tagline: "Tournament desk", bio: "Time controls and desk ops.", avatar_url: "", active: true },
+          { id: "v4", display_name: "R. Lewis", tagline: "Setup and logistics", bio: "Boards, clocks, and room flow.", avatar_url: "", active: true }
         ],
         events: [
           { id: "e1", title: "Friday Club Night", starts_at: "2026-03-13T18:30:00Z" },
           { id: "e2", title: "Rapid League R4", starts_at: "2026-03-28T14:00:00Z" },
           { id: "e3", title: "Beginner Coaching", starts_at: "2026-04-03T17:00:00Z" }
         ],
-        eventVolunteerMap: {
-          e1: ["v1", "v2", "v3"],
-          e2: ["v2", "v4"],
-          e3: ["v1", "v3"]
-        },
+        eventVolunteerMap: { e1: ["v1", "v2", "v3"], e2: ["v2", "v4"], e3: ["v1", "v3"] },
         reviews: [
-          { id: "r1", volunteer_id: "v1", event_id: "e1", overall_rating: 5, communication_rating: 5, reliability_rating: 5, warmth_rating: 5, clarity_rating: 5, title: "Excellent with new members", body: "Super clear and calm. Made first-time attendance easy and friendly.", helpful_count: 12, moderation_status: "published", authenticity_score: 8, reviewer_weight: 1.1, created_at: "2026-03-14T11:20:00Z" },
-          { id: "r2", volunteer_id: "v1", event_id: "e3", overall_rating: 4, communication_rating: 4, reliability_rating: 5, warmth_rating: 4, clarity_rating: 4, title: "Strong support", body: "Helpful and respectful. Good explanations for beginners.", helpful_count: 5, moderation_status: "published", authenticity_score: 12, reviewer_weight: 1.0, created_at: "2026-04-04T10:00:00Z" },
-          { id: "r3", volunteer_id: "v2", event_id: "e1", overall_rating: 4, communication_rating: 4, reliability_rating: 4, warmth_rating: 5, clarity_rating: 4, title: "Great junior mentor", body: "Kids stayed engaged and felt supported during games.", helpful_count: 9, moderation_status: "published", authenticity_score: 10, reviewer_weight: 1.0, created_at: "2026-03-14T12:40:00Z" },
+          { id: "r1", volunteer_id: "v1", event_id: "e1", overall_rating: 5, communication_rating: 5, reliability_rating: 5, warmth_rating: 5, clarity_rating: 5, title: "Excellent support", body: "Super clear and calm. Made first-time attendance easy and friendly.", helpful_count: 12, moderation_status: "published", authenticity_score: 8, reviewer_weight: 1.1, created_at: "2026-03-14T11:20:00Z" },
+          { id: "r2", volunteer_id: "v1", event_id: "e3", overall_rating: 4, communication_rating: 4, reliability_rating: 5, warmth_rating: 4, clarity_rating: 4, title: "Strong coaching", body: "Helpful and respectful. Good explanations for beginners.", helpful_count: 5, moderation_status: "published", authenticity_score: 12, reviewer_weight: 1.0, created_at: "2026-04-04T10:00:00Z" },
+          { id: "r3", volunteer_id: "v2", event_id: "e1", overall_rating: 4, communication_rating: 4, reliability_rating: 4, warmth_rating: 5, clarity_rating: 4, title: "Great mentor", body: "Kids stayed engaged and felt supported throughout games.", helpful_count: 9, moderation_status: "published", authenticity_score: 10, reviewer_weight: 1.0, created_at: "2026-03-14T12:40:00Z" },
           { id: "r4", volunteer_id: "v3", event_id: "e1", overall_rating: 3, communication_rating: 3, reliability_rating: 4, warmth_rating: 3, clarity_rating: 3, title: "Solid desk support", body: "Got things done, but explanations could be clearer.", helpful_count: 4, moderation_status: "published", authenticity_score: 16, reviewer_weight: 0.95, created_at: "2026-03-14T14:10:00Z" },
           { id: "r5", volunteer_id: "v4", event_id: "e2", overall_rating: 2, communication_rating: 2, reliability_rating: 2, warmth_rating: 3, clarity_rating: 2, title: "Start delay", body: "Round started late and some clock details were unclear.", helpful_count: 7, moderation_status: "published", authenticity_score: 20, reviewer_weight: 1.0, created_at: "2026-03-29T20:00:00Z" },
-          { id: "r6", volunteer_id: "v2", event_id: "e2", overall_rating: 5, communication_rating: 5, reliability_rating: 5, warmth_rating: 5, clarity_rating: 5, title: "Excellent control", body: "Fast responses and very fair handling throughout rounds.", helpful_count: 11, moderation_status: "published", authenticity_score: 9, reviewer_weight: 1.1, created_at: "2026-03-29T16:40:00Z" }
+          { id: "r6", volunteer_id: "v2", event_id: "e2", overall_rating: 5, communication_rating: 5, reliability_rating: 5, warmth_rating: 5, clarity_rating: 5, title: "Excellent control", body: "Fast responses and very fair handling all rounds.", helpful_count: 11, moderation_status: "published", authenticity_score: 9, reviewer_weight: 1.1, created_at: "2026-03-29T16:40:00Z" }
         ],
         reports: [
           { id: "rep1", volunteer_id: "v4", status: "open", severity: "medium", reason: "absence", details: "Late setup caused delay.", created_at: "2026-03-30T18:00:00Z" },
@@ -567,8 +730,7 @@
         eventVolunteerMap: {},
         reviews: [],
         reports: [],
-        selectedVolunteerId: null,
-        activeView: "discover"
+        selectedVolunteerId: null
       };
 
       const el = {};
@@ -584,16 +746,15 @@
         await loadAllData();
         renderAll();
       }
-
       function cacheEls() {
         [
-          "emailInput", "sendLinkBtn", "signOutBtn", "modeBadge", "userBadge", "roleBadge", "supaUrlInput", "supaKeyInput", "allowedDomainInput",
-          "connectBtn", "demoBtn", "authStatus", "backendStatus", "tabs", "discoverView", "reviewView", "studioView", "searchInput", "sortSelect",
-          "volunteerGrid", "profilePanel", "reviewForm", "reviewEventSelect", "reviewVolunteerSelect", "overallRating", "commRating", "relRating", "warmRating",
-          "clearRating", "reviewTitleInput", "reviewBodyInput", "truthCheckbox", "submitReviewBtn", "reviewStatus", "reportForm", "reportVolunteerSelect", "reportEventSelect",
-          "reportReasonSelect", "reportSeveritySelect", "reportDetailsInput", "submitReportBtn", "reportStatus", "studioGate", "studioContent", "profileForm",
-          "profileDisplayName", "profileTagline", "profileAvatarUrl", "profileBio", "profileActive", "saveProfileBtn", "profileStatus", "studioMetrics", "categoryBars",
-          "trendBars", "studioRecentReviews", "studioOpenReports"
+          "emailInput", "sendLinkBtn", "signOutBtn", "modeChip", "userChip", "roleChip", "supaUrlInput", "supaKeyInput", "allowedDomainInput",
+          "connectBtn", "demoBtn", "authStatus", "backendStatus", "searchInput", "sortSelect", "volunteerList", "profileSurface",
+          "reviewDialog", "reviewForm", "reviewEventSelect", "reviewVolunteerSelect", "overallRating", "commRating", "relRating", "warmRating", "clearRating",
+          "reviewTitleInput", "reviewBodyInput", "truthCheckbox", "submitReviewBtn", "reviewStatus",
+          "reportDialog", "reportForm", "reportVolunteerSelect", "reportEventSelect", "reportReasonSelect", "reportSeveritySelect", "reportDetailsInput", "submitReportBtn", "reportStatus",
+          "studioDialog", "studioGate", "studioContent", "profileForm", "profileDisplayName", "profileTagline", "profileAvatarUrl", "profileBio", "profileActive", "saveProfileBtn", "profileStatus",
+          "studioMetrics", "categoryBars", "trendBars", "studioRecentReviews", "studioOpenReports"
         ].forEach(function (id) { el[id] = document.getElementById(id); });
       }
 
@@ -602,15 +763,24 @@
         el.demoBtn.addEventListener("click", onDemoClick);
         el.sendLinkBtn.addEventListener("click", onSendMagicLink);
         el.signOutBtn.addEventListener("click", onSignOut);
-        el.tabs.addEventListener("click", onTabClick);
         el.searchInput.addEventListener("input", renderVolunteerList);
         el.sortSelect.addEventListener("change", renderVolunteerList);
-        el.volunteerGrid.addEventListener("click", onVolunteerCardClick);
-        el.profilePanel.addEventListener("click", onProfilePanelClick);
+        el.volunteerList.addEventListener("click", onVolunteerClick);
+        el.profileSurface.addEventListener("click", onProfileClick);
         el.reviewEventSelect.addEventListener("change", renderReviewVolunteerOptions);
         el.reviewForm.addEventListener("submit", onSubmitReview);
         el.reportForm.addEventListener("submit", onSubmitReport);
         el.profileForm.addEventListener("submit", onSaveProfile);
+        document.addEventListener("click", onGlobalClick);
+      }
+
+      function onGlobalClick(event) {
+        const close = event.target.closest("[data-close]");
+        if (!close) return;
+        const id = close.getAttribute("data-close");
+        if (id && el[id] && typeof el[id].close === "function") {
+          el[id].close();
+        }
       }
 
       function restoreConfig() {
@@ -651,7 +821,7 @@
           state.user = DEMO.user;
           state.member = DEMO.member;
           state.volunteerLink = DEMO.volunteerLink;
-          setStatus(el.backendStatus, "Backend: no credentials (demo mode)", "err");
+          setStatus(el.backendStatus, "Backend: no credentials (demo)", "err");
           return;
         }
 
@@ -662,15 +832,16 @@
           state.demoMode = false;
           attachAuthSubscription();
           setStatus(el.backendStatus, "Backend: connected", "ok");
-        } catch (err) {
+        } catch (_err) {
           state.demoMode = true;
           state.supabase = null;
           state.user = DEMO.user;
           state.member = DEMO.member;
           state.volunteerLink = DEMO.volunteerLink;
-          setStatus(el.backendStatus, "Backend: connection failed (demo mode)", "err");
+          setStatus(el.backendStatus, "Backend: connection failed (demo)", "err");
         }
       }
+
       function attachAuthSubscription() {
         detachAuthSubscription();
         state.authSub = state.supabase.auth.onAuthStateChange(async function (_event, session) {
@@ -749,35 +920,22 @@
 
         let found = null;
 
-        const direct = await state.supabase
-          .from("volunteers")
-          .select("id")
-          .eq("user_id", state.user.id)
-          .maybeSingle();
-
+        const direct = await state.supabase.from("volunteers").select("id").eq("user_id", state.user.id).maybeSingle();
         if (!direct.error && direct.data && direct.data.id) {
           found = { volunteer_id: direct.data.id, source: "volunteers.user_id" };
         }
 
         if (!found) {
-          const mapped = await state.supabase
-            .from("volunteer_accounts")
-            .select("volunteer_id")
-            .eq("user_id", state.user.id)
-            .maybeSingle();
+          const mapped = await state.supabase.from("volunteer_accounts").select("volunteer_id").eq("user_id", state.user.id).maybeSingle();
           if (!mapped.error && mapped.data && mapped.data.volunteer_id) {
             found = { volunteer_id: mapped.data.volunteer_id, source: "volunteer_accounts" };
           }
         }
 
         if (!found) {
-          const fromProfile = await state.supabase
-            .from("member_profiles")
-            .select("volunteer_id")
-            .eq("user_id", state.user.id)
-            .maybeSingle();
-          if (!fromProfile.error && fromProfile.data && fromProfile.data.volunteer_id) {
-            found = { volunteer_id: fromProfile.data.volunteer_id, source: "member_profiles.volunteer_id" };
+          const profileMap = await state.supabase.from("member_profiles").select("volunteer_id").eq("user_id", state.user.id).maybeSingle();
+          if (!profileMap.error && profileMap.data && profileMap.data.volunteer_id) {
+            found = { volunteer_id: profileMap.data.volunteer_id, source: "member_profiles.volunteer_id" };
           }
         }
 
@@ -824,7 +982,7 @@
       async function loadReviews() {
         const resp = await state.supabase
           .from("reviews")
-          .select("id,volunteer_id,event_id,overall_rating,communication_rating,reliability_rating,warmth_rating,clarity_rating,title,body,helpful_count,moderation_status,status,authenticity_score,reviewer_weight,created_at,volunteers(display_name,avatar_url),club_events(title,starts_at)")
+          .select("id,volunteer_id,event_id,overall_rating,communication_rating,reliability_rating,warmth_rating,clarity_rating,title,body,helpful_count,moderation_status,status,authenticity_score,reviewer_weight,created_at,volunteers(display_name),club_events(title,starts_at)")
           .order("created_at", { ascending: false })
           .limit(400);
 
@@ -834,8 +992,8 @@
         }
 
         state.reviews = (resp.data || []).filter(function (row) {
-          const status = row.moderation_status || row.status || "published";
-          return status === "published";
+          const st = row.moderation_status || row.status || "published";
+          return st === "published";
         });
       }
 
@@ -848,7 +1006,6 @@
 
         state.reports = resp.error ? [] : (resp.data || []);
       }
-
       async function loadReviewEvents() {
         state.events = [];
         state.eventVolunteerMap = {};
@@ -886,9 +1043,7 @@
 
         const map = {};
         (attendance.data || []).forEach(function (row) {
-          if (row.club_events && row.club_events.id) {
-            map[row.club_events.id] = row.club_events;
-          }
+          if (row.club_events && row.club_events.id) map[row.club_events.id] = row.club_events;
         });
         state.events = Object.values(map);
 
@@ -897,11 +1052,8 @@
           return;
         }
 
-        const eventIds = state.events.map(function (e) { return e.id; });
-        const shifts = await state.supabase
-          .from("volunteer_event_shifts")
-          .select("event_id,volunteer_id")
-          .in("event_id", eventIds);
+        const ids = state.events.map(function (e) { return e.id; });
+        const shifts = await state.supabase.from("volunteer_event_shifts").select("event_id,volunteer_id").in("event_id", ids);
 
         if (!shifts.error) {
           (shifts.data || []).forEach(function (row) {
@@ -910,17 +1062,14 @@
           });
         }
 
-        if (!Object.keys(state.eventVolunteerMap).length) {
-          wireAllVolunteersToEvents();
-        }
+        if (!Object.keys(state.eventVolunteerMap).length) wireAllVolunteersToEvents();
       }
 
       function wireAllVolunteersToEvents() {
         const ids = state.volunteers.map(function (v) { return v.id; });
-        state.events.forEach(function (ev) {
-          state.eventVolunteerMap[ev.id] = ids.slice();
-        });
+        state.events.forEach(function (ev) { state.eventVolunteerMap[ev.id] = ids.slice(); });
       }
+
       async function onSendMagicLink() {
         const email = (el.emailInput.value || "").trim().toLowerCase();
         if (!email || email.indexOf("@") < 0) {
@@ -930,7 +1079,7 @@
 
         const domain = normalizeDomain(localStorage.getItem(STORAGE.domain) || "");
         if (domain && !email.endsWith("@" + domain)) {
-          setStatus(el.authStatus, "Email must end with @" + domain, "err");
+          setStatus(el.authStatus, "Use @" + domain, "err");
           return;
         }
 
@@ -941,9 +1090,8 @@
 
         const redirect = window.location.origin + window.location.pathname;
         const resp = await state.supabase.auth.signInWithOtp({ email: email, options: { emailRedirectTo: redirect } });
-
         if (resp.error) {
-          setStatus(el.authStatus, "Login failed: " + resp.error.message, "err");
+          setStatus(el.authStatus, "Login failed.", "err");
           return;
         }
 
@@ -951,10 +1099,7 @@
       }
 
       async function onSignOut() {
-        if (!state.demoMode && state.supabase) {
-          await state.supabase.auth.signOut();
-        }
-
+        if (!state.demoMode && state.supabase) await state.supabase.auth.signOut();
         if (state.demoMode) {
           state.user = null;
           state.member = null;
@@ -970,48 +1115,49 @@
         renderAll();
       }
 
-      function onTabClick(event) {
-        const btn = event.target.closest("[data-view]");
-        if (!btn) return;
-        state.activeView = btn.getAttribute("data-view") || "discover";
-        renderTabs();
-      }
-
-      function onVolunteerCardClick(event) {
-        const card = event.target.closest("[data-volunteer]");
-        if (!card) return;
-        state.selectedVolunteerId = card.getAttribute("data-volunteer");
+      function onVolunteerClick(event) {
+        const item = event.target.closest("[data-volunteer]");
+        if (!item) return;
+        state.selectedVolunteerId = item.getAttribute("data-volunteer");
         renderVolunteerList();
-        renderProfilePanel();
+        renderProfile();
       }
 
-      function onProfilePanelClick(event) {
-        const writeBtn = event.target.closest("[data-action='write-review']");
-        const reportBtn = event.target.closest("[data-action='write-report']");
-        const helpfulBtn = event.target.closest("[data-helpful]");
-
-        if (writeBtn) {
-          state.activeView = "review";
-          renderTabs();
-          if (state.selectedVolunteerId) {
-            el.reviewVolunteerSelect.value = state.selectedVolunteerId;
-            el.reportVolunteerSelect.value = state.selectedVolunteerId;
-          }
+      function onProfileClick(event) {
+        const action = event.target.closest("[data-action]");
+        if (!action) {
+          const helpful = event.target.closest("[data-helpful]");
+          if (helpful) markHelpful(helpful.getAttribute("data-helpful"));
           return;
         }
 
-        if (reportBtn) {
-          state.activeView = "review";
-          renderTabs();
-          if (state.selectedVolunteerId) {
-            el.reportVolunteerSelect.value = state.selectedVolunteerId;
-          }
-          return;
+        const type = action.getAttribute("data-action");
+        if (type === "review") {
+          openReviewDialog();
+        } else if (type === "report") {
+          openReportDialog();
+        } else if (type === "studio") {
+          openStudioDialog();
         }
+      }
 
-        if (helpfulBtn) {
-          markReviewHelpful(helpfulBtn.getAttribute("data-helpful"));
-        }
+      function openReviewDialog() {
+        renderReviewSelectors();
+        if (state.selectedVolunteerId) el.reviewVolunteerSelect.value = state.selectedVolunteerId;
+        clearStatus(el.reviewStatus);
+        el.reviewDialog.showModal();
+      }
+
+      function openReportDialog() {
+        renderReportSelectors();
+        if (state.selectedVolunteerId) el.reportVolunteerSelect.value = state.selectedVolunteerId;
+        clearStatus(el.reportStatus);
+        el.reportDialog.showModal();
+      }
+
+      function openStudioDialog() {
+        renderStudio();
+        el.studioDialog.showModal();
       }
 
       function memberApproved() {
@@ -1020,13 +1166,12 @@
 
       async function onSubmitReview(event) {
         event.preventDefault();
-
         if (!memberApproved()) {
           setStatus(el.reviewStatus, "Approved member required.", "err");
           return;
         }
 
-        const payload = collectReviewForm();
+        const payload = collectReview();
         if (!payload.ok) {
           setStatus(el.reviewStatus, payload.message, "err");
           return;
@@ -1037,23 +1182,21 @@
         const reviewerWeight = computeReviewerWeight(signal.score);
 
         if (state.demoMode) {
-          const row = Object.assign({}, payload.review, {
+          state.reviews.unshift(Object.assign({}, payload.review, {
             id: "demo-" + Math.random().toString(16).slice(2),
             moderation_status: moderationStatus,
             authenticity_score: signal.score,
             reviewer_weight: reviewerWeight,
             helpful_count: 0,
             created_at: new Date().toISOString()
-          });
-          state.reviews.unshift(row);
-          setStatus(el.reviewStatus, moderationStatus === "published" ? "Review published." : "Review queued for moderation.", moderationStatus === "published" ? "ok" : "err");
+          }));
+          setStatus(el.reviewStatus, moderationStatus === "published" ? "Review published." : "Queued for moderation.", moderationStatus === "published" ? "ok" : "err");
           el.reviewForm.reset();
           renderAll();
           return;
         }
 
-        const duplicate = await state.supabase
-          .from("reviews")
+        const duplicate = await state.supabase.from("reviews")
           .select("id")
           .eq("reviewer_user_id", state.user.id)
           .eq("volunteer_id", payload.review.volunteer_id)
@@ -1061,20 +1204,19 @@
           .limit(1);
 
         if (!duplicate.error && (duplicate.data || []).length > 0) {
-          setStatus(el.reviewStatus, "You already reviewed this volunteer for this event.", "err");
+          setStatus(el.reviewStatus, "Already reviewed this event.", "err");
           return;
         }
 
         const dayStart = new Date();
         dayStart.setHours(0, 0, 0, 0);
-        const limitResp = await state.supabase
-          .from("reviews")
+        const limitResp = await state.supabase.from("reviews")
           .select("id", { count: "exact", head: true })
           .eq("reviewer_user_id", state.user.id)
           .gte("created_at", dayStart.toISOString());
 
         if (!limitResp.error && (limitResp.count || 0) >= 4) {
-          setStatus(el.reviewStatus, "Daily limit reached (4/day).", "err");
+          setStatus(el.reviewStatus, "Daily limit reached.", "err");
           return;
         }
 
@@ -1097,27 +1239,27 @@
 
         let resp = await state.supabase.from("reviews").insert(insert).select().maybeSingle();
         if (resp.error) {
-          insert = Object.assign({}, insert);
-          delete insert.moderation_status;
-          delete insert.authenticity_score;
-          delete insert.authenticity_flags;
-          delete insert.reviewer_weight;
-          insert.status = moderationStatus;
-          resp = await state.supabase.from("reviews").insert(insert).select().maybeSingle();
+          const fallback = Object.assign({}, insert);
+          delete fallback.moderation_status;
+          delete fallback.authenticity_score;
+          delete fallback.authenticity_flags;
+          delete fallback.reviewer_weight;
+          fallback.status = moderationStatus;
+          resp = await state.supabase.from("reviews").insert(fallback).select().maybeSingle();
         }
 
         if (resp.error) {
-          setStatus(el.reviewStatus, "Submit failed: " + resp.error.message, "err");
+          setStatus(el.reviewStatus, "Submit failed.", "err");
           return;
         }
 
-        setStatus(el.reviewStatus, moderationStatus === "published" ? "Review published." : "Review queued for moderation.", moderationStatus === "published" ? "ok" : "err");
+        setStatus(el.reviewStatus, moderationStatus === "published" ? "Review published." : "Queued for moderation.", moderationStatus === "published" ? "ok" : "err");
         el.reviewForm.reset();
         await loadAllData();
         renderAll();
       }
 
-      function collectReviewForm() {
+      function collectReview() {
         const review = {
           event_id: (el.reviewEventSelect.value || "").trim(),
           volunteer_id: (el.reviewVolunteerSelect.value || "").trim(),
@@ -1132,17 +1274,15 @@
 
         if (!review.event_id || !review.volunteer_id) return { ok: false, message: "Choose event + volunteer." };
         if (!review.overall_rating || !review.communication_rating || !review.reliability_rating || !review.warmth_rating || !review.clarity_rating) return { ok: false, message: "Complete all ratings." };
-        if (review.title.length < 6) return { ok: false, message: "Add a headline." };
-        if (review.body.length < 80) return { ok: false, message: "Review should be at least 80 characters." };
-        if ((review.overall_rating === 1 || review.overall_rating === 5) && review.body.length < 120) return { ok: false, message: "1-star and 5-star reviews need more detail (120+ chars)." };
+        if (review.title.length < 6) return { ok: false, message: "Add headline." };
+        if (review.body.length < 80) return { ok: false, message: "Review needs 80+ chars." };
+        if ((review.overall_rating === 1 || review.overall_rating === 5) && review.body.length < 120) return { ok: false, message: "1-star/5-star needs 120+ chars." };
         if (!el.truthCheckbox.checked) return { ok: false, message: "Confirm checkbox." };
-
         return { ok: true, review: review };
       }
 
       async function onSubmitReport(event) {
         event.preventDefault();
-
         if (!memberApproved()) {
           setStatus(el.reportStatus, "Approved member required.", "err");
           return;
@@ -1154,43 +1294,20 @@
         const severity = (el.reportSeveritySelect.value || "medium").trim();
         const details = (el.reportDetailsInput.value || "").trim();
 
-        if (!volunteerId || !reason) {
-          setStatus(el.reportStatus, "Choose volunteer + reason.", "err");
-          return;
-        }
-        if (details.length < 50) {
-          setStatus(el.reportStatus, "Add at least 50 chars.", "err");
-          return;
-        }
+        if (!volunteerId || !reason) { setStatus(el.reportStatus, "Choose volunteer + reason.", "err"); return; }
+        if (details.length < 50) { setStatus(el.reportStatus, "Add at least 50 chars.", "err"); return; }
 
         if (state.demoMode) {
-          state.reports.unshift({
-            id: "demo-report-" + Math.random().toString(16).slice(2),
-            volunteer_id: volunteerId,
-            status: "open",
-            severity: severity,
-            reason: reason,
-            details: details,
-            created_at: new Date().toISOString()
-          });
+          state.reports.unshift({ id: "demo-report-" + Math.random().toString(16).slice(2), volunteer_id: volunteerId, status: "open", severity: severity, reason: reason, details: details, created_at: new Date().toISOString() });
           setStatus(el.reportStatus, "Report submitted.", "ok");
           el.reportForm.reset();
           renderAll();
           return;
         }
 
-        const resp = await state.supabase.from("volunteer_reports").insert({
-          volunteer_id: volunteerId,
-          event_id: eventId || null,
-          reporter_user_id: state.user.id,
-          reason: reason,
-          severity: severity,
-          details: details,
-          status: "open"
-        });
-
+        const resp = await state.supabase.from("volunteer_reports").insert({ volunteer_id: volunteerId, event_id: eventId || null, reporter_user_id: state.user.id, reason: reason, severity: severity, details: details, status: "open" });
         if (resp.error) {
-          setStatus(el.reportStatus, "Report failed: " + resp.error.message, "err");
+          setStatus(el.reportStatus, "Report failed.", "err");
           return;
         }
 
@@ -1199,14 +1316,14 @@
         await loadAllData();
         renderAll();
       }
-      async function markReviewHelpful(reviewId) {
+      async function markHelpful(reviewId) {
         if (!reviewId) return;
         const target = state.reviews.find(function (r) { return String(r.id) === String(reviewId); });
         if (!target) return;
 
         if (state.demoMode) {
           target.helpful_count = Number(target.helpful_count || 0) + 1;
-          renderProfilePanel();
+          renderProfile();
           renderStudio();
           return;
         }
@@ -1216,17 +1333,17 @@
           return;
         }
 
-        const vote = await state.supabase
+        const resp = await state.supabase
           .from("review_helpfulness")
           .upsert({ review_id: reviewId, voter_user_id: state.user.id, vote: 1 }, { onConflict: "review_id,voter_user_id" });
 
-        if (vote.error) {
-          setStatus(el.authStatus, "Helpful vote failed: " + vote.error.message, "err");
+        if (resp.error) {
+          setStatus(el.authStatus, "Vote failed.", "err");
           return;
         }
 
         target.helpful_count = Number(target.helpful_count || 0) + 1;
-        renderProfilePanel();
+        renderProfile();
         renderStudio();
       }
 
@@ -1234,7 +1351,7 @@
         event.preventDefault();
 
         if (!state.volunteerLink || !state.volunteerLink.volunteer_id) {
-          setStatus(el.profileStatus, "No linked volunteer account found.", "err");
+          setStatus(el.profileStatus, "No linked profile.", "err");
           return;
         }
 
@@ -1247,67 +1364,51 @@
         };
 
         if (!payload.display_name) {
-          setStatus(el.profileStatus, "Display name is required.", "err");
+          setStatus(el.profileStatus, "Display name required.", "err");
           return;
         }
 
         if (state.demoMode) {
           const idx = state.volunteers.findIndex(function (v) { return v.id === state.volunteerLink.volunteer_id; });
           if (idx >= 0) state.volunteers[idx] = Object.assign({}, state.volunteers[idx], payload);
-          setStatus(el.profileStatus, "Profile saved.", "ok");
+          setStatus(el.profileStatus, "Saved.", "ok");
           renderAll();
           return;
         }
 
-        let resp = await state.supabase
-          .from("volunteers")
-          .update(payload)
-          .eq("id", state.volunteerLink.volunteer_id)
-          .select()
-          .maybeSingle();
-
+        let resp = await state.supabase.from("volunteers").update(payload).eq("id", state.volunteerLink.volunteer_id).select().maybeSingle();
         if (resp.error) {
-          const fallback = {
-            display_name: payload.display_name,
-            avatar_url: payload.avatar_url,
-            bio: payload.bio,
-            active: payload.active
-          };
-          resp = await state.supabase
-            .from("volunteers")
-            .update(fallback)
-            .eq("id", state.volunteerLink.volunteer_id)
-            .select()
-            .maybeSingle();
+          const fallback = { display_name: payload.display_name, avatar_url: payload.avatar_url, bio: payload.bio, active: payload.active };
+          resp = await state.supabase.from("volunteers").update(fallback).eq("id", state.volunteerLink.volunteer_id).select().maybeSingle();
         }
 
         if (resp.error) {
-          setStatus(el.profileStatus, "Save failed: " + resp.error.message, "err");
+          setStatus(el.profileStatus, "Save failed.", "err");
           return;
         }
 
-        setStatus(el.profileStatus, "Profile saved.", "ok");
+        setStatus(el.profileStatus, "Saved.", "ok");
         await loadAllData();
         renderAll();
       }
 
       function renderAll() {
-        renderTopBadges();
-        renderTabs();
+        renderHeader();
         renderReviewSelectors();
         renderReportSelectors();
         renderVolunteerList();
-        renderProfilePanel();
+        renderProfile();
         renderStudio();
       }
 
-      function renderTopBadges() {
-        el.modeBadge.textContent = state.demoMode ? "Demo" : "Live";
-        el.userBadge.textContent = state.user ? (state.user.email || "Signed in") : "Guest";
+      function renderHeader() {
+        el.modeChip.textContent = state.demoMode ? "Demo" : "Live";
+        el.modeChip.classList.toggle("live", !state.demoMode);
+        el.userChip.textContent = state.user ? (state.user.email || "Signed in") : "Guest";
 
-        const role = state.member ? (state.member.role || "member") : "no role";
+        const role = state.member ? (state.member.role || "member") : "guest";
         const status = state.member ? (state.member.status || "pending") : "guest";
-        el.roleBadge.textContent = role + " / " + status;
+        el.roleChip.textContent = role + " / " + status;
 
         if (!state.user) {
           setStatus(el.authStatus, "Status: guest", "");
@@ -1316,17 +1417,6 @@
 
         const name = state.member && state.member.display_name ? state.member.display_name : (state.user.email || "Member");
         setStatus(el.authStatus, "Signed in: " + name, memberApproved() ? "ok" : "err");
-      }
-
-      function renderTabs() {
-        ["discover", "review", "studio"].forEach(function (view) {
-          const tab = el.tabs.querySelector("[data-view='" + view + "']");
-          const panel = el[view + "View"];
-          if (!tab || !panel) return;
-          const active = state.activeView === view;
-          tab.classList.toggle("active", active);
-          panel.classList.toggle("active", active);
-        });
       }
 
       function renderVolunteerList() {
@@ -1338,10 +1428,7 @@
             const blob = ((v.display_name || "") + " " + (v.tagline || "") + " " + (v.bio || "")).toLowerCase();
             return !search || blob.indexOf(search) >= 0;
           })
-          .map(function (v) {
-            const stats = volunteerStats(v.id);
-            return { volunteer: v, stats: stats };
-          });
+          .map(function (v) { return { volunteer: v, stats: volunteerStats(v.id) }; });
 
         list.sort(function (a, b) {
           if (sort === "reviews") return b.stats.reviewCount - a.stats.reviewCount;
@@ -1350,72 +1437,64 @@
         });
 
         if (!list.length) {
-          el.volunteerGrid.innerHTML = '<div class="card">No volunteers found.</div>';
+          el.volunteerList.innerHTML = '<div class="empty">No volunteers</div>';
           return;
         }
 
-        const visibleIds = list.map(function (x) { return x.volunteer.id; });
-        if (!visibleIds.includes(state.selectedVolunteerId)) {
-          state.selectedVolunteerId = visibleIds[0];
-        }
+        const ids = list.map(function (x) { return x.volunteer.id; });
+        if (!ids.includes(state.selectedVolunteerId)) state.selectedVolunteerId = ids[0];
 
-        el.volunteerGrid.innerHTML = list.map(function (row) {
+        el.volunteerList.innerHTML = list.map(function (row) {
           const v = row.volunteer;
           const s = row.stats;
-          const avatar = avatarHtml(v, 44);
-          return '<article class="vol-card ' + (state.selectedVolunteerId === v.id ? "active" : "") + '" data-volunteer="' + esc(v.id) + '">' +
-            avatar +
-            '<div><div class="name">' + esc(v.display_name || "Volunteer") + '</div><div class="sub">' + esc(v.tagline || "Volunteer") + '</div><div class="sub">' + stars(s.avgRating) + ' ' + s.avgRating.toFixed(2) + ' · ' + s.reviewCount + '</div></div>' +
-            '<div class="score-pill">Rep ' + Math.round(s.score) + '</div>' +
+          return '<article class="vol-item ' + (state.selectedVolunteerId === v.id ? "active" : "") + '" data-volunteer="' + esc(v.id) + '">' +
+            avatarHtml(v, 40) +
+            '<div><h3>' + esc(v.display_name || "Volunteer") + '</h3><div class="muted">' + stars(s.avgRating) + ' ' + s.avgRating.toFixed(2) + ' · ' + s.reviewCount + '</div></div>' +
+            '<span class="score">Rep ' + Math.round(s.score) + '</span>' +
           '</article>';
         }).join("");
       }
 
-      function renderProfilePanel() {
+      function renderProfile() {
         const volunteer = state.volunteers.find(function (v) { return v.id === state.selectedVolunteerId; });
-
         if (!volunteer) {
-          el.profilePanel.innerHTML = '<div class="sub">Select a volunteer.</div>';
+          el.profileSurface.innerHTML = '<div class="empty">Select a volunteer</div>';
           return;
         }
 
         const stats = volunteerStats(volunteer.id);
         const reviews = reviewsForVolunteer(volunteer.id);
 
-        const metrics = [
-          metricBox("Rating", stats.avgRating.toFixed(2)),
-          metricBox("Reputation", String(Math.round(stats.score))),
-          metricBox("Positive", stats.positiveRate + "%"),
-          metricBox("Open Reports", String(stats.openReports))
-        ].join("");
-
-        const reviewCards = reviews.slice(0, 8).map(function (r) {
+        const reviewHtml = reviews.slice(0, 8).map(function (r) {
           return '<article class="review">' +
-            '<div class="head"><div><div class="stars">' + stars(r.overall_rating) + ' ' + Number(r.overall_rating || 0).toFixed(0) + '/5</div><div class="headline">' + esc(r.title || "Review") + '</div><div class="meta">' + relDate(r.created_at) + '</div></div><button class="ghost" type="button" data-helpful="' + esc(r.id) + '">Helpful (' + Number(r.helpful_count || 0) + ')</button></div>' +
+            '<div class="review-head"><div><div class="stars">' + stars(r.overall_rating) + '</div><div class="headline">' + esc(r.title || "Review") + '</div><div class="muted">' + relDate(r.created_at) + '</div></div><button class="mini ghost" type="button" data-helpful="' + esc(r.id) + '">Helpful ' + Number(r.helpful_count || 0) + '</button></div>' +
             '<div>' + esc(r.body || "") + '</div>' +
           '</article>';
         }).join("");
 
-        el.profilePanel.innerHTML =
-          '<section class="profile-hero">' +
-            '<div class="profile-top">' +
-              avatarHtml(volunteer, 56) +
-              '<div><h2 class="profile-name">' + esc(volunteer.display_name || "Volunteer") + '</h2><div class="tagline">' + esc(volunteer.tagline || volunteer.bio || "") + '</div></div>' +
-              '<div class="stack"><button type="button" data-action="write-review">Review</button><button class="ghost" type="button" data-action="write-report">Report</button></div>' +
+        el.profileSurface.innerHTML =
+          '<section class="hero">' +
+            '<div class="hero-top">' +
+              avatarHtml(volunteer, 58) +
+              '<div><h2>' + esc(volunteer.display_name || "Volunteer") + '</h2><div class="muted">' + esc(volunteer.tagline || volunteer.bio || "") + '</div></div>' +
+              '<div class="actions"><button class="mini" type="button" data-action="review">Review</button><button class="mini ghost" type="button" data-action="report">Report</button><button class="mini ghost" type="button" data-action="studio">Studio</button></div>' +
             '</div>' +
-            '<div class="stats-row"><span class="stat">' + stars(stats.avgRating) + ' ' + stats.avgRating.toFixed(2) + '</span><span class="stat">' + stats.reviewCount + ' reviews</span><span class="stat">Rep ' + Math.round(stats.score) + '</span><span class="stat">Confidence ' + stats.confidence + '%</span></div>' +
-            '<div class="sub">' + esc(volunteer.bio || "") + '</div>' +
+            '<div class="chips"><span class="chip">' + stars(stats.avgRating) + ' ' + stats.avgRating.toFixed(2) + '</span><span class="chip">' + stats.reviewCount + ' reviews</span><span class="chip">Rep ' + Math.round(stats.score) + '</span><span class="chip">Confidence ' + stats.confidence + '%</span></div>' +
           '</section>' +
-          '<section class="metric-grid">' + metrics + '</section>' +
-          '<section class="review-list">' + (reviewCards || '<div class="card">No reviews yet.</div>') + '</section>';
+          '<section class="metric-grid">' +
+            metricBox("Rating", stats.avgRating.toFixed(2)) +
+            metricBox("Positive", stats.positiveRate + "%") +
+            metricBox("Helpful", String(stats.helpfulTotal)) +
+            metricBox("Open reports", String(stats.openReports)) +
+          '</section>' +
+          '<section class="reviews">' + (reviewHtml || '<div class="empty">No reviews yet</div>') + '</section>';
       }
 
       function renderReviewSelectors() {
         const events = state.events.slice().sort(function (a, b) { return new Date(b.starts_at) - new Date(a.starts_at); });
-        el.reviewEventSelect.innerHTML = '<option value="">Select event</option>' + events.map(function (ev) {
+        el.reviewEventSelect.innerHTML = '<option value="">Event</option>' + events.map(function (ev) {
           return '<option value="' + esc(ev.id) + '">' + esc(ev.title || "Event") + ' · ' + formatDate(ev.starts_at) + '</option>';
         }).join("");
-
         renderReviewVolunteerOptions();
       }
 
@@ -1423,50 +1502,45 @@
         const eventId = (el.reviewEventSelect.value || "").trim();
         const allowed = eventId ? (state.eventVolunteerMap[eventId] || []) : state.volunteers.map(function (v) { return v.id; });
         const options = state.volunteers.filter(function (v) { return allowed.includes(v.id); });
-        el.reviewVolunteerSelect.innerHTML = '<option value="">Select volunteer</option>' + options.map(function (v) {
+        el.reviewVolunteerSelect.innerHTML = '<option value="">Volunteer</option>' + options.map(function (v) {
           return '<option value="' + esc(v.id) + '">' + esc(v.display_name || "Volunteer") + '</option>';
         }).join("");
-
         if (state.selectedVolunteerId && options.some(function (v) { return v.id === state.selectedVolunteerId; })) {
           el.reviewVolunteerSelect.value = state.selectedVolunteerId;
         }
       }
 
       function renderReportSelectors() {
-        el.reportVolunteerSelect.innerHTML = '<option value="">Select volunteer</option>' + state.volunteers.map(function (v) {
+        el.reportVolunteerSelect.innerHTML = '<option value="">Volunteer</option>' + state.volunteers.map(function (v) {
           return '<option value="' + esc(v.id) + '">' + esc(v.display_name || "Volunteer") + '</option>';
         }).join("");
-
         el.reportEventSelect.innerHTML = '<option value="">No event</option>' + state.events.map(function (ev) {
           return '<option value="' + esc(ev.id) + '">' + esc(ev.title || "Event") + ' · ' + formatDate(ev.starts_at) + '</option>';
         }).join("");
-
-        if (state.selectedVolunteerId) {
-          el.reportVolunteerSelect.value = state.selectedVolunteerId;
-        }
+        if (state.selectedVolunteerId) el.reportVolunteerSelect.value = state.selectedVolunteerId;
       }
 
       function renderStudio() {
         if (!state.user) {
-          el.studioGate.innerHTML = '<article class="card">Sign in to open Studio.</article>';
+          el.studioGate.textContent = "Sign in to open Studio.";
           el.studioContent.style.display = "none";
           return;
         }
 
         if (!state.volunteerLink || !state.volunteerLink.volunteer_id) {
-          el.studioGate.innerHTML = '<article class="card">No volunteer profile linked to this login.</article>';
+          el.studioGate.textContent = "No volunteer profile linked.";
           el.studioContent.style.display = "none";
           return;
         }
 
         const volunteer = state.volunteers.find(function (v) { return v.id === state.volunteerLink.volunteer_id; });
         if (!volunteer) {
-          el.studioGate.innerHTML = '<article class="card">Linked profile not found.</article>';
+          el.studioGate.textContent = "Linked profile not found.";
           el.studioContent.style.display = "none";
           return;
         }
 
-        el.studioGate.innerHTML = '';
+        el.studioGate.textContent = "";
         el.studioContent.style.display = "grid";
 
         el.profileDisplayName.value = volunteer.display_name || "";
@@ -1476,41 +1550,36 @@
         el.profileActive.checked = volunteer.active !== false;
 
         const stats = volunteerStats(volunteer.id);
-        el.studioMetrics.innerHTML = [
-          metricBox("Avg rating", stats.avgRating.toFixed(2)),
-          metricBox("Reviews", String(stats.reviewCount)),
-          metricBox("Helpful", String(stats.helpfulTotal)),
-          metricBox("Open reports", String(stats.openReports))
-        ].join("");
+        el.studioMetrics.innerHTML = metricBox("Avg", stats.avgRating.toFixed(2)) + metricBox("Reviews", String(stats.reviewCount)) + metricBox("Helpful", String(stats.helpfulTotal)) + metricBox("Open", String(stats.openReports));
 
         renderCategoryBars(volunteer.id);
         renderTrendBars(volunteer.id);
 
         const recent = reviewsForVolunteer(volunteer.id).slice(0, 6);
         el.studioRecentReviews.innerHTML = recent.length ? recent.map(function (r) {
-          return '<article class="review"><div class="head"><div><div class="stars">' + stars(r.overall_rating) + '</div><div class="headline">' + esc(r.title || "Review") + '</div><div class="meta">' + relDate(r.created_at) + '</div></div></div><div>' + esc(r.body || "") + '</div></article>';
-        }).join("") : '<div class="card">No reviews yet.</div>';
+          return '<article class="review"><div class="stars">' + stars(r.overall_rating) + '</div><div class="headline">' + esc(r.title || "Review") + '</div><div class="muted">' + relDate(r.created_at) + '</div><div>' + esc(r.body || "") + '</div></article>';
+        }).join("") : '<div class="empty">No reviews</div>';
 
         const openReports = state.reports.filter(function (rp) { return rp.volunteer_id === volunteer.id && (rp.status === "open" || rp.status === "investigating"); });
         el.studioOpenReports.innerHTML = openReports.length ? openReports.map(function (rp) {
-          return '<article class="review"><div class="headline">' + esc((rp.reason || "report").toUpperCase()) + ' · ' + esc(rp.severity || "medium") + '</div><div class="meta">' + relDate(rp.created_at) + '</div><div>' + esc(rp.details || "") + '</div></article>';
-        }).join("") : '<div class="card">No open reports.</div>';
+          return '<article class="review"><div class="headline">' + esc((rp.reason || "report").toUpperCase()) + ' · ' + esc(rp.severity || "medium") + '</div><div class="muted">' + relDate(rp.created_at) + '</div><div>' + esc(rp.details || "") + '</div></article>';
+        }).join("") : '<div class="empty">No open reports</div>';
       }
 
       function renderCategoryBars(volunteerId) {
         const rows = reviewsForVolunteer(volunteerId);
-        const categories = [
+        const cats = [
           { label: "Overall", key: "overall_rating" },
-          { label: "Communication", key: "communication_rating" },
+          { label: "Comm", key: "communication_rating" },
           { label: "Reliability", key: "reliability_rating" },
           { label: "Welcoming", key: "warmth_rating" },
           { label: "Clarity", key: "clarity_rating" }
         ];
 
-        el.categoryBars.innerHTML = categories.map(function (cat) {
+        el.categoryBars.innerHTML = cats.map(function (cat) {
           const avg = mean(rows.map(function (r) { return Number(r[cat.key] || 0); }));
           const pct = clamp((avg / 5) * 100, 0, 100);
-          return '<div class="bar-row"><div class="sub">' + esc(cat.label) + '</div><div class="bar"><span style="width:' + pct.toFixed(1) + '%"></span></div><div class="sub">' + (avg ? avg.toFixed(2) : "0.00") + '</div></div>';
+          return '<div class="bar-row"><div class="muted">' + esc(cat.label) + '</div><div class="bar-track"><span style="width:' + pct.toFixed(1) + '%"></span></div><div class="muted">' + (avg ? avg.toFixed(2) : "0.00") + '</div></div>';
         }).join("");
       }
 
@@ -1520,8 +1589,10 @@
         const now = new Date();
         for (let i = 5; i >= 0; i -= 1) {
           const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-          const key = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
-          months.push({ key: key, label: d.toLocaleDateString(undefined, { month: "short" }) });
+          months.push({
+            key: d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0"),
+            label: d.toLocaleDateString(undefined, { month: "short" })
+          });
         }
 
         el.trendBars.innerHTML = months.map(function (m) {
@@ -1532,28 +1603,22 @@
           });
           const avg = mean(monthRows.map(function (r) { return Number(r.overall_rating || 0); }));
           const pct = clamp((avg / 5) * 100, 0, 100);
-          return '<div class="bar-row"><div class="sub">' + esc(m.label) + '</div><div class="bar"><span style="width:' + pct.toFixed(1) + '%"></span></div><div class="sub">' + (avg ? avg.toFixed(2) : "-") + '</div></div>';
+          return '<div class="bar-row"><div class="muted">' + esc(m.label) + '</div><div class="bar-track"><span style="width:' + pct.toFixed(1) + '%"></span></div><div class="muted">' + (avg ? avg.toFixed(2) : "-") + '</div></div>';
         }).join("");
       }
 
       function reviewsForVolunteer(volunteerId) {
-        return state.reviews.filter(function (r) { return r.volunteer_id === volunteerId; }).sort(function (a, b) {
-          return new Date(b.created_at) - new Date(a.created_at);
-        });
+        return state.reviews.filter(function (r) { return r.volunteer_id === volunteerId; }).sort(function (a, b) { return new Date(b.created_at) - new Date(a.created_at); });
       }
 
       function volunteerStats(volunteerId) {
         const rows = reviewsForVolunteer(volunteerId);
-        const openReports = state.reports.filter(function (rp) {
-          return rp.volunteer_id === volunteerId && (rp.status === "open" || rp.status === "investigating");
-        }).length;
-
+        const openReports = state.reports.filter(function (rp) { return rp.volunteer_id === volunteerId && (rp.status === "open" || rp.status === "investigating"); }).length;
         const reviewCount = rows.length;
         const helpfulTotal = rows.reduce(function (sum, r) { return sum + Number(r.helpful_count || 0); }, 0);
 
         const globalMean = mean(state.reviews.map(function (r) { return Number(r.overall_rating || 0); })) || 4;
         const m = 8;
-
         let weightedSum = 0;
         let weightTotal = 0;
         rows.forEach(function (r) {
@@ -1569,19 +1634,10 @@
         const bayesian = ((weightTotal / (weightTotal + m)) * avgRating) + ((m / (weightTotal + m)) * globalMean);
         const score = clamp((((bayesian - 1) / 4) * 100) - (openReports * 4.5), 0, 100);
         const confidence = clamp(Math.round((weightTotal / (weightTotal + 9)) * 100), 5, 99);
-
         const positives = rows.filter(function (r) { return Number(r.overall_rating || 0) >= 4; }).length;
         const positiveRate = reviewCount ? Math.round((positives / reviewCount) * 100) : 0;
 
-        return {
-          avgRating: avgRating || 0,
-          reviewCount: reviewCount,
-          score: score,
-          confidence: confidence,
-          openReports: openReports,
-          helpfulTotal: helpfulTotal,
-          positiveRate: positiveRate
-        };
+        return { avgRating: avgRating || 0, reviewCount: reviewCount, score: score, confidence: confidence, openReports: openReports, helpfulTotal: helpfulTotal, positiveRate: positiveRate };
       }
 
       function computeAuthenticity(review) {
@@ -1616,16 +1672,13 @@
       }
 
       function metricBox(label, value) {
-        return '<article class="metric"><span class="label">' + esc(label) + '</span><span class="value">' + esc(value) + '</span></article>';
+        return '<article class="metric"><span class="k">' + esc(label) + '</span><span class="v">' + esc(value) + '</span></article>';
       }
 
       function avatarHtml(volunteer, size) {
-        const style = 'style="width:' + Number(size || 44) + 'px;height:' + Number(size || 44) + 'px;"';
-        if (volunteer.avatar_url) {
-          return '<div class="avatar" ' + style + '><img src="' + esc(volunteer.avatar_url) + '" alt="avatar" loading="lazy"/></div>';
-        }
-        const initials = initialsOf(volunteer.display_name || "Volunteer");
-        return '<div class="avatar" ' + style + '>' + esc(initials) + '</div>';
+        const style = 'style="width:' + Number(size || 40) + 'px;height:' + Number(size || 40) + 'px;"';
+        if (volunteer.avatar_url) return '<div class="avatar" ' + style + '><img src="' + esc(volunteer.avatar_url) + '" alt="avatar" loading="lazy"/></div>';
+        return '<div class="avatar" ' + style + '>' + esc(initialsOf(volunteer.display_name || "Volunteer")) + '</div>';
       }
 
       function initialsOf(name) {
@@ -1635,39 +1688,19 @@
         return (parts[0][0] + parts[1][0]).toUpperCase();
       }
 
-      function normalizeDomain(value) {
-        return String(value || "").trim().toLowerCase().replace(/^@/, "");
-      }
+      function clearStatus(node) { node.textContent = ""; node.className = "status"; }
 
       function setStatus(node, text, type) {
         node.textContent = text;
         node.className = "status" + (type ? " " + type : "");
       }
 
-      function mean(values) {
-        if (!values.length) return 0;
-        return values.reduce(function (sum, v) { return sum + Number(v || 0); }, 0) / values.length;
-      }
-
-      function clamp(value, min, max) {
-        return Math.max(min, Math.min(max, value));
-      }
-
-      function round(value, places) {
-        const p = Math.pow(10, places || 0);
-        return Math.round(value * p) / p;
-      }
-
-      function stars(rating) {
-        const r = clamp(Math.round(Number(rating || 0)), 0, 5);
-        return "★".repeat(r) + "☆".repeat(5 - r);
-      }
-
-      function formatDate(iso) {
-        const d = new Date(iso);
-        if (!isFinite(d.getTime())) return "Unknown";
-        return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
-      }
+      function normalizeDomain(value) { return String(value || "").trim().toLowerCase().replace(/^@/, ""); }
+      function mean(values) { return values.length ? values.reduce(function (sum, v) { return sum + Number(v || 0); }, 0) / values.length : 0; }
+      function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
+      function round(value, places) { const p = Math.pow(10, places || 0); return Math.round(value * p) / p; }
+      function stars(rating) { const r = clamp(Math.round(Number(rating || 0)), 0, 5); return "★".repeat(r) + "☆".repeat(5 - r); }
+      function formatDate(iso) { const d = new Date(iso); return isFinite(d.getTime()) ? d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "Unknown"; }
 
       function relDate(iso) {
         const d = new Date(iso);
