@@ -680,6 +680,13 @@
         domain: "mk_rev_domain"
       };
 
+      const DEFAULT_SUPABASE = {
+        projectId: "pfgvnbhvihleugpijjvr",
+        url: "https://pfgvnbhvihleugpijjvr.supabase.co",
+        anonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBmZ3ZuYmh2aWhsZXVncGlqanZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1MTU2ODcsImV4cCI6MjA4OTA5MTY4N30.xF-lTjR3z2tcjMjIv0am3cLYOBs3gHD3p7yq3FbDqcs",
+        publishableKey: "sb_publishable_ZZ6nyhnvNSWcbk68n7T1Qg_6DpgRbA9"
+      };
+
       const DEMO = {
         user: { id: "demo-volunteer", email: "volunteer@mkchess.co.uk" },
         member: { display_name: "Demo Volunteer", status: "approved", role: "volunteer", trust_score: 1.1, created_at: "2025-10-01T10:00:00Z" },
@@ -780,14 +787,18 @@
       }
 
       function restoreConfig() {
-        el.supaUrlInput.value = localStorage.getItem(STORAGE.url) || "";
-        el.supaKeyInput.value = localStorage.getItem(STORAGE.key) || "";
+        const savedUrl = localStorage.getItem(STORAGE.url);
+        const savedKey = localStorage.getItem(STORAGE.key);
+        el.supaUrlInput.value = savedUrl || DEFAULT_SUPABASE.url;
+        el.supaKeyInput.value = savedKey || DEFAULT_SUPABASE.anonKey;
         el.allowedDomainInput.value = localStorage.getItem(STORAGE.domain) || "";
+        if (!savedUrl) localStorage.setItem(STORAGE.url, DEFAULT_SUPABASE.url);
+        if (!savedKey) localStorage.setItem(STORAGE.key, DEFAULT_SUPABASE.anonKey);
       }
 
       async function onConnectClick() {
-        localStorage.setItem(STORAGE.url, (el.supaUrlInput.value || "").trim());
-        localStorage.setItem(STORAGE.key, (el.supaKeyInput.value || "").trim());
+        localStorage.setItem(STORAGE.url, (el.supaUrlInput.value || DEFAULT_SUPABASE.url).trim());
+        localStorage.setItem(STORAGE.key, (el.supaKeyInput.value || DEFAULT_SUPABASE.anonKey).trim());
         localStorage.setItem(STORAGE.domain, normalizeDomain(el.allowedDomainInput.value || ""));
         await connectWithStoredConfig();
         await refreshSession();
@@ -815,8 +826,8 @@
       }
 
       async function connectWithStoredConfig() {
-        const url = (localStorage.getItem(STORAGE.url) || "").trim();
-        const key = (localStorage.getItem(STORAGE.key) || "").trim();
+        const url = (localStorage.getItem(STORAGE.url) || DEFAULT_SUPABASE.url).trim();
+        const key = (localStorage.getItem(STORAGE.key) || DEFAULT_SUPABASE.anonKey).trim();
 
         if (!url || !key) {
           state.demoMode = true;
@@ -835,7 +846,7 @@
           });
           state.demoMode = false;
           attachAuthSubscription();
-          setStatus(el.backendStatus, "Backend: connected", "ok");
+          setStatus(el.backendStatus, "Backend: connected (" + DEFAULT_SUPABASE.projectId + ")", "ok");
         } catch (_err) {
           state.demoMode = true;
           state.supabase = null;
