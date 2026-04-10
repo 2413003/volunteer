@@ -346,6 +346,12 @@
       background: #f8f4ea;
     }
 
+    .chip.reward {
+      border-color: #b9d8c8;
+      background: #eaf5ef;
+      color: #1c5b44;
+    }
+
     .metric-grid {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -661,6 +667,7 @@
           </div>
 
           <div class="split">
+            <section class="stack"><div class="muted">Incentives</div><div id="studioIncentives" class="chips"></div></section>
             <section class="stack"><div class="muted">Recent reviews</div><div id="studioRecentReviews" class="reviews"></div></section>
             <section class="stack"><div class="muted">Open reports</div><div id="studioOpenReports" class="reviews"></div></section>
           </div>
@@ -714,6 +721,11 @@
         reports: [
           { id: "rep1", volunteer_id: "v4", status: "open", severity: "medium", reason: "absence", details: "Late setup caused delay.", created_at: "2026-03-30T18:00:00Z" },
           { id: "rep2", volunteer_id: "v3", status: "resolved", severity: "low", reason: "conduct", details: "Resolved with follow-up.", created_at: "2026-03-20T18:00:00Z" }
+        ],
+        incentives: [
+          { id: "inc1", volunteer_id: "v1", code: "consistency_champion", title: "Consistency Champion", detail: "High sustained member ratings", earned_at: "2026-03-31T10:00:00Z" },
+          { id: "inc2", volunteer_id: "v2", code: "community_favorite", title: "Community Favorite", detail: "High helpful vote ratio", earned_at: "2026-03-31T10:00:00Z" },
+          { id: "inc3", volunteer_id: "v1", code: "reliability_anchor", title: "Reliability Anchor", detail: "Excellent reliability scores", earned_at: "2026-03-31T10:00:00Z" }
         ]
       };
 
@@ -729,6 +741,7 @@
         eventVolunteerMap: {},
         reviews: [],
         reports: [],
+        incentivesByVolunteer: {},
         selectedVolunteerId: null,
         helpfulVotedIds: {}
       };
@@ -754,7 +767,7 @@
           "reviewTitleInput", "reviewBodyInput", "truthCheckbox", "submitReviewBtn", "reviewStatus",
           "reportDialog", "reportForm", "reportVolunteerSelect", "reportEventSelect", "reportReasonSelect", "reportSeveritySelect", "reportDetailsInput", "submitReportBtn", "reportStatus",
           "studioDialog", "studioGate", "studioContent", "profileForm", "profileDisplayName", "profileTagline", "profileAvatarUrl", "profileBio", "profileActive", "saveProfileBtn", "profileStatus",
-          "studioMetrics", "categoryBars", "trendBars", "studioRecentReviews", "studioOpenReports"
+          "studioMetrics", "categoryBars", "trendBars", "studioIncentives", "studioRecentReviews", "studioOpenReports"
         ].forEach(function (id) { el[id] = document.getElementById(id); });
       }
 
@@ -968,12 +981,13 @@
           state.eventVolunteerMap = JSON.parse(JSON.stringify(DEMO.eventVolunteerMap));
           state.reviews = DEMO.reviews.slice();
           state.reports = DEMO.reports.slice();
+          state.incentivesByVolunteer = groupIncentivesByVolunteer(DEMO.incentives || []);
           if (!state.selectedVolunteerId && state.volunteers[0]) state.selectedVolunteerId = state.volunteers[0].id;
           return;
         }
 
         await loadVolunteers();
-        await Promise.all([loadReviews(), loadReports(), loadReviewEvents(), loadHelpfulVotes()]);
+        await Promise.all([loadReviews(), loadReports(), loadReviewEvents(), loadHelpfulVotes(), loadIncentives()]);
 
         if (!state.selectedVolunteerId && state.volunteers[0]) {
           state.selectedVolunteerId = state.volunteers[0].id;
@@ -1037,6 +1051,31 @@
         }
 
         state.reports = resp.data || [];
+      }
+
+      async function loadIncentives() {
+        state.incentivesByVolunteer = {};
+        if (state.demoMode || !state.supabase) return;
+
+        let resp = await state.supabase
+          .from("volunteer_incentive_achievements")
+          .select("id,volunteer_id,code,title,detail,earned_at")
+          .order("earned_at", { ascending: false })
+          .limit(1000);
+
+        if (resp.error) {
+          resp = await state.supabase
+            .from("volunteer_incentive_achievements")
+            .select("id,volunteer_id,code,title,earned_at")
+            .order("earned_at", { ascending: false })
+            .limit(1000);
+        }
+
+        if (resp.error) {
+          return;
+        }
+
+        state.incentivesByVolunteer = groupIncentivesByVolunteer(resp.data || []);
       }
 
       async function loadHelpfulVotes() {
@@ -1274,6 +1313,38 @@
           return;
         }
 
+        const rpcResp = await state.supabase.rpc("submit_review_secure", {
+          p_volunteer_id: payload.review.volunteer_id,
+          p_event_id: payload.review.event_id,
+          p_overall_rating: payload.review.overall_rating,
+          p_communication_rating: payload.review.communication_rating,
+          p_reliability_rating: payload.review.reliability_rating,
+          p_warmth_rating: payload.review.warmth_rating,
+          p_clarity_rating: payload.review.clarity_rating,
+          p_title: payload.review.title,
+          p_body: payload.review.body,
+          p_authenticity_score: signal.score,
+          p_authenticity_flags: signal.flags
+        });
+
+        if (!rpcResp.error) {
+          setStatus(el.reviewStatus, "Review submitted.", "ok");
+          el.reviewForm.reset();
+          if (el.reviewDialog.open) el.reviewDialog.close();
+          await loadAllData();
+          renderAll();
+          return;
+        }
+
+        const rpcMessage = String((rpcResp.error && rpcResp.error.message) || "");
+        const rpcMissing =
+          /submit_review_secure/i.test(rpcMessage) &&
+          /(does not exist|not found|schema cache|undefined function)/i.test(rpcMessage);
+        if (!rpcMissing) {
+          setStatus(el.reviewStatus, "Submit failed: " + rpcMessage, "err");
+          return;
+        }
+
         const duplicate = await state.supabase.from("reviews")
           .select("id")
           .eq("reviewer_user_id", state.user.id)
@@ -1397,6 +1468,32 @@
           return;
         }
 
+        const rpcResp = await state.supabase.rpc("submit_report_secure", {
+          p_volunteer_id: volunteerId,
+          p_event_id: eventId || null,
+          p_reason: reason,
+          p_severity: severity,
+          p_details: details
+        });
+
+        if (!rpcResp.error) {
+          setStatus(el.reportStatus, "Report submitted.", "ok");
+          el.reportForm.reset();
+          if (el.reportDialog.open) el.reportDialog.close();
+          await loadAllData();
+          renderAll();
+          return;
+        }
+
+        const rpcMessage = String((rpcResp.error && rpcResp.error.message) || "");
+        const rpcMissing =
+          /submit_report_secure/i.test(rpcMessage) &&
+          /(does not exist|not found|schema cache|undefined function)/i.test(rpcMessage);
+        if (!rpcMissing) {
+          setStatus(el.reportStatus, "Report failed: " + rpcMessage, "err");
+          return;
+        }
+
         const resp = await state.supabase.from("volunteer_reports").insert({ volunteer_id: volunteerId, event_id: eventId || null, reporter_user_id: state.user.id, reason: reason, severity: severity, details: details, status: "open" });
         if (resp.error) {
           setStatus(el.reportStatus, "Report failed.", "err");
@@ -1438,6 +1535,27 @@
         if (!existing.error && existing.data && Number(existing.data.vote || 0) > 0) {
           state.helpfulVotedIds[String(reviewId)] = true;
           renderProfile();
+          return;
+        }
+
+        const rpcResp = await state.supabase.rpc("vote_review_helpful_secure", {
+          p_review_id: reviewId
+        });
+
+        if (!rpcResp.error) {
+          state.helpfulVotedIds[String(reviewId)] = true;
+          target.helpful_count = Number(target.helpful_count || 0) + 1;
+          renderProfile();
+          renderStudio();
+          return;
+        }
+
+        const rpcMessage = String((rpcResp.error && rpcResp.error.message) || "");
+        const rpcMissing =
+          /vote_review_helpful_secure/i.test(rpcMessage) &&
+          /(does not exist|not found|schema cache|undefined function)/i.test(rpcMessage);
+        if (!rpcMissing) {
+          setStatus(el.authStatus, "Vote failed: " + rpcMessage, "err");
           return;
         }
 
@@ -1572,6 +1690,7 @@
 
         const stats = volunteerStats(volunteer.id);
         const reviews = reviewsForVolunteer(volunteer.id);
+        const incentiveChips = renderIncentiveChips(volunteer.id, 4);
 
         const reviewHtml = reviews.slice(0, 8).map(function (r) {
           const alreadyVoted = hasVotedHelpful(r.id);
@@ -1589,7 +1708,7 @@
               '<div><h2>' + esc(volunteer.display_name || "Volunteer") + '</h2><div class="muted">' + esc(volunteer.tagline || volunteer.bio || "") + '</div></div>' +
               '<div class="actions"><button class="mini" type="button" data-action="review">Review</button><button class="mini ghost" type="button" data-action="report">Report</button><button class="mini ghost" type="button" data-action="studio">Studio</button></div>' +
             '</div>' +
-            '<div class="chips"><span class="chip">' + stars(stats.avgRating) + ' ' + stats.avgRating.toFixed(2) + '</span><span class="chip">' + stats.reviewCount + ' reviews</span><span class="chip">Rep ' + Math.round(stats.score) + '</span><span class="chip">Confidence ' + stats.confidence + '%</span></div>' +
+            '<div class="chips"><span class="chip">' + stars(stats.avgRating) + ' ' + stats.avgRating.toFixed(2) + '</span><span class="chip">' + stats.reviewCount + ' reviews</span><span class="chip">Rep ' + Math.round(stats.score) + '</span><span class="chip">Confidence ' + stats.confidence + '%</span>' + incentiveChips + '</div>' +
           '</section>' +
           '<section class="metric-grid">' +
             metricBox("Rating", stats.avgRating.toFixed(2)) +
@@ -1661,6 +1780,7 @@
 
         const stats = volunteerStats(volunteer.id);
         el.studioMetrics.innerHTML = metricBox("Avg", stats.avgRating.toFixed(2)) + metricBox("Reviews", String(stats.reviewCount)) + metricBox("Helpful", String(stats.helpfulTotal)) + metricBox("Open", String(stats.openReports));
+        el.studioIncentives.innerHTML = renderIncentiveChips(volunteer.id, 12) || '<span class="chip">No incentives yet</span>';
 
         renderCategoryBars(volunteer.id);
         renderTrendBars(volunteer.id);
@@ -1803,6 +1923,27 @@
         if (!parts.length) return "V";
         if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
         return (parts[0][0] + parts[1][0]).toUpperCase();
+      }
+
+      function groupIncentivesByVolunteer(rows) {
+        const map = {};
+        (rows || []).forEach(function (row) {
+          const key = row && row.volunteer_id ? String(row.volunteer_id) : "";
+          if (!key) return;
+          if (!map[key]) map[key] = [];
+          map[key].push(row);
+        });
+        return map;
+      }
+
+      function renderIncentiveChips(volunteerId, maxCount) {
+        const rows = state.incentivesByVolunteer[String(volunteerId)] || [];
+        const items = rows.slice(0, Math.max(0, Number(maxCount || 0)));
+        if (!items.length) return "";
+        return items.map(function (item) {
+          const label = item.title || item.code || "Incentive";
+          return '<span class="chip reward" title="' + esc(item.detail || "") + '">' + esc(label) + '</span>';
+        }).join("");
       }
 
       function hasVotedHelpful(reviewId) {
