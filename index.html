@@ -484,9 +484,6 @@
         </div>
 
         <div class="meta">
-          <span id="modeChip" class="pill">Demo</span>
-          <span id="userChip" class="pill">Guest</span>
-          <span id="roleChip" class="pill">role / status</span>
           <button id="openSettingsBtn" type="button" class="ghost mini settings-launch">Settings</button>
         </div>
       </div>
@@ -734,7 +731,7 @@
       }
       function cacheEls() {
         [
-          "emailInput", "sendLinkBtn", "signOutBtn", "modeChip", "userChip", "roleChip", "supaUrlInput", "supaKeyInput", "allowedDomainInput",
+          "emailInput", "sendLinkBtn", "signOutBtn", "supaUrlInput", "supaKeyInput", "allowedDomainInput",
           "openSettingsBtn", "settingsDialog", "connectBtn", "demoBtn", "authStatus", "backendStatus", "searchInput", "sortSelect", "volunteerList", "profileSurface",
           "reviewDialog", "reviewForm", "reviewEventSelect", "reviewVolunteerSelect", "overallRating", "commRating", "relRating", "warmRating", "clearRating",
           "reviewTitleInput", "reviewBodyInput", "truthCheckbox", "submitReviewBtn", "reviewStatus",
@@ -1389,14 +1386,6 @@
       }
 
       function renderHeader() {
-        el.modeChip.textContent = state.demoMode ? "Demo" : "Live";
-        el.modeChip.classList.toggle("live", !state.demoMode);
-        el.userChip.textContent = state.user ? (state.user.email || "Signed in") : "Guest";
-
-        const role = state.member ? (state.member.role || "member") : "guest";
-        const status = state.member ? (state.member.status || "pending") : "guest";
-        el.roleChip.textContent = role + " / " + status;
-
         if (!state.user) {
           setStatus(el.authStatus, "Status: guest", "");
           return;
