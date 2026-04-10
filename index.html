@@ -31,11 +31,7 @@
       margin: 0;
       font-family: "Sora", sans-serif;
       color: var(--ink);
-      background:
-        radial-gradient(circle at 12% 10%, rgba(11, 107, 74, 0.1), transparent 34%),
-        radial-gradient(circle at 88% 15%, rgba(155, 106, 34, 0.12), transparent 35%),
-        repeating-linear-gradient(45deg, rgba(0, 0, 0, 0.018) 0, rgba(0, 0, 0, 0.018) 12px, transparent 12px, transparent 24px),
-        var(--bg);
+      background: linear-gradient(180deg, #f7f5ef, #f2eee4);
       min-height: 100vh;
     }
 
@@ -44,7 +40,7 @@
     .shell {
       border: 1px solid var(--line);
       border-radius: var(--r-lg);
-      background: linear-gradient(165deg, rgba(255, 253, 247, 0.96), rgba(250, 243, 229, 0.96));
+      background: #fff;
       box-shadow: var(--shadow);
       padding: 14px;
       display: grid;
@@ -119,6 +115,23 @@
 
     .connect-actions { display: flex; gap: 7px; flex-wrap: wrap; }
 
+    .settings {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 8px;
+      background: #fcfaf4;
+    }
+
+    .settings summary {
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 700;
+      color: #4b4136;
+      list-style: none;
+    }
+
+    .settings summary::-webkit-details-marker { display: none; }
+
     .status {
       border-radius: 10px;
       border: 1px solid var(--line);
@@ -127,6 +140,7 @@
       background: #faf7ef;
       color: #5c5247;
     }
+    .status:empty { display: none; }
     .status.ok { color: #0f5a40; background: #ddf0e7; border-color: #aad1c1; }
     .status.err { color: #7a2323; background: #f7e2e2; border-color: #dfb0b0; }
 
@@ -300,7 +314,6 @@
 
     details { border: 1px solid var(--line); border-radius: 10px; background: #fffcf5; padding: 9px 10px; }
     details summary { cursor: pointer; font-weight: 700; font-size: 13px; }
-    .checklist { margin: 8px 0 0; font-size: 12px; color: #5c5348; display: grid; gap: 4px; }
 
     @media (max-width: 1020px) {
       .topbar { grid-template-columns: 1fr; }
@@ -334,25 +347,28 @@
         </div>
       </div>
 
-      <div class="connect-row">
-        <input id="supaUrlInput" type="url" placeholder="Supabase URL" />
-        <input id="supaKeyInput" type="password" placeholder="Supabase anon key" />
-        <input id="allowedDomainInput" type="text" placeholder="Allowed email domain (optional)" />
-        <div class="connect-actions">
-          <button id="connectBtn" type="button">Connect</button>
-          <button id="demoBtn" class="warn" type="button">Demo</button>
+      <details class="settings">
+        <summary>Settings</summary>
+        <div class="connect-row">
+          <input id="supaUrlInput" type="url" placeholder="Supabase URL" />
+          <input id="supaKeyInput" type="password" placeholder="Supabase anon key" />
+          <input id="allowedDomainInput" type="text" placeholder="Allowed email domain" />
+          <div class="connect-actions">
+            <button id="connectBtn" type="button">Connect</button>
+            <button id="demoBtn" class="warn" type="button">Demo</button>
+          </div>
         </div>
-      </div>
+        <p id="backendStatus" class="status">Backend: not connected</p>
+      </details>
 
-      <p id="authStatus" class="status">Guest mode.</p>
-      <p id="backendStatus" class="status">No backend connection.</p>
+      <p id="authStatus" class="status">Status: guest</p>
     </section>
 
     <section class="panel">
       <div class="tabs" id="tabs">
         <button class="tab active" data-view="discover">Discover</button>
-        <button class="tab" data-view="review">Write Review</button>
-        <button class="tab" data-view="studio">Volunteer Studio</button>
+        <button class="tab" data-view="review">Reviews</button>
+        <button class="tab" data-view="studio">Studio</button>
       </div>
     </section>
 
@@ -379,7 +395,7 @@
     <section id="reviewView" class="view panel">
       <div class="split">
         <form id="reviewForm" class="form-card">
-          <h2>Write Review</h2>
+          <h2>Review</h2>
           <div class="field">
             <label for="reviewEventSelect">Event</label>
             <select id="reviewEventSelect" required></select>
@@ -403,23 +419,23 @@
           </div>
           <div class="field">
             <label for="reviewBodyInput">Review</label>
-            <textarea id="reviewBodyInput" maxlength="2000" placeholder="Write specific, factual feedback"></textarea>
+            <textarea id="reviewBodyInput" maxlength="2000" placeholder="Details"></textarea>
           </div>
 
-          <label class="sub"><input id="truthCheckbox" type="checkbox" /> This is a truthful review from a real event.</label>
+          <label class="sub"><input id="truthCheckbox" type="checkbox" /> Real event, truthful review.</label>
           <button id="submitReviewBtn" type="submit">Submit Review</button>
-          <p id="reviewStatus" class="status">Approved members only.</p>
+          <p id="reviewStatus" class="status"></p>
         </form>
 
         <form id="reportForm" class="form-card">
-          <h2>Report Incident</h2>
+          <h2>Report</h2>
           <div class="field">
             <label for="reportVolunteerSelect">Volunteer</label>
             <select id="reportVolunteerSelect" required></select>
           </div>
           <div class="field">
             <label for="reportEventSelect">Event</label>
-            <select id="reportEventSelect"><option value="">No specific event</option></select>
+            <select id="reportEventSelect"><option value="">No event</option></select>
           </div>
           <div class="field">
             <label for="reportReasonSelect">Reason</label>
@@ -445,7 +461,7 @@
             <textarea id="reportDetailsInput" maxlength="1500" placeholder="Facts, date, what happened"></textarea>
           </div>
           <button id="submitReportBtn" class="danger" type="submit">Submit Report</button>
-          <p id="reportStatus" class="status">Approved members only.</p>
+          <p id="reportStatus" class="status"></p>
         </form>
       </div>
     </section>
@@ -462,7 +478,7 @@
             <div class="field"><label for="profileBio">Bio</label><textarea id="profileBio" maxlength="800"></textarea></div>
             <label class="sub"><input id="profileActive" type="checkbox" /> Public profile visible</label>
             <button id="saveProfileBtn" type="submit">Save Profile</button>
-            <p id="profileStatus" class="status">Volunteer profile settings.</p>
+            <p id="profileStatus" class="status"></p>
           </form>
 
           <article class="form-card analytics">
@@ -492,18 +508,6 @@
       </div>
     </section>
 
-    <section class="panel">
-      <details>
-        <summary>Backend checklist</summary>
-        <div class="checklist">
-          <div>1. Only approved members can create reviews/reports.</div>
-          <div>2. Verified attendance required for event-linked review.</div>
-          <div>3. Unique review per reviewer + volunteer + event.</div>
-          <div>4. Public reads only published reviews.</div>
-          <div>5. Volunteer account mapping: `volunteers.user_id` or `volunteer_accounts(user_id, volunteer_id)`.</div>
-        </div>
-      </details>
-    </section>
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -632,7 +636,7 @@
         state.user = DEMO.user;
         state.member = DEMO.member;
         state.volunteerLink = DEMO.volunteerLink;
-        setStatus(el.backendStatus, "Demo mode enabled.", "ok");
+        setStatus(el.backendStatus, "Backend: demo mode", "ok");
         await loadAllData();
         renderAll();
       }
@@ -647,7 +651,7 @@
           state.user = DEMO.user;
           state.member = DEMO.member;
           state.volunteerLink = DEMO.volunteerLink;
-          setStatus(el.backendStatus, "No Supabase credentials found. Demo mode active.", "err");
+          setStatus(el.backendStatus, "Backend: no credentials (demo mode)", "err");
           return;
         }
 
@@ -657,14 +661,14 @@
           });
           state.demoMode = false;
           attachAuthSubscription();
-          setStatus(el.backendStatus, "Connected to Supabase.", "ok");
+          setStatus(el.backendStatus, "Backend: connected", "ok");
         } catch (err) {
           state.demoMode = true;
           state.supabase = null;
           state.user = DEMO.user;
           state.member = DEMO.member;
           state.volunteerLink = DEMO.volunteerLink;
-          setStatus(el.backendStatus, "Supabase connection failed. Demo mode active.", "err");
+          setStatus(el.backendStatus, "Backend: connection failed (demo mode)", "err");
         }
       }
       function attachAuthSubscription() {
@@ -920,7 +924,7 @@
       async function onSendMagicLink() {
         const email = (el.emailInput.value || "").trim().toLowerCase();
         if (!email || email.indexOf("@") < 0) {
-          setStatus(el.authStatus, "Enter a valid email.", "err");
+          setStatus(el.authStatus, "Enter valid email.", "err");
           return;
         }
 
@@ -931,7 +935,7 @@
         }
 
         if (state.demoMode || !state.supabase) {
-          setStatus(el.authStatus, "Connect Supabase first or use demo mode.", "err");
+          setStatus(el.authStatus, "Connect backend first.", "err");
           return;
         }
 
@@ -943,7 +947,7 @@
           return;
         }
 
-        setStatus(el.authStatus, "Magic link sent.", "ok");
+        setStatus(el.authStatus, "Login link sent.", "ok");
       }
 
       async function onSignOut() {
@@ -1018,7 +1022,7 @@
         event.preventDefault();
 
         if (!memberApproved()) {
-          setStatus(el.reviewStatus, "Approved member login required.", "err");
+          setStatus(el.reviewStatus, "Approved member required.", "err");
           return;
         }
 
@@ -1131,7 +1135,7 @@
         if (review.title.length < 6) return { ok: false, message: "Add a headline." };
         if (review.body.length < 80) return { ok: false, message: "Review should be at least 80 characters." };
         if ((review.overall_rating === 1 || review.overall_rating === 5) && review.body.length < 120) return { ok: false, message: "1-star and 5-star reviews need more detail (120+ chars)." };
-        if (!el.truthCheckbox.checked) return { ok: false, message: "Confirm truthful review." };
+        if (!el.truthCheckbox.checked) return { ok: false, message: "Confirm checkbox." };
 
         return { ok: true, review: review };
       }
@@ -1140,7 +1144,7 @@
         event.preventDefault();
 
         if (!memberApproved()) {
-          setStatus(el.reportStatus, "Approved member login required.", "err");
+          setStatus(el.reportStatus, "Approved member required.", "err");
           return;
         }
 
@@ -1155,7 +1159,7 @@
           return;
         }
         if (details.length < 50) {
-          setStatus(el.reportStatus, "Add at least 50 chars of factual details.", "err");
+          setStatus(el.reportStatus, "Add at least 50 chars.", "err");
           return;
         }
 
@@ -1208,7 +1212,7 @@
         }
 
         if (!state.user) {
-          setStatus(el.authStatus, "Sign in to mark helpful.", "err");
+          setStatus(el.authStatus, "Sign in to vote.", "err");
           return;
         }
 
@@ -1306,12 +1310,12 @@
         el.roleBadge.textContent = role + " / " + status;
 
         if (!state.user) {
-          setStatus(el.authStatus, "Guest mode.", "");
+          setStatus(el.authStatus, "Status: guest", "");
           return;
         }
 
         const name = state.member && state.member.display_name ? state.member.display_name : (state.user.email || "Member");
-        setStatus(el.authStatus, "Signed in as " + name + ".", memberApproved() ? "ok" : "err");
+        setStatus(el.authStatus, "Signed in: " + name, memberApproved() ? "ok" : "err");
       }
 
       function renderTabs() {
@@ -1397,7 +1401,7 @@
             '<div class="profile-top">' +
               avatarHtml(volunteer, 56) +
               '<div><h2 class="profile-name">' + esc(volunteer.display_name || "Volunteer") + '</h2><div class="tagline">' + esc(volunteer.tagline || volunteer.bio || "") + '</div></div>' +
-              '<div class="stack"><button type="button" data-action="write-review">Write Review</button><button class="ghost" type="button" data-action="write-report">Report</button></div>' +
+              '<div class="stack"><button type="button" data-action="write-review">Review</button><button class="ghost" type="button" data-action="write-report">Report</button></div>' +
             '</div>' +
             '<div class="stats-row"><span class="stat">' + stars(stats.avgRating) + ' ' + stats.avgRating.toFixed(2) + '</span><span class="stat">' + stats.reviewCount + ' reviews</span><span class="stat">Rep ' + Math.round(stats.score) + '</span><span class="stat">Confidence ' + stats.confidence + '%</span></div>' +
             '<div class="sub">' + esc(volunteer.bio || "") + '</div>' +
@@ -1433,7 +1437,7 @@
           return '<option value="' + esc(v.id) + '">' + esc(v.display_name || "Volunteer") + '</option>';
         }).join("");
 
-        el.reportEventSelect.innerHTML = '<option value="">No specific event</option>' + state.events.map(function (ev) {
+        el.reportEventSelect.innerHTML = '<option value="">No event</option>' + state.events.map(function (ev) {
           return '<option value="' + esc(ev.id) + '">' + esc(ev.title || "Event") + ' · ' + formatDate(ev.starts_at) + '</option>';
         }).join("");
 
@@ -1444,20 +1448,20 @@
 
       function renderStudio() {
         if (!state.user) {
-          el.studioGate.innerHTML = '<article class="card">Sign in first to access Volunteer Studio.</article>';
+          el.studioGate.innerHTML = '<article class="card">Sign in to open Studio.</article>';
           el.studioContent.style.display = "none";
           return;
         }
 
         if (!state.volunteerLink || !state.volunteerLink.volunteer_id) {
-          el.studioGate.innerHTML = '<article class="card">No volunteer account linked to this login. Map `user_id` to a volunteer profile.</article>';
+          el.studioGate.innerHTML = '<article class="card">No volunteer profile linked to this login.</article>';
           el.studioContent.style.display = "none";
           return;
         }
 
         const volunteer = state.volunteers.find(function (v) { return v.id === state.volunteerLink.volunteer_id; });
         if (!volunteer) {
-          el.studioGate.innerHTML = '<article class="card">Linked volunteer profile not found.</article>';
+          el.studioGate.innerHTML = '<article class="card">Linked profile not found.</article>';
           el.studioContent.style.display = "none";
           return;
         }
