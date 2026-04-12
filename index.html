@@ -579,11 +579,15 @@
             <option value="name">Name A-Z</option>
           </select>
         </div>
-        <div id="volunteerList" class="vol-list"></div>
+        <div id="volunteerList" class="vol-list">
+          <div class="empty">Loading volunteers...</div>
+        </div>
       </aside>
 
       <section class="panel">
-        <div id="profileSurface" class="profile"></div>
+        <div id="profileSurface" class="profile">
+          <div class="empty">Select a volunteer</div>
+        </div>
       </section>
     </section>
 
@@ -1952,12 +1956,21 @@
       }
 
       function renderAll() {
-        renderHeader();
-        renderReviewSelectors();
-        renderReportSelectors();
-        renderVolunteerList();
-        renderProfile();
-        renderStudio();
+        safeRender("header", renderHeader);
+        safeRender("volunteer-list", renderVolunteerList);
+        safeRender("profile", renderProfile);
+        safeRender("review-selectors", renderReviewSelectors);
+        safeRender("report-selectors", renderReportSelectors);
+        safeRender("studio", renderStudio);
+      }
+
+      function safeRender(name, fn) {
+        try {
+          fn();
+        } catch (err) {
+          const msg = err && err.message ? err.message : String(err || "Unknown UI error");
+          setBackendStatus("UI error (" + name + "): " + msg, "err");
+        }
       }
 
       function renderHeader() {
@@ -2067,6 +2080,7 @@
       }
 
       function renderReviewSelectors() {
+        if (!el.reviewEventSelect || !el.reviewVolunteerSelect) return;
         const events = state.events.slice().sort(function (a, b) { return new Date(b.starts_at) - new Date(a.starts_at); });
         el.reviewEventSelect.innerHTML = '<option value="">Event</option>' + events.map(function (ev) {
           return '<option value="' + esc(ev.id) + '">' + esc(ev.title || "Event") + ' · ' + formatDate(ev.starts_at) + '</option>';
@@ -2075,6 +2089,7 @@
       }
 
       function renderReviewVolunteerOptions() {
+        if (!el.reviewEventSelect || !el.reviewVolunteerSelect) return;
         const eventId = (el.reviewEventSelect.value || "").trim();
         const allowed = eventId ? (state.eventVolunteerMap[eventId] || []) : state.volunteers.map(function (v) { return v.id; });
         const options = state.volunteers.filter(function (v) { return allowed.includes(v.id); });
@@ -2087,6 +2102,7 @@
       }
 
       function renderReportSelectors() {
+        if (!el.reportVolunteerSelect || !el.reportEventSelect) return;
         el.reportVolunteerSelect.innerHTML = '<option value="">Volunteer</option>' + state.volunteers.map(function (v) {
           return '<option value="' + esc(v.id) + '">' + esc(v.display_name || "Volunteer") + '</option>';
         }).join("");
@@ -2097,6 +2113,7 @@
       }
 
       function renderStudio() {
+        if (!el.studioGate || !el.studioContent) return;
         if (!state.user) {
           el.studioGate.textContent = "Sign in to open Studio.";
           el.studioContent.style.display = "none";
@@ -2181,6 +2198,7 @@
       }
 
       function renderCategoryBars(volunteerId) {
+        if (!el.categoryBars) return;
         const rows = reviewsForVolunteer(volunteerId);
         const cats = [
           { label: "Overall", key: "overall_rating" },
@@ -2198,6 +2216,7 @@
       }
 
       function renderTrendBars(volunteerId) {
+        if (!el.trendBars) return;
         const rows = reviewsForVolunteer(volunteerId);
         const months = [];
         const now = new Date();
@@ -2461,7 +2480,11 @@
         return !!state.helpfulVotedIds[String(reviewId)];
       }
 
-      function clearStatus(node) { node.textContent = ""; node.className = "status"; }
+      function clearStatus(node) {
+        if (!node) return;
+        node.textContent = "";
+        node.className = "status";
+      }
 
       function setBackendStatus(text, type) {
         if (el.backendStatus) setStatus(el.backendStatus, text, type);
