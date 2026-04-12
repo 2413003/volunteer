@@ -863,6 +863,7 @@
         authSub: null,
         demoMode: true,
         loadingData: false,
+        setupRunning: false,
         user: null,
         member: null,
         volunteerLink: null,
@@ -1006,12 +1007,14 @@
               persistSession: true,
               autoRefreshToken: true,
               detectSessionInUrl: true,
+              flowType: "pkce",
               storageKey: "mk_volunteer_reviews_auth_v1"
             }
           });
           state.demoMode = false;
           attachAuthSubscription();
-          setBackendStatus("Backend: connected (" + DEFAULT_SUPABASE.projectId + ")", "ok");
+          const projectId = projectIdFromUrl(url) || DEFAULT_SUPABASE.projectId;
+          setBackendStatus("Backend: connected (" + projectId + ")", "ok");
         } catch (_err) {
           state.demoMode = true;
           state.supabase = null;
@@ -1099,17 +1102,34 @@
 
         const resp = await state.supabase
           .from("member_profiles")
-          .select("display_name,status,role,trust_score,created_at")
+          .select("display_name,status,role,trust_score,created_at,volunteer_id")
           .eq("user_id", state.user.id)
           .maybeSingle();
 
         if (resp.error) {
+          const secure = await state.supabase.rpc("get_my_member_profile_secure");
+          if (!secure.error) {
+            const row = Array.isArray(secure.data) ? secure.data[0] : secure.data;
+            if (row) {
+              state.member = {
+                display_name: row.display_name || (state.user.email || "Member"),
+                status: row.status || "pending",
+                role: row.role || "member",
+                trust_score: Number(row.trust_score || 1),
+                created_at: row.created_at || new Date().toISOString(),
+                volunteer_id: row.volunteer_id || null
+              };
+              return;
+            }
+          }
+
           state.member = {
             display_name: state.user.email || "Member",
             status: "pending",
             role: "member",
             trust_score: 1.0,
-            created_at: new Date().toISOString()
+            created_at: new Date().toISOString(),
+            volunteer_id: null
           };
           return;
         }
@@ -1119,7 +1139,8 @@
           status: "pending",
           role: "member",
           trust_score: 1.0,
-          created_at: new Date().toISOString()
+          created_at: new Date().toISOString(),
+          volunteer_id: null
         };
       }
 
@@ -1151,6 +1172,10 @@
           if (!profileMap.error && profileMap.data && profileMap.data.volunteer_id) {
             found = { volunteer_id: profileMap.data.volunteer_id, source: "member_profiles.volunteer_id" };
           }
+        }
+
+        if (!found && state.member && state.member.volunteer_id) {
+          found = { volunteer_id: state.member.volunteer_id, source: "member_profile_secure" };
         }
 
         state.volunteerLink = found;
@@ -1203,11 +1228,22 @@
 
         if (resp.error) {
           state.volunteers = [];
+          const secure = await state.supabase.rpc("list_volunteers_public_secure");
+          if (!secure.error) {
+            state.volunteers = secure.data || [];
+            return;
+          }
           setBackendStatus("Data load issue: volunteers", "err");
           return;
         }
 
         state.volunteers = resp.data || [];
+        if (!state.volunteers.length) {
+          const secure = await state.supabase.rpc("list_volunteers_public_secure");
+          if (!secure.error && (secure.data || []).length) {
+            state.volunteers = secure.data || [];
+          }
+        }
       }
 
       async function loadReviews() {
@@ -1450,7 +1486,13 @@
         el.sendLinkBtn.disabled = true;
         try {
           const redirect = window.location.origin + window.location.pathname;
-          const resp = await state.supabase.auth.signInWithOtp({ email: email, options: { emailRedirectTo: redirect } });
+          const resp = await state.supabase.auth.signInWithOtp({
+            email: email,
+            options: {
+              emailRedirectTo: redirect,
+              shouldCreateUser: true
+            }
+          });
           if (resp.error) {
             setStatus(el.authStatus, "Login failed. Check settings/domain.", "err");
             return;
@@ -1589,13 +1631,34 @@
         if (!state.user) {
           el.addVolunteerHint.textContent = "Sign in required. Enter email above and press Send Link.";
           el.sendLinkFromDialogBtn.style.display = "";
-          el.createVolunteerBtn.disabled = false;
+          el.createVolunteerBtn.disabled = true;
           return;
         }
 
-        el.addVolunteerHint.textContent = "If create fails with permissions, press Start setup once first.";
+        if (state.setupRunning) {
+          el.addVolunteerHint.textContent = "Setup in progress. Please wait a moment.";
+          el.sendLinkFromDialogBtn.style.display = "none";
+          el.createVolunteerBtn.disabled = true;
+          return;
+        }
+
+        if (memberApproved()) {
+          el.addVolunteerHint.textContent = "Create volunteer profile.";
+        } else {
+          el.addVolunteerHint.textContent = "If setup is needed, we will run it automatically.";
+        }
         el.sendLinkFromDialogBtn.style.display = "none";
         el.createVolunteerBtn.disabled = false;
+      }
+
+      async function createVolunteerViaRpc(displayName, tagline, bio) {
+        return withTimeout(state.supabase.rpc("create_volunteer_secure", {
+          p_display_name: displayName,
+          p_tagline: tagline || null,
+          p_bio: bio || null,
+          p_avatar_url: null,
+          p_active: true
+        }), 12000, "Create request timed out");
       }
 
       async function onCreateVolunteer(event) {
@@ -1649,64 +1712,48 @@
 
         try {
           let createdId = null;
-          const rpcResp = await withTimeout(state.supabase.rpc("create_volunteer_secure", {
-            p_display_name: displayName,
-            p_tagline: tagline || null,
-            p_bio: bio || null,
-            p_avatar_url: null,
-            p_active: true
-          }), 12000, "Create request timed out");
+          let rpcResp = await createVolunteerViaRpc(displayName, tagline, bio);
 
-          if (!rpcResp.error) {
-            createdId = rpcResp.data || null;
-          } else {
+          if (rpcResp.error) {
             const message = String(rpcResp.error.message || "");
-            const rpcMissing =
-              /create_volunteer_secure/i.test(message) &&
-              /(does not exist|not found|schema cache|undefined function)/i.test(message);
+            const rpcMissing = isRpcMissingError(message, "create_volunteer_secure");
+            const setupOrPermission =
+              /moderator|admin|required|permission|not authorized|row-level security|violates row-level security/i.test(message);
 
-            if (!rpcMissing) {
-              const needSetup = /moderator|admin|required|permission|not authorized/i.test(message);
-              const friendly = needSetup
-                ? "Permission denied. Press Start setup once, then try again."
-                : ("Create failed: " + message);
+            if (rpcMissing) {
+              const friendly = "Backend setup is incomplete. Run supabase/all_in_one_setup.sql in Supabase SQL editor, then click Start setup.";
               setStatus(el.addVolunteerStatus, friendly, "err");
               setBackendStatus(friendly, "err");
               return;
             }
 
-            const insertResp = await withTimeout(
-              state.supabase
-                .from("volunteers")
-                .insert({
-                  display_name: displayName,
-                  tagline: tagline,
-                  bio: bio,
-                  avatar_url: "",
-                  active: true
-                })
-                .select("id")
-                .maybeSingle(),
-              12000,
-              "Create fallback timed out"
-            );
-
-            if (insertResp.error) {
-              const fallbackMessage = String(insertResp.error.message || "Not allowed to add volunteer.");
-              const friendly = "Create failed: " + fallbackMessage + ". Press Start setup first.";
-              setStatus(el.addVolunteerStatus, friendly, "err");
-              setBackendStatus(friendly, "err");
-              return;
+            if (setupOrPermission) {
+              setStatus(el.addVolunteerStatus, "Completing setup, then retrying...", "ok");
+              const setupOk = await runOwnerSetup({ silent: true, fromCreate: true });
+              if (setupOk) {
+                rpcResp = await createVolunteerViaRpc(displayName, tagline, bio);
+              }
             }
-
-            createdId = insertResp.data && insertResp.data.id ? insertResp.data.id : null;
           }
+
+          if (rpcResp.error) {
+            const message = String(rpcResp.error.message || "");
+            const approvalBlocked = /moderator|admin|required|permission|not authorized/i.test(message);
+            const friendly = approvalBlocked
+              ? "Your account is still pending. Ask an admin to approve your member profile, then try again."
+              : ("Create failed: " + message);
+            setStatus(el.addVolunteerStatus, friendly, "err");
+            setBackendStatus(friendly, "err");
+            return;
+          }
+
+          createdId = rpcResp.data || null;
 
           await withTimeout(loadAllData(), 12000, "Reload timed out");
           if (createdId) state.selectedVolunteerId = createdId;
           renderAll();
           setStatus(el.addVolunteerStatus, "Volunteer added.", "ok");
-          setBackendStatus("Volunteer added. Next: ask them to set session commitments in Studio.", "ok");
+          setBackendStatus("Volunteer added. Next: ask them to mark upcoming session attendance in Studio.", "ok");
           if (el.addVolunteerDialog.open) el.addVolunteerDialog.close();
         } catch (err) {
           const msg = err && err.message ? err.message : String(err || "Create failed");
@@ -1718,45 +1765,82 @@
         }
       }
 
-      async function runOwnerSetup() {
+      async function runOwnerSetup(options) {
+        const opts = options || {};
+        const silent = !!opts.silent;
+
         if (!state.user) {
-          setStatus(el.authStatus, "Sign in first, then run setup.", "err");
-          return;
+          if (!silent) setStatus(el.authStatus, "Sign in first, then run setup.", "err");
+          return false;
         }
 
         if (state.demoMode || !state.supabase) {
-          setBackendStatus("Connect Supabase first, then run setup.", "err");
-          if (!el.settingsDialog.open) el.settingsDialog.showModal();
-          return;
-        }
-
-        setBackendStatus("Setting up workspace...", "ok");
-
-        const preferredName = String(state.user.email || "Club Owner").split("@")[0];
-        const rpcResp = await state.supabase.rpc("bootstrap_owner_setup_secure", {
-          p_display_name: preferredName
-        });
-
-        if (rpcResp.error) {
-          const message = String(rpcResp.error.message || "");
-          const missing =
-            /bootstrap_owner_setup_secure/i.test(message) &&
-            /(does not exist|not found|schema cache|undefined function)/i.test(message);
-          if (missing) {
-            setBackendStatus("Setup RPC missing. Run supabase/all_in_one_setup.sql in Supabase.", "err");
-            return;
+          if (!silent) {
+            setBackendStatus("Connect Supabase first, then run setup.", "err");
+            if (!el.settingsDialog.open) el.settingsDialog.showModal();
           }
-          setBackendStatus("Setup failed: " + message, "err");
-          return;
+          return false;
         }
 
-        await refreshSession();
-        await loadAllData();
-        renderAll();
+        if (state.setupRunning) return false;
+        state.setupRunning = true;
+        updateAddVolunteerDialogState();
 
-        const role = (state.member && state.member.role) ? state.member.role : "member";
-        const status = (state.member && state.member.status) ? state.member.status : "pending";
-        setBackendStatus("Setup complete. Role: " + role + " · Status: " + status + ". Now click Add volunteer.", "ok");
+        if (!silent) setBackendStatus("Setting up workspace...", "ok");
+        el.startSetupBtn.disabled = true;
+        const setupLabel = el.startSetupBtn.textContent;
+        el.startSetupBtn.textContent = "Setting up...";
+
+        try {
+          const preferredName = String(state.user.email || "Club Owner").split("@")[0];
+          const rpcResp = await withTimeout(state.supabase.rpc("bootstrap_owner_setup_secure", {
+            p_display_name: preferredName
+          }), 12000, "Setup request timed out");
+
+          if (rpcResp.error) {
+            const message = String(rpcResp.error.message || "");
+            if (isRpcMissingError(message, "bootstrap_owner_setup_secure")) {
+              if (!silent) setBackendStatus("Setup RPC missing. Run supabase/all_in_one_setup.sql in Supabase SQL editor.", "err");
+              return false;
+            }
+            if (!silent) setBackendStatus("Setup failed: " + message, "err");
+            return false;
+          }
+
+          const meta = Array.isArray(rpcResp.data) ? rpcResp.data[0] : (rpcResp.data || {});
+          await withTimeout(refreshSession(), 12000, "Session refresh timed out");
+          await withTimeout(loadAllData(), 12000, "Data reload timed out");
+          renderAll();
+
+          const role = (state.member && state.member.role) ? state.member.role : (meta.member_role || "member");
+          const status = (state.member && state.member.status) ? state.member.status : (meta.member_status || "pending");
+          const createdCount = Number(meta.volunteer_count || 0);
+
+          if (createdCount > 0 && state.volunteers.length === 0) {
+            if (!silent) {
+              setBackendStatus("Setup ran, but volunteer visibility is blocked by DB policies. Run supabase/all_in_one_setup.sql once, then refresh.", "err");
+            }
+            return false;
+          }
+
+          if (!silent) {
+            if (status !== "approved" || (role !== "admin" && role !== "moderator")) {
+              setBackendStatus("Setup ran, but your account is still pending. Ask an existing admin to approve your member profile.", "err");
+            } else {
+              setBackendStatus("Setup complete. Add volunteers, then ask each volunteer to mark session attendance in Studio.", "ok");
+            }
+          }
+          return true;
+        } catch (err) {
+          const msg = err && err.message ? err.message : String(err || "Setup failed");
+          if (!silent) setBackendStatus(msg, "err");
+          return false;
+        } finally {
+          state.setupRunning = false;
+          updateAddVolunteerDialogState();
+          el.startSetupBtn.disabled = false;
+          el.startSetupBtn.textContent = setupLabel || "Start setup";
+        }
       }
 
       async function setCommitmentStatus(eventId, status) {
@@ -2219,12 +2303,20 @@
         }
       }
 
+      function showSetupAction() {
+        if (state.demoMode || !state.user) return false;
+        if (state.setupRunning) return true;
+        if (!memberApproved()) return true;
+        return state.volunteers.length === 0;
+      }
+
       function renderHeader() {
         el.signOutBtn.style.display = state.user ? "" : "none";
+        el.startSetupBtn.style.display = showSetupAction() ? "" : "none";
         updateAddVolunteerDialogState();
         if (!state.user) {
           if (!state.demoMode) {
-            setStatus(el.authStatus, "Sign in, then click Start setup or Add volunteer.", "err");
+            setStatus(el.authStatus, "Sign in to manage volunteers.", "");
           } else {
             clearStatus(el.authStatus);
           }
@@ -2235,8 +2327,7 @@
         if (memberApproved()) {
           setStatus(el.authStatus, "Signed in: " + name, "ok");
         } else {
-          const hint = (!state.demoMode && state.volunteers.length === 0) ? " · click Start setup" : "";
-          setStatus(el.authStatus, "Signed in: " + name + " (approval required to submit)" + hint, "err");
+          setStatus(el.authStatus, "Signed in: " + name + " (pending approval for reviews/reports)", "");
         }
       }
 
@@ -2262,14 +2353,7 @@
             el.volunteerList.innerHTML = '<div class="empty">Loading volunteers...</div>';
             return;
           }
-          if (!state.demoMode) {
-            setBackendStatus("No volunteers found. Add volunteers or use demo preview.", "err");
-          }
-          const setupBtn = !state.demoMode
-            ? '<button type="button" class="mini ghost" data-action="setup">Start setup</button>'
-            : "";
-          el.volunteerList.innerHTML =
-            '<div class="empty">No volunteers<div class="empty-actions"><button type="button" class="mini" data-action="add-volunteer">Add volunteer</button>' + setupBtn + '<button type="button" class="mini" data-action="demo">Load demo</button><button type="button" class="mini ghost" data-action="settings">Connect</button></div></div>';
+          el.volunteerList.innerHTML = '<div class="empty">No volunteers yet.</div>';
           return;
         }
 
@@ -2291,11 +2375,9 @@
       function renderProfile() {
         const volunteer = state.volunteers.find(function (v) { return v.id === state.selectedVolunteerId; });
         if (!volunteer) {
-          const setupBtn = !state.demoMode
-            ? '<button type="button" class="mini ghost" data-action="setup">Start setup</button>'
-            : "";
+          const setupBtn = showSetupAction() ? '<button type="button" class="mini ghost" data-action="setup">Start setup</button>' : "";
           el.profileSurface.innerHTML =
-            '<div class="empty">Select a volunteer<div class="empty-actions"><button type="button" class="mini" data-action="add-volunteer">Add volunteer</button>' + setupBtn + '<button type="button" class="mini" data-action="demo">Load demo</button><button type="button" class="mini ghost" data-action="settings">Connect</button></div></div>';
+            '<div class="empty">No volunteers yet.<div class="empty-actions"><button type="button" class="mini" data-action="add-volunteer">Add volunteer</button>' + setupBtn + '</div></div>';
           return;
         }
 
@@ -2800,6 +2882,19 @@
         if (!node) return;
         node.textContent = text;
         node.className = "status" + (type ? " " + type : "");
+      }
+
+      function isRpcMissingError(message, rpcName) {
+        const msg = String(message || "").toLowerCase();
+        const name = String(rpcName || "").toLowerCase();
+        if (!msg || !name) return false;
+        return msg.indexOf(name) >= 0 && /(does not exist|not found|schema cache|undefined function|no function matches)/i.test(msg);
+      }
+
+      function projectIdFromUrl(url) {
+        const raw = String(url || "").trim();
+        const match = raw.match(/^https?:\/\/([a-z0-9-]+)\.supabase\.co/i);
+        return match ? match[1] : "";
       }
 
       function normalizeDomain(value) { return String(value || "").trim().toLowerCase().replace(/^@/, ""); }
