@@ -513,6 +513,14 @@
       text-align: center;
     }
 
+    .empty-actions {
+      margin-top: 10px;
+      display: flex;
+      gap: 6px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
     @media (max-width: 1080px) {
       .top-row { grid-template-columns: 1fr; }
       .meta { justify-content: flex-start; }
@@ -557,6 +565,7 @@
 
       <div class="status-row">
         <p id="authStatus" class="status"></p>
+        <p id="backendStatusTop" class="status"></p>
       </div>
     </header>
 
@@ -840,7 +849,7 @@
       function cacheEls() {
         [
           "emailInput", "sendLinkBtn", "signOutBtn", "supaUrlInput", "supaKeyInput", "allowedDomainInput",
-          "openSettingsBtn", "settingsDialog", "connectBtn", "demoBtn", "authStatus", "backendStatus", "searchInput", "sortSelect", "volunteerList", "profileSurface",
+          "openSettingsBtn", "settingsDialog", "connectBtn", "demoBtn", "authStatus", "backendStatus", "backendStatusTop", "searchInput", "sortSelect", "volunteerList", "profileSurface",
           "reviewDialog", "reviewForm", "reviewEventSelect", "reviewVolunteerSelect", "overallRating", "commRating", "relRating", "warmRating", "clearRating",
           "reviewTitleInput", "reviewBodyInput", "truthCheckbox", "submitReviewBtn", "reviewStatus",
           "reportDialog", "reportForm", "reportVolunteerSelect", "reportEventSelect", "reportReasonSelect", "reportSeveritySelect", "reportDetailsInput", "submitReportBtn", "reportStatus",
@@ -909,7 +918,7 @@
         state.member = null;
         state.volunteerLink = null;
         state.helpfulVotedIds = {};
-        setStatus(el.backendStatus, "Backend: demo mode", "ok");
+        setBackendStatus("Backend: demo mode", "ok");
         await loadAllData();
         renderAll();
         if (el.settingsDialog.open) {
@@ -928,7 +937,7 @@
           state.member = null;
           state.volunteerLink = null;
           state.helpfulVotedIds = {};
-          setStatus(el.backendStatus, "Backend: no credentials (demo)", "err");
+          setBackendStatus("Backend: no credentials (demo)", "err");
           return;
         }
 
@@ -938,7 +947,7 @@
           });
           state.demoMode = false;
           attachAuthSubscription();
-          setStatus(el.backendStatus, "Backend: connected (" + DEFAULT_SUPABASE.projectId + ")", "ok");
+          setBackendStatus("Backend: connected (" + DEFAULT_SUPABASE.projectId + ")", "ok");
         } catch (_err) {
           state.demoMode = true;
           state.supabase = null;
@@ -946,7 +955,7 @@
           state.member = null;
           state.volunteerLink = null;
           state.helpfulVotedIds = {};
-          setStatus(el.backendStatus, "Backend: connection failed (demo)", "err");
+          setBackendStatus("Backend: connection failed (demo)", "err");
         }
       }
 
@@ -1100,7 +1109,7 @@
 
         if (resp.error) {
           state.volunteers = [];
-          setStatus(el.backendStatus, "Data load issue: volunteers", "err");
+          setBackendStatus("Data load issue: volunteers", "err");
           return;
         }
 
@@ -1116,7 +1125,7 @@
 
         if (resp.error) {
           state.reviews = [];
-          setStatus(el.backendStatus, "Data load issue: reviews", "err");
+          setBackendStatus("Data load issue: reviews", "err");
           return;
         }
 
@@ -1135,7 +1144,7 @@
 
         if (resp.error) {
           state.reports = [];
-          setStatus(el.backendStatus, "Data load issue: reports", "err");
+          setBackendStatus("Data load issue: reports", "err");
           return;
         }
 
@@ -1337,7 +1346,7 @@
 
         if (state.demoMode || !state.supabase) {
           setStatus(el.authStatus, "Connect backend first.", "err");
-          setStatus(el.backendStatus, "Open Settings and connect Supabase.", "err");
+          setBackendStatus("Open Settings and connect Supabase.", "err");
           if (el.settingsDialog && typeof el.settingsDialog.showModal === "function" && !el.settingsDialog.open) {
             el.settingsDialog.showModal();
           }
@@ -1372,6 +1381,19 @@
       }
 
       function onVolunteerClick(event) {
+        const action = event.target.closest("[data-action]");
+        if (action) {
+          const type = action.getAttribute("data-action");
+          if (type === "demo") {
+            onDemoClick();
+            return;
+          }
+          if (type === "settings") {
+            if (!el.settingsDialog.open) el.settingsDialog.showModal();
+            return;
+          }
+        }
+
         const item = event.target.closest("[data-volunteer]");
         if (!item) return;
         state.selectedVolunteerId = item.getAttribute("data-volunteer");
@@ -1394,6 +1416,10 @@
           openReportDialog();
         } else if (type === "studio") {
           openStudioDialog();
+        } else if (type === "demo") {
+          onDemoClick();
+        } else if (type === "settings") {
+          if (!el.settingsDialog.open) el.settingsDialog.showModal();
         }
       }
 
@@ -1920,7 +1946,11 @@
         });
 
         if (!list.length) {
-          el.volunteerList.innerHTML = '<div class="empty">No volunteers</div>';
+          if (!state.demoMode) {
+            setBackendStatus("No volunteers found. Add volunteers or use demo preview.", "err");
+          }
+          el.volunteerList.innerHTML =
+            '<div class="empty">No volunteers<div class="empty-actions"><button type="button" class="mini" data-action="demo">Load demo</button><button type="button" class="mini ghost" data-action="settings">Connect</button></div></div>';
           return;
         }
 
@@ -1942,7 +1972,8 @@
       function renderProfile() {
         const volunteer = state.volunteers.find(function (v) { return v.id === state.selectedVolunteerId; });
         if (!volunteer) {
-          el.profileSurface.innerHTML = '<div class="empty">Select a volunteer</div>';
+          el.profileSurface.innerHTML =
+            '<div class="empty">Select a volunteer<div class="empty-actions"><button type="button" class="mini" data-action="demo">Load demo</button><button type="button" class="mini ghost" data-action="settings">Connect</button></div></div>';
           return;
         }
 
@@ -2378,7 +2409,13 @@
 
       function clearStatus(node) { node.textContent = ""; node.className = "status"; }
 
+      function setBackendStatus(text, type) {
+        if (el.backendStatus) setStatus(el.backendStatus, text, type);
+        if (el.backendStatusTop) setStatus(el.backendStatusTop, text, type);
+      }
+
       function setStatus(node, text, type) {
+        if (!node) return;
         node.textContent = text;
         node.className = "status" + (type ? " " + type : "");
       }
