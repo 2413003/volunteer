@@ -28,6 +28,8 @@
     commitments: [],
     attendance: [],
     feedback: [],
+    sessionPulses: [],
+    supportRequests: [],
     metricsRows: [],
     metricsByVolunteer: {},
     selectedVolunteerId: null,
@@ -68,11 +70,13 @@
       "authStatus", "backendStatus", "commandBoard", "searchInput", "volunteerList", "volunteerDetail", "studioPanel",
       "settingsDialog", "supaUrlInput", "supaKeyInput", "allowedDomainInput", "connectBtn",
       "volunteerDialog", "volunteerForm", "volunteerNameInput", "volunteerTaglineInput", "volunteerBioInput", "volunteerStatus", "createVolunteerBtn",
-      "sessionDialog", "sessionForm", "sessionTitleInput", "sessionStartsInput", "sessionRequiredInput", "sessionStatus", "createSessionBtn",
+      "sessionDialog", "sessionForm", "sessionTitleInput", "sessionStartsInput", "sessionRequiredInput", "sessionRoleBriefInput", "sessionArrivalNoteInput", "sessionBackupPlanInput", "sessionAssignAllInput", "sessionStatus", "createSessionBtn",
       "feedbackDialog", "feedbackForm", "feedbackVolunteerIdInput", "feedbackSessionSelect", "feedbackRatingInput", "feedbackTypeSelect", "feedbackNoteInput", "feedbackStatus", "submitFeedbackBtn",
       "reportDialog", "reportForm", "reportVolunteerIdInput", "reportSessionSelect", "reportReasonSelect", "reportDetailsInput", "reportStatus", "submitReportBtn",
       "attendanceDialog", "attendanceTitle", "attendanceRows", "attendanceForm", "attendanceStatus", "saveAttendanceBtn",
-      "editVolunteerDialog", "editVolunteerForm", "editVolunteerIdInput", "editVolunteerNameInput", "editVolunteerTaglineInput", "editVolunteerBioInput", "editVolunteerStatus", "saveVolunteerProfileBtn"
+      "editVolunteerDialog", "editVolunteerForm", "editVolunteerIdInput", "editVolunteerNameInput", "editVolunteerTaglineInput", "editVolunteerBioInput", "editVolunteerStatus", "saveVolunteerProfileBtn",
+      "pulseDialog", "pulseForm", "pulseSessionSelect", "pulseClarityInput", "pulseSupportInput", "pulseStressInput", "pulseNoteInput", "pulseStatus", "submitPulseBtn",
+      "supportDialog", "supportForm", "supportSessionSelect", "supportTypeSelect", "supportUrgencySelect", "supportDetailsInput", "supportStatus", "submitSupportBtn"
     ].forEach((id) => {
       el[id] = document.getElementById(id);
     });
@@ -100,6 +104,9 @@
     el.reportForm.addEventListener("submit", onSubmitReport);
     el.attendanceForm.addEventListener("submit", onSubmitAttendance);
     el.editVolunteerForm.addEventListener("submit", onSaveVolunteerProfile);
+    el.pulseForm.addEventListener("submit", onSubmitPulse);
+    el.supportForm.addEventListener("submit", onSubmitSupportRequest);
+    if (el.pulseSessionSelect) el.pulseSessionSelect.addEventListener("change", onPulseSessionChanged);
 
     document.addEventListener("click", (event) => {
       const close = event.target.closest("[data-close]");
@@ -364,6 +371,8 @@
       state.commitments = [];
       state.attendance = [];
       state.feedback = [];
+      state.sessionPulses = [];
+      state.supportRequests = [];
       state.metricsRows = [];
       state.metricsByVolunteer = {};
       return;
@@ -380,6 +389,8 @@
         commitmentsResponse,
         attendanceResponse,
         feedbackResponse,
+        pulsesResponse,
+        supportResponse,
         metricsResponse
       ] = await Promise.all([
         state.supabase.from("ops_volunteers")
@@ -387,7 +398,7 @@
           .eq("active", true)
           .order("display_name", { ascending: true }),
         state.supabase.from("ops_sessions")
-          .select("id,title,starts_at,required_volunteers,status,created_at")
+          .select("id,title,starts_at,required_volunteers,status,role_brief,arrival_note,backup_plan,created_at")
           .order("starts_at", { ascending: true }),
         state.supabase.from("ops_session_assignments")
           .select("session_id,volunteer_id"),
@@ -399,8 +410,16 @@
           .select("id,session_id,volunteer_id,reviewer_user_id,rating,feedback_type,note,created_at")
           .order("created_at", { ascending: false })
           .limit(900),
+        state.supabase.from("ops_session_pulses")
+          .select("id,session_id,volunteer_id,clarity_rating,support_rating,stress_rating,note,created_by_user_id,created_at")
+          .order("created_at", { ascending: false })
+          .limit(1200),
+        state.supabase.from("ops_support_requests")
+          .select("id,volunteer_id,session_id,request_type,urgency,details,status,resolution_note,created_by_user_id,resolved_by_user_id,created_at,resolved_at")
+          .order("created_at", { ascending: false })
+          .limit(1200),
         state.supabase.from("ops_volunteer_metrics")
-          .select("volunteer_id,avg_rating,feedback_count,assigned_upcoming,responded_upcoming,committed_upcoming,response_rate_pct,attendance_rate_pct,no_show_90d,reliability_score,at_risk")
+          .select("*")
       ]);
 
       const errors = [
@@ -410,6 +429,8 @@
         commitmentsResponse.error,
         attendanceResponse.error,
         feedbackResponse.error,
+        pulsesResponse.error,
+        supportResponse.error,
         metricsResponse.error
       ].filter(Boolean);
 
@@ -428,9 +449,28 @@
       state.commitments = commitmentsResponse.error ? [] : (commitmentsResponse.data || []);
       state.attendance = attendanceResponse.error ? [] : (attendanceResponse.data || []);
       state.feedback = feedbackResponse.error ? [] : (feedbackResponse.data || []);
+      state.sessionPulses = pulsesResponse.error ? [] : (pulsesResponse.data || []);
+      state.supportRequests = supportResponse.error ? [] : (supportResponse.data || []);
       state.metricsRows = metricsResponse.error ? [] : (metricsResponse.data || []);
+      const derivedRows = computeDerivedMetricsRows();
       if (!state.metricsRows.length) {
-        state.metricsRows = computeDerivedMetricsRows();
+        state.metricsRows = derivedRows;
+      } else {
+        const derivedByVolunteer = {};
+        derivedRows.forEach((row) => { derivedByVolunteer[String(row.volunteer_id)] = row; });
+        state.metricsRows = state.metricsRows.map((row) => {
+          const derived = derivedByVolunteer[String(row.volunteer_id)];
+          if (!derived) return row;
+          return {
+            ...row,
+            pulse_count: derived.pulse_count,
+            avg_clarity: derived.avg_clarity,
+            avg_support: derived.avg_support,
+            avg_stress: derived.avg_stress,
+            open_support_count: derived.open_support_count,
+            at_risk: Boolean(row.at_risk) || Boolean(derived.at_risk)
+          };
+        });
       }
 
       state.metricsByVolunteer = {};
@@ -515,6 +555,16 @@
     const coveragePct = requiredTotal ? Math.round((committedTotal / requiredTotal) * 100) : 0;
     const responsePct = assignedTotal ? Math.round((respondedTotal / assignedTotal) * 100) : 0;
     const avgSatisfaction = mean(state.feedback.map((row) => Number(row.rating || 0)));
+    const avgSupportPulse = mean(state.sessionPulses.map((row) => Number(row.support_rating || 0)));
+    const openSupportRequests = state.supportRequests
+      .filter((row) => String(row.status || "open") === "open")
+      .sort((a, b) => {
+        const urgencyWeight = { urgent: 3, high: 2, normal: 1 };
+        const wa = urgencyWeight[String(a.urgency || "normal")] || 1;
+        const wb = urgencyWeight[String(b.urgency || "normal")] || 1;
+        if (wa !== wb) return wb - wa;
+        return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+      });
 
     if (!state.volunteers.length) {
       const actions = isAdmin()
@@ -525,7 +575,7 @@
         metricBox("Upcoming sessions", String(upcoming.length)),
         metricBox("Coverage", String(coveragePct) + "%"),
         metricBox("Response", String(responsePct) + "%"),
-        metricBox("Avg rating", avgSatisfaction ? avgSatisfaction.toFixed(2) : "0.00"),
+        metricBox("Avg support", avgSupportPulse ? avgSupportPulse.toFixed(2) : "0.00"),
         '</section>',
         '<div class="empty">No volunteers yet.' + actions + '</div>'
       ].join('');
@@ -540,6 +590,9 @@
         if (Number(metric.attendance_rate_pct || 100) < 80) reasons.push("attendance dip");
         if (Number(metric.feedback_count || 0) >= 3 && Number(metric.avg_rating || 0) < 3.8) reasons.push("rating dip");
         if (Number(metric.no_show_90d || 0) >= 2) reasons.push("repeat no-shows");
+        if (Number(metric.open_support_count || 0) >= 1) reasons.push("support request open");
+        if (Number(metric.pulse_count || 0) >= 2 && Number(metric.avg_support || 0) < 3) reasons.push("low support pulse");
+        if (Number(metric.pulse_count || 0) >= 2 && Number(metric.avg_stress || 0) >= 4) reasons.push("high stress pulse");
         if (!reasons.length) return null;
         return { volunteer, metric, reasons };
       })
@@ -575,6 +628,20 @@
         if (b.recentNoShows !== a.recentNoShows) return b.recentNoShows - a.recentNoShows;
         return b.pendingCount - a.pendingCount;
       })
+      .slice(0, 4);
+
+    const pulseRiskRows = state.volunteers
+      .map((volunteer) => {
+        const metric = metricFor(volunteer.id);
+        if (Number(metric.pulse_count || 0) < 1) return null;
+        const support = Number(metric.avg_support || 0);
+        const clarity = Number(metric.avg_clarity || 0);
+        const stress = Number(metric.avg_stress || 0);
+        if (support >= 3.5 && clarity >= 3.5 && stress <= 3.5) return null;
+        return { volunteer, support, clarity, stress };
+      })
+      .filter(Boolean)
+      .sort((a, b) => (a.support + a.clarity - a.stress) - (b.support + b.clarity - b.stress))
       .slice(0, 4);
 
     const topRows = state.volunteers
@@ -656,6 +723,37 @@
       ].join('')).join('')
       : '<div class="empty">No data yet.</div>';
 
+    const supportHtml = openSupportRequests.length
+      ? openSupportRequests.slice(0, 6).map((row) => {
+        const volunteer = state.volunteers.find((vol) => String(vol.id) === String(row.volunteer_id));
+        const session = row.session_id ? sessionById(row.session_id) : null;
+        const urgency = String(row.urgency || "normal");
+        const urgencyBadge = urgency === "urgent" ? "warnpill" : (urgency === "high" ? "pill" : "okpill");
+        const resolveBtn = isAdmin()
+          ? '<button type="button" class="mini ghost" data-action="resolve-support" data-support-id="' + esc(row.id) + '">Resolve</button>'
+          : "";
+        return [
+          '<article class="row">',
+          '<div class="row-top"><p class="headline">' + esc(volunteer ? volunteer.display_name : "Volunteer") + '</p><span class="' + urgencyBadge + '">' + esc(urgency) + '</span></div>',
+          session ? '<p class="muted">' + esc(session.title || "Session") + " • " + esc(formatDateTime(session.starts_at)) + '</p>' : '',
+          '<p class="muted">' + esc(row.request_type || "support") + " • " + esc(formatDate(row.created_at)) + '</p>',
+          '<p>' + esc(row.details || "") + '</p>',
+          '<div class="inline-actions">' + resolveBtn + '</div>',
+          '</article>'
+        ].join('');
+      }).join('')
+      : '<div class="empty">No open support requests.</div>';
+
+    const pulseRiskHtml = pulseRiskRows.length
+      ? pulseRiskRows.map((row) => [
+        '<article class="row">',
+        '<div class="row-top"><p class="headline">' + esc(row.volunteer.display_name || "Volunteer") + '</p><span class="pill">Pulse risk</span></div>',
+        '<p class="muted">Clarity ' + row.clarity.toFixed(1) + ' • Support ' + row.support.toFixed(1) + ' • Stress ' + row.stress.toFixed(1) + '</p>',
+        '<div class="inline-actions"><button type="button" class="mini ghost" data-action="copy-recovery" data-volunteer-id="' + esc(row.volunteer.id) + '">Copy support outreach</button></div>',
+        '</article>'
+      ].join('')).join('')
+      : '<div class="empty">Pulse trends look healthy.</div>';
+
     el.commandBoard.innerHTML = [
       '<section class="metric-grid">',
       metricBox("Upcoming sessions", String(upcoming.length)),
@@ -665,7 +763,7 @@
       '</section>',
       '<section class="grid2">',
       '<div class="card"><h3>Coverage</h3><div class="rows">' + coverageHtml + '</div><h3>Reminder Queue</h3><div class="rows">' + remindersHtml + '</div></div>',
-      '<div class="card"><h3>Risk Signals</h3><div class="rows">' + riskHtml + '</div><h3>Recognition</h3><div class="rows">' + recognitionHtml + '</div><h3>Recovery Follow-up</h3><div class="rows">' + recoveryHtml + '</div><h3>Top Reliability</h3><div class="rows">' + topHtml + '</div></div>',
+      '<div class="card"><h3>Risk Signals</h3><div class="rows">' + riskHtml + '</div><h3>Pulse Risks</h3><div class="rows">' + pulseRiskHtml + '</div><h3>Recognition</h3><div class="rows">' + recognitionHtml + '</div><h3>Recovery Follow-up</h3><div class="rows">' + recoveryHtml + '</div><h3>Support Queue</h3><div class="rows">' + supportHtml + '</div><h3>Top Reliability</h3><div class="rows">' + topHtml + '</div></div>',
       '</section>'
     ].join('');
   }
@@ -725,8 +823,12 @@
     const metric = metricFor(volunteer.id);
     const upcoming = upcomingSessionsForVolunteer(volunteer.id).slice(0, 6);
     const feedbackRows = feedbackForVolunteer(volunteer.id).slice(0, 8);
+    const pulseRows = pulsesForVolunteer(volunteer.id);
     const streak = showUpStreak(volunteer.id);
     const pendingCount = pendingUpcomingResponses(volunteer.id);
+    const pulseSupport = pulseRows.length ? mean(pulseRows.map((row) => Number(row.support_rating || 0))) : 0;
+    const pulseClarity = pulseRows.length ? mean(pulseRows.map((row) => Number(row.clarity_rating || 0))) : 0;
+    const pulseStress = pulseRows.length ? mean(pulseRows.map((row) => Number(row.stress_rating || 0))) : 0;
     const myId = myVolunteerId();
     const actorUserId = state.user ? String(state.user.id) : "preview-user";
     const canClaim = (state.previewMode || Boolean(state.user)) && !myId && !volunteer.owner_user_id;
@@ -747,11 +849,13 @@
         const badge = status === "committed" ? '<span class="okpill">Committed</span>' : status === "unavailable" ? '<span class="warnpill">Unavailable</span>' : '<span class="pill">No response</span>';
         const plan = commitment && commitment.plan_leave_at ? "Leave " + formatTime(commitment.plan_leave_at) : "";
         const checkin = commitment && commitment.last_check_in_at ? "Checked in " + formatDateTime(commitment.last_check_in_at) : "";
+        const roleLine = [session.role_brief || "", session.arrival_note || "", session.backup_plan || ""].filter(Boolean).join(" • ");
         const line = [plan, checkin].filter(Boolean).join(" • ");
         return [
           '<article class="row">',
           '<div class="row-top"><p class="headline">' + esc(session.title || 'Session') + '</p>' + badge + '</div>',
           '<p class="muted">' + esc(formatDateTime(session.starts_at)) + '</p>',
+          roleLine ? '<p class="muted">' + esc(roleLine) + '</p>' : '',
           line ? '<p class="muted">' + esc(line) + '</p>' : '',
           '</article>'
         ].join('');
@@ -779,7 +883,7 @@
       '<div><h2>' + esc(volunteer.display_name || 'Volunteer') + '</h2><p class="muted">' + esc(volunteer.tagline || volunteer.bio || '') + '</p></div>',
       '<div class="inline-actions">' + feedbackButton + reportButton + claimButton + editButton + nudgeButton + '</div>',
       '</div>',
-      '<div class="chips"><span class="chip">Rep ' + Math.round(Number(metric.reliability_score || 0)) + '</span><span class="chip">Attendance ' + Number(metric.attendance_rate_pct || 0) + '%</span><span class="chip">Response ' + Number(metric.response_rate_pct || 0) + '%</span><span class="chip">Rating ' + Number(metric.avg_rating || 0).toFixed(2) + '</span><span class="chip">Streak ' + streak + '</span><span class="chip">Pending ' + pendingCount + '</span></div>',
+      '<div class="chips"><span class="chip">Rep ' + Math.round(Number(metric.reliability_score || 0)) + '</span><span class="chip">Attendance ' + Number(metric.attendance_rate_pct || 0) + '%</span><span class="chip">Response ' + Number(metric.response_rate_pct || 0) + '%</span><span class="chip">Rating ' + Number(metric.avg_rating || 0).toFixed(2) + '</span><span class="chip">Streak ' + streak + '</span><span class="chip">Pending ' + pendingCount + '</span><span class="chip">Open support ' + Number(metric.open_support_count || 0) + '</span><span class="chip">Pulse support ' + (pulseSupport ? pulseSupport.toFixed(2) : "0.00") + '</span><span class="chip">Pulse clarity ' + (pulseClarity ? pulseClarity.toFixed(2) : "0.00") + '</span><span class="chip">Pulse stress ' + (pulseStress ? pulseStress.toFixed(2) : "0.00") + '</span></div>',
       '</section>',
       '<section class="grid2">',
       '<div class="card"><h3>Upcoming Commitments</h3><div class="rows">' + upcomingHtml + '</div></div>',
@@ -815,6 +919,12 @@
 
     const metric = metricFor(volunteerId);
     const upcoming = upcomingSessionsForVolunteer(volunteerId).slice(0, 10);
+    const openShifts = upcomingSessions()
+      .filter((session) => !assignedVolunteerIds(session.id).includes(String(volunteerId)))
+      .slice(0, 8);
+    const pastAssigned = pastSessionsForVolunteer(volunteerId).slice(0, 12);
+    const actorId = state.user ? String(state.user.id) : "preview-user";
+    const pendingPulseSessions = pastAssigned.filter((session) => !pulseFor(volunteerId, session.id, actorId)).slice(0, 6);
     const streak = showUpStreak(volunteerId);
     const pendingCount = pendingUpcomingResponses(volunteerId);
     const checkInNowRows = upcoming.filter((session) => {
@@ -833,6 +943,18 @@
         '<div class="row-top"><p class="headline">' + esc(first.title || 'Session') + '</p><span class="warnpill">Check-in window open</span></div>',
         '<p class="muted">' + esc(formatDateTime(first.starts_at)) + '</p>',
         '<div class="inline-actions"><button type="button" class="mini" data-action="check-in-session" data-session-id="' + esc(first.id) + '">I\'m on my way</button></div>',
+        '</article>',
+        '</section>'
+      ].join('');
+    } else if (pendingPulseSessions.length) {
+      const firstPulse = pendingPulseSessions[0];
+      actionCardHtml = [
+        '<section class="card">',
+        '<h3>Action Now</h3>',
+        '<article class="row">',
+        '<div class="row-top"><p class="headline">Submit your session pulse</p><span class="pill">1 min</span></div>',
+        '<p class="muted">' + esc(firstPulse.title || "Session") + " • " + esc(formatDate(firstPulse.starts_at)) + '</p>',
+        '<div class="inline-actions"><button type="button" class="mini" data-action="open-pulse-dialog" data-session-id="' + esc(firstPulse.id) + '">Submit pulse</button></div>',
         '</article>',
         '</section>'
       ].join('');
@@ -858,11 +980,13 @@
         const canCheckIn = status === "committed" && withinCheckInWindow(session.starts_at);
         const plan = commitment && commitment.plan_leave_at ? "Leave " + formatTime(commitment.plan_leave_at) : "";
         const checkin = checkedIn ? "Checked in " + formatDateTime(commitment.last_check_in_at) : "";
+        const roleLine = [session.role_brief || "", session.arrival_note || "", session.backup_plan || ""].filter(Boolean).join(" • ");
         const planLine = [plan, checkin].filter(Boolean).join(" • ");
 
         return [
           '<article class="row">',
           '<div class="row-top"><p class="headline">' + esc(session.title || 'Session') + '</p><span class="pill">' + esc(formatDateTime(session.starts_at)) + '</span></div>',
+          roleLine ? '<p class="muted">' + esc(roleLine) + '</p>' : '',
           planLine ? '<p class="muted">' + esc(planLine) + '</p>' : '',
           '<div class="inline-actions">',
           '<button type="button" class="mini' + committedClass + '" data-action="set-commitment" data-session-id="' + esc(session.id) + '" data-status="committed">I can make it</button>',
@@ -875,17 +999,62 @@
       }).join('')
       : '<div class="empty">No upcoming sessions assigned.</div>';
 
+    const openShiftHtml = openShifts.length
+      ? openShifts.map((session) => {
+        const roleLine = [session.role_brief || "", session.arrival_note || "", session.backup_plan || ""].filter(Boolean).join(" • ");
+        return [
+          '<article class="row">',
+          '<div class="row-top"><p class="headline">' + esc(session.title || "Session") + '</p><span class="pill">' + esc(formatDateTime(session.starts_at)) + '</span></div>',
+          roleLine ? '<p class="muted">' + esc(roleLine) + '</p>' : '',
+          '<div class="inline-actions"><button type="button" class="mini ghost" data-action="take-open-shift" data-session-id="' + esc(session.id) + '">Take this shift</button></div>',
+          '</article>'
+        ].join('');
+      }).join('')
+      : '<div class="empty">No open shifts right now.</div>';
+
+    const pulseBacklogHtml = pendingPulseSessions.length
+      ? pendingPulseSessions.map((session) => [
+        '<article class="row">',
+        '<div class="row-top"><p class="headline">' + esc(session.title || "Session") + '</p><span class="pill">' + esc(formatDate(session.starts_at)) + '</span></div>',
+        '<div class="inline-actions"><button type="button" class="mini ghost" data-action="open-pulse-dialog" data-session-id="' + esc(session.id) + '">Submit pulse</button></div>',
+        '</article>'
+      ].join('')).join('')
+      : '<div class="empty">Pulse submissions are up to date.</div>';
+
+    const mySupportRows = state.supportRequests
+      .filter((row) => String(row.volunteer_id) === String(volunteerId))
+      .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+      .slice(0, 6);
+    const mySupportHtml = mySupportRows.length
+      ? mySupportRows.map((row) => {
+        const session = row.session_id ? sessionById(row.session_id) : null;
+        const status = String(row.status || "open");
+        const statusClass = status === "open" ? "warnpill" : "okpill";
+        return [
+          '<article class="row">',
+          '<div class="row-top"><p class="headline">' + esc(row.request_type || "support") + '</p><span class="' + statusClass + '">' + esc(status) + '</span></div>',
+          session ? '<p class="muted">' + esc(session.title || "Session") + " • " + esc(formatDateTime(session.starts_at)) + '</p>' : '',
+          '<p class="muted">' + esc(formatDate(row.created_at)) + ' • urgency ' + esc(row.urgency || "normal") + '</p>',
+          '<p>' + esc(row.details || "") + '</p>',
+          row.resolution_note ? '<p class="muted">Resolution: ' + esc(row.resolution_note) + '</p>' : '',
+          '</article>'
+        ].join('');
+      }).join('')
+      : '<div class="empty">No support requests yet.</div>';
+
     el.studioPanel.innerHTML = [
       '<section class="hero">',
       '<div class="hero-top">',
       '<div class="av">' + esc(initials(volunteer.display_name || 'V')) + '</div>',
       '<div><h2>My Studio</h2><p class="muted">' + esc(volunteer.display_name || 'Volunteer') + '</p></div>',
-      '<div class="inline-actions"><button type="button" class="mini ghost" data-action="open-edit-volunteer" data-volunteer-id="' + esc(volunteer.id) + '">Edit profile</button></div>',
+      '<div class="inline-actions"><button type="button" class="mini ghost" data-action="open-edit-volunteer" data-volunteer-id="' + esc(volunteer.id) + '">Edit profile</button><button type="button" class="mini ghost" data-action="open-support-dialog">Need support</button><button type="button" class="mini ghost" data-action="open-pulse-dialog">Session pulse</button></div>',
       '</div>',
-      '<div class="chips"><span class="chip">Rep ' + Math.round(Number(metric.reliability_score || 0)) + '</span><span class="chip">Attendance ' + Number(metric.attendance_rate_pct || 0) + '%</span><span class="chip">Response ' + Number(metric.response_rate_pct || 0) + '%</span><span class="chip">Rating ' + Number(metric.avg_rating || 0).toFixed(2) + '</span><span class="chip">Streak ' + streak + '</span><span class="chip">Pending ' + pendingCount + '</span></div>',
+      '<div class="chips"><span class="chip">Rep ' + Math.round(Number(metric.reliability_score || 0)) + '</span><span class="chip">Attendance ' + Number(metric.attendance_rate_pct || 0) + '%</span><span class="chip">Response ' + Number(metric.response_rate_pct || 0) + '%</span><span class="chip">Rating ' + Number(metric.avg_rating || 0).toFixed(2) + '</span><span class="chip">Streak ' + streak + '</span><span class="chip">Pending ' + pendingCount + '</span><span class="chip">Open support ' + Number(metric.open_support_count || 0) + '</span></div>',
       '</section>',
       actionCardHtml,
-      '<section class="card"><h3>Upcoming Sessions</h3><div class="rows">' + rowsHtml + '</div></section>'
+      '<section class="card"><h3>Upcoming Sessions</h3><div class="rows">' + rowsHtml + '</div></section>',
+      '<section class="grid2"><div class="card"><h3>Open Shifts You Can Take</h3><div class="rows">' + openShiftHtml + '</div></div><div class="card"><h3>Post-Session Pulse Backlog</h3><div class="rows">' + pulseBacklogHtml + '</div></div></section>',
+      '<section class="card"><h3>My Support Requests</h3><div class="rows">' + mySupportHtml + '</div></section>'
     ].join('');
   }
   async function onActionClick(event) {
@@ -907,6 +1076,10 @@
     if (action === "copy-recognition") { await copyRecognitionNudge(target.getAttribute("data-volunteer-id")); return; }
     if (action === "copy-recovery") { await copyRecoveryNudge(target.getAttribute("data-volunteer-id")); return; }
     if (action === "open-attendance") { openAttendanceDialog(target.getAttribute("data-session-id")); return; }
+    if (action === "open-pulse-dialog") { openPulseDialog(target.getAttribute("data-session-id")); return; }
+    if (action === "open-support-dialog") { openSupportDialog(target.getAttribute("data-session-id")); return; }
+    if (action === "resolve-support") { await onResolveSupportRequest(target.getAttribute("data-support-id")); return; }
+    if (action === "take-open-shift") { await onTakeOpenShift(target.getAttribute("data-session-id")); return; }
   }
 
   function onVolunteerListClick(event) {
@@ -1071,6 +1244,10 @@
     soon.setMinutes(0, 0, 0);
     el.sessionStartsInput.value = toDatetimeLocal(soon);
     el.sessionRequiredInput.value = "2";
+    el.sessionRoleBriefInput.value = "Welcome attendees, set boards, and support pairings";
+    el.sessionArrivalNoteInput.value = "Arrive 20 minutes before start";
+    el.sessionBackupPlanInput.value = "If delayed, message coordinator immediately";
+    el.sessionAssignAllInput.value = "0";
     openDialog(el.sessionDialog);
   }
 
@@ -1080,8 +1257,16 @@
     const title = String(el.sessionTitleInput.value || "").trim();
     const startsRaw = String(el.sessionStartsInput.value || "").trim();
     const required = Math.max(1, Math.min(20, Number(el.sessionRequiredInput.value || 2)));
+    const roleBrief = String(el.sessionRoleBriefInput.value || "").trim();
+    const arrivalNote = String(el.sessionArrivalNoteInput.value || "").trim();
+    const backupPlan = String(el.sessionBackupPlanInput.value || "").trim();
+    const assignAll = String(el.sessionAssignAllInput.value || "0") === "1";
     if (title.length < 3) {
       setStatus(el.sessionStatus, "Title must be at least 3 characters.", "err");
+      return;
+    }
+    if (roleBrief.length < 4) {
+      setStatus(el.sessionStatus, "Role clarity is required.", "err");
       return;
     }
     const startsAt = new Date(startsRaw);
@@ -1098,7 +1283,10 @@
         p_title: title,
         p_starts_at: startsAt.toISOString(),
         p_required_volunteers: required,
-        p_assign_all: true
+        p_assign_all: assignAll,
+        p_role_brief: roleBrief,
+        p_arrival_note: arrivalNote || null,
+        p_backup_plan: backupPlan || null
       }, 60000);
       if (response.error) {
         const message = errorText(response.error, "Create failed");
@@ -1288,6 +1476,206 @@
     }
   }
 
+  function openPulseDialog(sessionId) {
+    if (!state.previewMode && (!state.user || !state.supabase)) {
+      setBackendStatus("Sign in first or switch Preview mode on.", "err");
+      return;
+    }
+    const volunteerId = myVolunteerId();
+    if (!volunteerId) {
+      setBackendStatus("Claim a volunteer profile first.", "err");
+      return;
+    }
+
+    clearStatus(el.pulseStatus);
+    el.pulseForm.reset();
+    const actorUserId = state.user ? String(state.user.id) : "preview-user";
+    const forcedId = sessionId ? String(sessionId) : "";
+    const candidates = pastSessionsForVolunteer(volunteerId).filter((session) => {
+      if (forcedId && String(session.id) === forcedId) return true;
+      return !pulseFor(volunteerId, session.id, actorUserId);
+    }).slice(0, 24);
+
+    if (!candidates.length) {
+      setBackendStatus("No completed sessions need a pulse right now.", "ok");
+      return;
+    }
+
+    el.pulseSessionSelect.innerHTML = '<option value="">Select session</option>' + candidates.map((session) =>
+      '<option value="' + esc(session.id) + '">' + esc(session.title || "Session") + " • " + esc(formatDate(session.starts_at)) + "</option>"
+    ).join("");
+
+    const preferredId = forcedId && candidates.some((session) => String(session.id) === forcedId)
+      ? forcedId
+      : String(candidates[0].id);
+    el.pulseSessionSelect.value = preferredId;
+    onPulseSessionChanged();
+    openDialog(el.pulseDialog);
+  }
+
+  function onPulseSessionChanged() {
+    const volunteerId = myVolunteerId();
+    const sessionId = String(el.pulseSessionSelect.value || "");
+    el.pulseClarityInput.value = "";
+    el.pulseSupportInput.value = "";
+    el.pulseStressInput.value = "";
+    el.pulseNoteInput.value = "";
+    if (!volunteerId || !sessionId) return;
+    const actorUserId = state.user ? String(state.user.id) : "preview-user";
+    const existing = pulseFor(volunteerId, sessionId, actorUserId);
+    if (!existing) return;
+    el.pulseClarityInput.value = String(existing.clarity_rating || "");
+    el.pulseSupportInput.value = String(existing.support_rating || "");
+    el.pulseStressInput.value = String(existing.stress_rating || "");
+    el.pulseNoteInput.value = String(existing.note || "");
+  }
+
+  async function onSubmitPulse(event) {
+    event.preventDefault();
+    clearStatus(el.pulseStatus);
+    if (!state.previewMode && (!state.user || !state.supabase)) {
+      setStatus(el.pulseStatus, "Sign in first or use Preview mode.", "err");
+      return;
+    }
+    if (!myVolunteerId()) {
+      setStatus(el.pulseStatus, "Claim a volunteer profile first.", "err");
+      return;
+    }
+
+    const sessionId = String(el.pulseSessionSelect.value || "").trim();
+    const clarity = Number(el.pulseClarityInput.value || 0);
+    const support = Number(el.pulseSupportInput.value || 0);
+    const stress = Number(el.pulseStressInput.value || 0);
+    const note = String(el.pulseNoteInput.value || "").trim();
+
+    if (!sessionId) { setStatus(el.pulseStatus, "Choose a session.", "err"); return; }
+    if (![clarity, support, stress].every((value) => value >= 1 && value <= 5)) {
+      setStatus(el.pulseStatus, "All pulse ratings must be 1-5.", "err");
+      return;
+    }
+
+    el.submitPulseBtn.disabled = true;
+    const label = el.submitPulseBtn.textContent;
+    el.submitPulseBtn.textContent = "Submitting...";
+    try {
+      const response = await rpc("ops_submit_session_pulse", {
+        p_session_id: sessionId,
+        p_clarity_rating: clarity,
+        p_support_rating: support,
+        p_stress_rating: stress,
+        p_note: note || null
+      }, 25000);
+      if (response.error) {
+        setStatus(el.pulseStatus, errorText(response.error, "Pulse submit failed"), "err");
+        return;
+      }
+      await loadAllData();
+      renderAll();
+      setBackendStatus("Pulse submitted.", "ok");
+      if (el.pulseDialog.open) el.pulseDialog.close();
+    } finally {
+      el.submitPulseBtn.disabled = false;
+      el.submitPulseBtn.textContent = label || "Submit Pulse";
+    }
+  }
+
+  function openSupportDialog(sessionId) {
+    if (!state.previewMode && (!state.user || !state.supabase)) {
+      setBackendStatus("Sign in first or switch Preview mode on.", "err");
+      return;
+    }
+    const volunteerId = myVolunteerId();
+    if (!volunteerId) {
+      setBackendStatus("Claim a volunteer profile first.", "err");
+      return;
+    }
+
+    clearStatus(el.supportStatus);
+    el.supportForm.reset();
+    el.supportUrgencySelect.value = "normal";
+    const upcoming = upcomingSessionsForVolunteer(volunteerId);
+    const recentPast = pastSessionsForVolunteer(volunteerId).slice(0, 6);
+    const byId = {};
+    [...upcoming, ...recentPast].forEach((session) => { byId[String(session.id)] = session; });
+    const options = Object.values(byId).sort((a, b) => new Date(a.starts_at) - new Date(b.starts_at));
+    el.supportSessionSelect.innerHTML = '<option value="">No specific session</option>' + options.map((session) =>
+      '<option value="' + esc(session.id) + '">' + esc(session.title || "Session") + " • " + esc(formatDateTime(session.starts_at)) + "</option>"
+    ).join("");
+    if (sessionId && options.some((session) => String(session.id) === String(sessionId))) {
+      el.supportSessionSelect.value = String(sessionId);
+    }
+    openDialog(el.supportDialog);
+  }
+
+  async function onSubmitSupportRequest(event) {
+    event.preventDefault();
+    clearStatus(el.supportStatus);
+    if (!state.previewMode && (!state.user || !state.supabase)) {
+      setStatus(el.supportStatus, "Sign in first or use Preview mode.", "err");
+      return;
+    }
+    if (!myVolunteerId()) {
+      setStatus(el.supportStatus, "Claim a volunteer profile first.", "err");
+      return;
+    }
+
+    const sessionIdRaw = String(el.supportSessionSelect.value || "").trim();
+    const requestType = String(el.supportTypeSelect.value || "").trim();
+    const urgency = String(el.supportUrgencySelect.value || "normal").trim();
+    const details = String(el.supportDetailsInput.value || "").trim();
+    if (!requestType) { setStatus(el.supportStatus, "Select a request type.", "err"); return; }
+    if (details.length < 6) { setStatus(el.supportStatus, "Add a bit more detail.", "err"); return; }
+
+    el.submitSupportBtn.disabled = true;
+    const label = el.submitSupportBtn.textContent;
+    el.submitSupportBtn.textContent = "Sending...";
+    try {
+      const response = await rpc("ops_submit_support_request", {
+        p_session_id: sessionIdRaw || null,
+        p_request_type: requestType,
+        p_urgency: urgency || "normal",
+        p_details: details
+      }, 25000);
+      if (response.error) {
+        setStatus(el.supportStatus, errorText(response.error, "Request failed"), "err");
+        return;
+      }
+      await loadAllData();
+      renderAll();
+      setBackendStatus("Support request sent.", "ok");
+      if (el.supportDialog.open) el.supportDialog.close();
+    } finally {
+      el.submitSupportBtn.disabled = false;
+      el.submitSupportBtn.textContent = label || "Send Request";
+    }
+  }
+
+  async function onResolveSupportRequest(supportId) {
+    if (!isAdmin()) {
+      setBackendStatus("Admin role required.", "err");
+      return;
+    }
+    const request = state.supportRequests.find((row) => String(row.id) === String(supportId));
+    if (!request) {
+      setBackendStatus("Support request not found.", "err");
+      return;
+    }
+    const note = window.prompt("Optional resolution note:", String(request.resolution_note || ""));
+    if (note === null) return;
+    const response = await rpc("ops_resolve_support_request", {
+      p_request_id: supportId,
+      p_status: "resolved",
+      p_resolution_note: String(note || "").trim() || null
+    }, 25000);
+    if (response.error) {
+      setBackendStatus(errorText(response.error, "Resolve failed"), "err");
+      return;
+    }
+    await loadAllData();
+    renderAll();
+    setBackendStatus("Support request resolved.", "ok");
+  }
+
   function openAttendanceDialog(sessionId) {
     if (!isAdmin()) { setBackendStatus("Admin role required.", "err"); return; }
     const session = sessionById(sessionId);
@@ -1422,6 +1810,14 @@
     setBackendStatus("Checked in successfully.", "ok");
   }
 
+  async function onTakeOpenShift(sessionId) {
+    if (!sessionById(sessionId)) {
+      setBackendStatus("Session not found.", "err");
+      return;
+    }
+    await onSetCommitment(sessionId, "committed");
+  }
+
   async function copySessionNudge(sessionId, stageLabelRaw) {
     const session = sessionById(sessionId);
     if (!session) return;
@@ -1510,7 +1906,8 @@
       try {
         const parsed = JSON.parse(raw);
         if (parsed && Array.isArray(parsed.volunteers) && Array.isArray(parsed.sessions) && Array.isArray(parsed.assignments) &&
-            Array.isArray(parsed.commitments) && Array.isArray(parsed.attendance) && Array.isArray(parsed.feedback)) {
+            Array.isArray(parsed.commitments) && Array.isArray(parsed.attendance) && Array.isArray(parsed.feedback) &&
+            Array.isArray(parsed.sessionPulses) && Array.isArray(parsed.supportRequests)) {
           seed = parsed;
         }
       } catch (_error) {}
@@ -1523,6 +1920,8 @@
     state.commitments = seed.commitments || [];
     state.attendance = seed.attendance || [];
     state.feedback = seed.feedback || [];
+    state.sessionPulses = seed.sessionPulses || [];
+    state.supportRequests = seed.supportRequests || [];
     state.metricsRows = computeDerivedMetricsRows();
     state.metricsByVolunteer = {};
     state.metricsRows.forEach((row) => { state.metricsByVolunteer[String(row.volunteer_id)] = row; });
@@ -1561,6 +1960,8 @@
       commitments: state.commitments,
       attendance: state.attendance,
       feedback: state.feedback,
+      sessionPulses: state.sessionPulses,
+      supportRequests: state.supportRequests,
       selectedVolunteerId: state.selectedVolunteerId,
       profileVolunteerId: state.profile ? state.profile.volunteer_id : null
     }));
@@ -1575,11 +1976,11 @@
     ];
 
     const sessions = [
-      { id: "ps_past_1", title: "Thursday Club Night", starts_at: new Date(now - (7 * 86400000)).toISOString(), required_volunteers: 2, status: "completed", created_at: new Date(now - (10 * 86400000)).toISOString() },
-      { id: "ps_past_2", title: "Saturday Juniors", starts_at: new Date(now - (14 * 86400000)).toISOString(), required_volunteers: 2, status: "completed", created_at: new Date(now - (17 * 86400000)).toISOString() },
-      { id: "ps_up_1", title: "Monday Juniors", starts_at: new Date(now + (26 * 3600000)).toISOString(), required_volunteers: 2, status: "scheduled", created_at: new Date(now - (1 * 86400000)).toISOString() },
-      { id: "ps_up_2", title: "Wednesday Club Night", starts_at: new Date(now + (50 * 3600000)).toISOString(), required_volunteers: 3, status: "scheduled", created_at: new Date(now - (1 * 86400000)).toISOString() },
-      { id: "ps_up_3", title: "Friday Match Prep", starts_at: new Date(now + (4 * 3600000)).toISOString(), required_volunteers: 2, status: "scheduled", created_at: new Date(now - (1 * 86400000)).toISOString() }
+      { id: "ps_past_1", title: "Thursday Club Night", starts_at: new Date(now - (7 * 86400000)).toISOString(), required_volunteers: 2, status: "completed", role_brief: "Welcome players + set boards", arrival_note: "Arrive 20 mins early", backup_plan: "If delayed, message coordinator", created_at: new Date(now - (10 * 86400000)).toISOString() },
+      { id: "ps_past_2", title: "Saturday Juniors", starts_at: new Date(now - (14 * 86400000)).toISOString(), required_volunteers: 2, status: "completed", role_brief: "Beginner table support", arrival_note: "Arrive 15 mins early", backup_plan: "Fallback: call Alex", created_at: new Date(now - (17 * 86400000)).toISOString() },
+      { id: "ps_up_1", title: "Monday Juniors", starts_at: new Date(now + (26 * 3600000)).toISOString(), required_volunteers: 2, status: "scheduled", role_brief: "Warm-up and puzzle facilitation", arrival_note: "Arrive 20 mins early", backup_plan: "If blocked, post in volunteer group", created_at: new Date(now - (1 * 86400000)).toISOString() },
+      { id: "ps_up_2", title: "Wednesday Club Night", starts_at: new Date(now + (50 * 3600000)).toISOString(), required_volunteers: 3, status: "scheduled", role_brief: "Pairing support + new attendee onboarding", arrival_note: "Arrive 25 mins early", backup_plan: "Backup lead: Liam", created_at: new Date(now - (1 * 86400000)).toISOString() },
+      { id: "ps_up_3", title: "Friday Match Prep", starts_at: new Date(now + (4 * 3600000)).toISOString(), required_volunteers: 2, status: "scheduled", role_brief: "Prep clocks + coaching stations", arrival_note: "Arrive 30 mins early", backup_plan: "Escalate to coordinator if short staffed", created_at: new Date(now - (1 * 86400000)).toISOString() }
     ];
 
     const assignments = [];
@@ -1610,6 +2011,16 @@
       { id: "pf_3", session_id: "ps_past_2", volunteer_id: "pv_maya", reviewer_user_id: "preview-r3", rating: 2, feedback_type: "communication", note: "Could not find volunteer at session start.", created_at: new Date(now - (13.7 * 86400000)).toISOString() }
     ];
 
+    const sessionPulses = [
+      { id: "pp_1", session_id: "ps_past_1", volunteer_id: "pv_alex", clarity_rating: 5, support_rating: 4, stress_rating: 2, note: "Great session flow.", created_by_user_id: "preview-user", created_at: new Date(now - (6.6 * 86400000)).toISOString() },
+      { id: "pp_2", session_id: "ps_past_2", volunteer_id: "pv_maya", clarity_rating: 2, support_rating: 2, stress_rating: 5, note: "Needed clearer handover.", created_by_user_id: "preview-user", created_at: new Date(now - (13.5 * 86400000)).toISOString() }
+    ];
+
+    const supportRequests = [
+      { id: "sr_1", volunteer_id: "pv_maya", session_id: "ps_up_1", request_type: "role_clarity", urgency: "high", details: "Need exact table assignment before session.", status: "open", resolution_note: "", created_by_user_id: "preview-user", resolved_by_user_id: null, created_at: new Date(now - (5 * 3600000)).toISOString(), resolved_at: null },
+      { id: "sr_2", volunteer_id: "pv_alex", session_id: null, request_type: "wellbeing", urgency: "normal", details: "Would like one lighter week next month.", status: "resolved", resolution_note: "Adjusted rota for next two sessions.", created_by_user_id: "preview-user", resolved_by_user_id: "preview-user", created_at: new Date(now - (10 * 86400000)).toISOString(), resolved_at: new Date(now - (9 * 86400000)).toISOString() }
+    ];
+
     return {
       volunteers,
       sessions,
@@ -1617,6 +2028,8 @@
       commitments,
       attendance,
       feedback,
+      sessionPulses,
+      supportRequests,
       selectedVolunteerId: "pv_alex",
       profileVolunteerId: "pv_alex"
     };
@@ -1690,8 +2103,10 @@
       if (name === "ops_create_session") {
         const title = String(params.p_title || "").trim();
         const startsAt = new Date(params.p_starts_at);
+        const roleBrief = String(params.p_role_brief || "").trim();
         if (!title) return { data: null, error: new Error("Session title is required") };
         if (!isFinite(startsAt.getTime())) return { data: null, error: new Error("Invalid session start") };
+        if (!roleBrief) return { data: null, error: new Error("Role clarity is required") };
         const id = buildPreviewId("ps");
         state.sessions.push({
           id,
@@ -1699,6 +2114,9 @@
           starts_at: startsAt.toISOString(),
           required_volunteers: Math.max(1, Math.min(20, Number(params.p_required_volunteers || 2))),
           status: "scheduled",
+          role_brief: roleBrief,
+          arrival_note: String(params.p_arrival_note || ""),
+          backup_plan: String(params.p_backup_plan || ""),
           created_at: nowIso
         });
         if (params.p_assign_all !== false) {
@@ -1809,6 +2227,87 @@
         return { data: id, error: null };
       }
 
+      if (name === "ops_submit_session_pulse") {
+        const sessionId = String(params.p_session_id || "");
+        const volunteerId = myVolunteerId() || state.selectedVolunteerId || (state.volunteers[0] ? String(state.volunteers[0].id) : null);
+        const clarity = Number(params.p_clarity_rating || 0);
+        const support = Number(params.p_support_rating || 0);
+        const stress = Number(params.p_stress_rating || 0);
+        if (!sessionById(sessionId)) return { data: null, error: new Error("Session not found") };
+        if (!volunteerId) return { data: null, error: new Error("No volunteer profile selected") };
+        if (![clarity, support, stress].every((v) => v >= 1 && v <= 5)) return { data: null, error: new Error("Pulse ratings must be 1-5") };
+
+        const existing = state.sessionPulses.find((row) => String(row.session_id) === sessionId && String(row.volunteer_id) === String(volunteerId) && String(row.created_by_user_id) === actorUserId);
+        if (existing) {
+          existing.clarity_rating = clarity;
+          existing.support_rating = support;
+          existing.stress_rating = stress;
+          existing.note = String(params.p_note || "");
+          existing.created_at = nowIso;
+          savePreviewData();
+          return { data: existing.id, error: null };
+        }
+
+        const id = buildPreviewId("pp");
+        state.sessionPulses.unshift({
+          id,
+          session_id: sessionId,
+          volunteer_id: volunteerId,
+          clarity_rating: clarity,
+          support_rating: support,
+          stress_rating: stress,
+          note: String(params.p_note || ""),
+          created_by_user_id: actorUserId,
+          created_at: nowIso
+        });
+        savePreviewData();
+        return { data: id, error: null };
+      }
+
+      if (name === "ops_submit_support_request") {
+        const volunteerId = myVolunteerId() || state.selectedVolunteerId || (state.volunteers[0] ? String(state.volunteers[0].id) : null);
+        const requestType = String(params.p_request_type || "").trim();
+        const urgency = String(params.p_urgency || "normal").trim();
+        const details = String(params.p_details || "").trim();
+        const sessionId = params.p_session_id ? String(params.p_session_id) : null;
+        if (!volunteerId) return { data: null, error: new Error("No volunteer profile selected") };
+        if (!requestType) return { data: null, error: new Error("Request type is required") };
+        if (!details) return { data: null, error: new Error("Please add request details") };
+        if (sessionId && !sessionById(sessionId)) return { data: null, error: new Error("Session not found") };
+
+        const id = buildPreviewId("sr");
+        state.supportRequests.unshift({
+          id,
+          volunteer_id: volunteerId,
+          session_id: sessionId,
+          request_type: requestType,
+          urgency: ["normal", "high", "urgent"].includes(urgency) ? urgency : "normal",
+          details,
+          status: "open",
+          resolution_note: "",
+          created_by_user_id: actorUserId,
+          resolved_by_user_id: null,
+          created_at: nowIso,
+          resolved_at: null
+        });
+        savePreviewData();
+        return { data: id, error: null };
+      }
+
+      if (name === "ops_resolve_support_request") {
+        const requestId = String(params.p_request_id || "");
+        const status = String(params.p_status || "resolved").trim();
+        const request = state.supportRequests.find((row) => String(row.id) === requestId);
+        if (!request) return { data: null, error: new Error("Support request not found") };
+        if (!["resolved", "dismissed", "open"].includes(status)) return { data: null, error: new Error("Invalid support status") };
+        request.status = status;
+        request.resolution_note = String(params.p_resolution_note || "");
+        request.resolved_by_user_id = status === "open" ? null : actorUserId;
+        request.resolved_at = status === "open" ? null : nowIso;
+        savePreviewData();
+        return { data: true, error: null };
+      }
+
       if (name === "ops_submit_report") {
         const volunteerId = String(params.p_volunteer_id || "");
         if (!state.volunteers.some((row) => String(row.id) === volunteerId)) return { data: null, error: new Error("Volunteer not found") };
@@ -1848,6 +2347,7 @@
       const volunteerId = String(volunteer.id);
       const feedbackRows = state.feedback.filter((row) => String(row.volunteer_id) === volunteerId);
       const attendanceRows = state.attendance.filter((row) => String(row.volunteer_id) === volunteerId);
+      const pulseRows = state.sessionPulses.filter((row) => String(row.volunteer_id) === volunteerId);
       const now = Date.now();
       const upcomingSessionIds = Array.from(new Set(
         state.assignments
@@ -1880,6 +2380,10 @@
         : 0;
       const avgRating = Number(avgRatingRaw.toFixed(2));
       const feedbackCount = feedbackRows.length;
+      const avgClarity = pulseRows.length ? Number((pulseRows.reduce((sum, row) => sum + Number(row.clarity_rating || 0), 0) / pulseRows.length).toFixed(2)) : 0;
+      const avgSupport = pulseRows.length ? Number((pulseRows.reduce((sum, row) => sum + Number(row.support_rating || 0), 0) / pulseRows.length).toFixed(2)) : 0;
+      const avgStress = pulseRows.length ? Number((pulseRows.reduce((sum, row) => sum + Number(row.stress_rating || 0), 0) / pulseRows.length).toFixed(2)) : 0;
+      const openSupportCount = state.supportRequests.filter((row) => String(row.volunteer_id) === volunteerId && String(row.status || "open") === "open").length;
 
       const cutoff90 = now - (90 * 86400000);
       const noShow90 = attendanceRows.filter((row) => {
@@ -1890,11 +2394,14 @@
       }).length;
 
       const ratingScore = avgRating ? (avgRating / 5) * 100 : 70;
+      const pulseScore = pulseRows.length ? Math.max(0, Math.min(100, Math.round(((avgClarity + avgSupport + (6 - avgStress)) / 15) * 100))) : 70;
       const reliability = Math.max(0, Math.min(100, Math.round(
-        (attendanceRate * 0.45) +
-        (responseRate * 0.30) +
-        (ratingScore * 0.25) -
-        Math.min(noShow90 * 8, 24)
+        (attendanceRate * 0.35) +
+        (responseRate * 0.25) +
+        (ratingScore * 0.20) +
+        (pulseScore * 0.20) -
+        Math.min(noShow90 * 8, 24) -
+        Math.min(openSupportCount * 5, 15)
       )));
 
       return {
@@ -1907,8 +2414,13 @@
         response_rate_pct: responseRate,
         attendance_rate_pct: attendanceRate,
         no_show_90d: noShow90,
+        pulse_count: pulseRows.length,
+        avg_clarity: avgClarity,
+        avg_support: avgSupport,
+        avg_stress: avgStress,
+        open_support_count: openSupportCount,
         reliability_score: reliability,
-        at_risk: responseRate < 70 || attendanceRate < 80 || (feedbackCount >= 3 && avgRating < 3.8) || noShow90 >= 2
+        at_risk: responseRate < 70 || attendanceRate < 80 || (feedbackCount >= 3 && avgRating < 3.8) || noShow90 >= 2 || (pulseRows.length >= 2 && avgSupport < 3.0) || openSupportCount >= 2
       };
     });
   }
@@ -2048,6 +2560,20 @@
       .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
   }
 
+  function pulsesForVolunteer(volunteerId) {
+    return state.sessionPulses
+      .filter((row) => String(row.volunteer_id) === String(volunteerId))
+      .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+  }
+
+  function pulseFor(volunteerId, sessionId, createdByUserId) {
+    const rows = state.sessionPulses
+      .filter((row) => String(row.volunteer_id) === String(volunteerId) && String(row.session_id) === String(sessionId))
+      .filter((row) => !createdByUserId || String(row.created_by_user_id || "") === String(createdByUserId))
+      .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+    return rows[0] || null;
+  }
+
   function pendingUpcomingResponses(volunteerId) {
     return upcomingSessionsForVolunteer(volunteerId).filter((session) => !commitmentFor(volunteerId, session.id)).length;
   }
@@ -2097,6 +2623,11 @@
       response_rate_pct: 0,
       attendance_rate_pct: 0,
       no_show_90d: 0,
+      pulse_count: 0,
+      avg_clarity: 0,
+      avg_support: 0,
+      avg_stress: 0,
+      open_support_count: 0,
       reliability_score: 0,
       at_risk: false
     };
