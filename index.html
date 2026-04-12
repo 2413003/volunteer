@@ -354,7 +354,7 @@
 
     .metric-grid {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
       gap: 8px;
     }
 
@@ -382,6 +382,58 @@
       padding: 10px;
       display: grid;
       gap: 6px;
+    }
+
+    .session-actions {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-top: 6px;
+    }
+
+    .session-actions button.active {
+      background: #0f6f4e;
+      color: #fff;
+      border-color: #0d5d42;
+    }
+
+    .session-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .session-row {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #fff;
+      padding: 10px;
+      display: grid;
+      gap: 4px;
+    }
+
+    .session-meta {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: baseline;
+      flex-wrap: wrap;
+    }
+
+    .session-status {
+      border: 1px solid #d9d2c4;
+      border-radius: 999px;
+      padding: 3px 8px;
+      font-size: 11px;
+      font-weight: 700;
+      color: #5e5549;
+      background: #f8f4ea;
+      white-space: nowrap;
+    }
+
+    .session-status.ok {
+      border-color: #b9d8c8;
+      background: #eaf5ef;
+      color: #1c5b44;
     }
 
     .review-head {
@@ -667,10 +719,16 @@
           </div>
 
           <div class="split">
+            <section class="stack">
+              <div class="muted">Upcoming sessions</div>
+              <div id="studioSessions" class="session-list"></div>
+              <p id="studioSessionStatus" class="status"></p>
+            </section>
             <section class="stack"><div class="muted">Incentives</div><div id="studioIncentives" class="chips"></div></section>
-            <section class="stack"><div class="muted">Recent reviews</div><div id="studioRecentReviews" class="reviews"></div></section>
-            <section class="stack"><div class="muted">Open reports</div><div id="studioOpenReports" class="reviews"></div></section>
           </div>
+
+          <section class="stack"><div class="muted">Recent reviews</div><div id="studioRecentReviews" class="reviews"></div></section>
+          <section class="stack"><div class="muted">Open reports</div><div id="studioOpenReports" class="reviews"></div></section>
         </section>
       </div>
     </dialog>
@@ -707,9 +765,19 @@
         events: [
           { id: "e1", title: "Friday Club Night", starts_at: "2026-03-13T18:30:00Z" },
           { id: "e2", title: "Rapid League R4", starts_at: "2026-03-28T14:00:00Z" },
-          { id: "e3", title: "Beginner Coaching", starts_at: "2026-04-03T17:00:00Z" }
+          { id: "e3", title: "Beginner Coaching", starts_at: "2026-04-03T17:00:00Z" },
+          { id: "e4", title: "Friday Club Night", starts_at: "2026-04-17T18:30:00Z" },
+          { id: "e5", title: "Junior Session", starts_at: "2026-04-19T12:00:00Z" },
+          { id: "e6", title: "Rapid League R5", starts_at: "2026-04-25T14:00:00Z" }
         ],
-        eventVolunteerMap: { e1: ["v1", "v2", "v3"], e2: ["v2", "v4"], e3: ["v1", "v3"] },
+        eventVolunteerMap: {
+          e1: ["v1", "v2", "v3"],
+          e2: ["v2", "v4"],
+          e3: ["v1", "v3"],
+          e4: ["v1", "v2", "v3"],
+          e5: ["v1", "v2"],
+          e6: ["v2", "v4"]
+        },
         reviews: [
           { id: "r1", volunteer_id: "v1", event_id: "e1", overall_rating: 5, communication_rating: 5, reliability_rating: 5, warmth_rating: 5, clarity_rating: 5, title: "Excellent support", body: "Super clear and calm. Made first-time attendance easy and friendly.", helpful_count: 12, moderation_status: "published", authenticity_score: 8, reviewer_weight: 1.1, created_at: "2026-03-14T11:20:00Z" },
           { id: "r2", volunteer_id: "v1", event_id: "e3", overall_rating: 4, communication_rating: 4, reliability_rating: 5, warmth_rating: 4, clarity_rating: 4, title: "Strong coaching", body: "Helpful and respectful. Good explanations for beginners.", helpful_count: 5, moderation_status: "published", authenticity_score: 12, reviewer_weight: 1.0, created_at: "2026-04-04T10:00:00Z" },
@@ -719,13 +787,21 @@
           { id: "r6", volunteer_id: "v2", event_id: "e2", overall_rating: 5, communication_rating: 5, reliability_rating: 5, warmth_rating: 5, clarity_rating: 5, title: "Excellent control", body: "Fast responses and very fair handling all rounds.", helpful_count: 11, moderation_status: "published", authenticity_score: 9, reviewer_weight: 1.1, created_at: "2026-03-29T16:40:00Z" }
         ],
         reports: [
-          { id: "rep1", volunteer_id: "v4", status: "open", severity: "medium", reason: "absence", details: "Late setup caused delay.", created_at: "2026-03-30T18:00:00Z" },
-          { id: "rep2", volunteer_id: "v3", status: "resolved", severity: "low", reason: "conduct", details: "Resolved with follow-up.", created_at: "2026-03-20T18:00:00Z" }
+          { id: "rep1", volunteer_id: "v4", event_id: "e2", status: "open", severity: "medium", reason: "absence", details: "Late setup caused delay.", created_at: "2026-03-30T18:00:00Z" },
+          { id: "rep2", volunteer_id: "v3", event_id: "e1", status: "resolved", severity: "low", reason: "conduct", details: "Resolved with follow-up.", created_at: "2026-03-20T18:00:00Z" }
         ],
         incentives: [
           { id: "inc1", volunteer_id: "v1", code: "consistency_champion", title: "Consistency Champion", detail: "High sustained member ratings", earned_at: "2026-03-31T10:00:00Z" },
           { id: "inc2", volunteer_id: "v2", code: "community_favorite", title: "Community Favorite", detail: "High helpful vote ratio", earned_at: "2026-03-31T10:00:00Z" },
           { id: "inc3", volunteer_id: "v1", code: "reliability_anchor", title: "Reliability Anchor", detail: "Excellent reliability scores", earned_at: "2026-03-31T10:00:00Z" }
+        ],
+        commitments: [
+          { id: "c1", volunteer_id: "v1", event_id: "e4", status: "committed", updated_at: "2026-04-10T09:30:00Z" },
+          { id: "c2", volunteer_id: "v1", event_id: "e5", status: "committed", updated_at: "2026-04-11T16:20:00Z" },
+          { id: "c3", volunteer_id: "v2", event_id: "e4", status: "committed", updated_at: "2026-04-10T08:00:00Z" },
+          { id: "c4", volunteer_id: "v2", event_id: "e6", status: "committed", updated_at: "2026-04-10T08:20:00Z" },
+          { id: "c5", volunteer_id: "v3", event_id: "e4", status: "unavailable", updated_at: "2026-04-09T18:20:00Z" },
+          { id: "c6", volunteer_id: "v4", event_id: "e6", status: "committed", updated_at: "2026-04-10T10:40:00Z" }
         ]
       };
 
@@ -738,9 +814,11 @@
         volunteerLink: null,
         volunteers: [],
         events: [],
+        upcomingEvents: [],
         eventVolunteerMap: {},
         reviews: [],
         reports: [],
+        commitments: [],
         incentivesByVolunteer: {},
         selectedVolunteerId: null,
         helpfulVotedIds: {}
@@ -767,7 +845,7 @@
           "reviewTitleInput", "reviewBodyInput", "truthCheckbox", "submitReviewBtn", "reviewStatus",
           "reportDialog", "reportForm", "reportVolunteerSelect", "reportEventSelect", "reportReasonSelect", "reportSeveritySelect", "reportDetailsInput", "submitReportBtn", "reportStatus",
           "studioDialog", "studioGate", "studioContent", "profileForm", "profileDisplayName", "profileTagline", "profileAvatarUrl", "profileBio", "profileActive", "saveProfileBtn", "profileStatus",
-          "studioMetrics", "categoryBars", "trendBars", "studioIncentives", "studioRecentReviews", "studioOpenReports"
+          "studioMetrics", "categoryBars", "trendBars", "studioSessions", "studioSessionStatus", "studioIncentives", "studioRecentReviews", "studioOpenReports"
         ].forEach(function (id) { el[id] = document.getElementById(id); });
       }
 
@@ -783,6 +861,7 @@
         el.sortSelect.addEventListener("change", renderVolunteerList);
         el.volunteerList.addEventListener("click", onVolunteerClick);
         el.profileSurface.addEventListener("click", onProfileClick);
+        el.studioContent.addEventListener("click", onStudioContentClick);
         el.reviewEventSelect.addEventListener("change", renderReviewVolunteerOptions);
         el.reviewForm.addEventListener("submit", onSubmitReview);
         el.reportForm.addEventListener("submit", onSubmitReport);
@@ -976,18 +1055,28 @@
 
       async function loadAllData() {
         if (state.demoMode) {
+          const nowMs = Date.now();
           state.volunteers = DEMO.volunteers.slice();
-          state.events = DEMO.events.slice();
+          state.events = DEMO.events.filter(function (ev) {
+            return new Date(ev.starts_at).getTime() <= nowMs;
+          }).sort(function (a, b) { return new Date(b.starts_at) - new Date(a.starts_at); });
+          state.upcomingEvents = DEMO.events.filter(function (ev) {
+            return new Date(ev.starts_at).getTime() >= (nowMs - (2 * 60 * 60 * 1000));
+          }).sort(function (a, b) { return new Date(a.starts_at) - new Date(b.starts_at); });
           state.eventVolunteerMap = JSON.parse(JSON.stringify(DEMO.eventVolunteerMap));
           state.reviews = DEMO.reviews.slice();
           state.reports = DEMO.reports.slice();
+          state.commitments = (DEMO.commitments || []).slice();
           state.incentivesByVolunteer = groupIncentivesByVolunteer(DEMO.incentives || []);
           if (!state.selectedVolunteerId && state.volunteers[0]) state.selectedVolunteerId = state.volunteers[0].id;
           return;
         }
 
         await loadVolunteers();
-        await Promise.all([loadReviews(), loadReports(), loadReviewEvents(), loadHelpfulVotes(), loadIncentives()]);
+        await Promise.all([loadReviews(), loadReports(), loadHelpfulVotes(), loadIncentives()]);
+        await loadReviewEvents();
+        await loadUpcomingEvents();
+        await loadCommitments();
 
         if (!state.selectedVolunteerId && state.volunteers[0]) {
           state.selectedVolunteerId = state.volunteers[0].id;
@@ -1040,7 +1129,7 @@
       async function loadReports() {
         const resp = await state.supabase
           .from("volunteer_reports")
-          .select("id,volunteer_id,status,severity,reason,details,created_at")
+          .select("id,volunteer_id,event_id,status,severity,reason,details,created_at")
           .order("created_at", { ascending: false })
           .limit(200);
 
@@ -1051,6 +1140,71 @@
         }
 
         state.reports = resp.data || [];
+      }
+
+      async function loadUpcomingEvents() {
+        state.upcomingEvents = [];
+        if (state.demoMode || !state.supabase) return;
+
+        const windowStart = new Date(Date.now() - (6 * 60 * 60 * 1000)).toISOString();
+        const resp = await state.supabase
+          .from("club_events")
+          .select("id,title,starts_at")
+          .gte("starts_at", windowStart)
+          .order("starts_at", { ascending: true })
+          .limit(60);
+
+        if (resp.error) {
+          return;
+        }
+
+        state.upcomingEvents = resp.data || [];
+        if (!state.upcomingEvents.length) return;
+
+        const eventIds = state.upcomingEvents.map(function (ev) { return ev.id; });
+        const shifts = await state.supabase
+          .from("volunteer_event_shifts")
+          .select("event_id,volunteer_id")
+          .in("event_id", eventIds);
+
+        if (!shifts.error) {
+          (shifts.data || []).forEach(function (row) {
+            if (!state.eventVolunteerMap[row.event_id]) state.eventVolunteerMap[row.event_id] = [];
+            if (!state.eventVolunteerMap[row.event_id].includes(row.volunteer_id)) {
+              state.eventVolunteerMap[row.event_id].push(row.volunteer_id);
+            }
+          });
+        }
+
+        const allVolunteerIds = state.volunteers.map(function (v) { return v.id; });
+        state.upcomingEvents.forEach(function (ev) {
+          const mapped = state.eventVolunteerMap[ev.id];
+          if (!Array.isArray(mapped) || !mapped.length) {
+            state.eventVolunteerMap[ev.id] = allVolunteerIds.slice();
+          }
+        });
+      }
+
+      async function loadCommitments() {
+        state.commitments = [];
+        if (state.demoMode || !state.supabase) return;
+
+        let resp = await state.supabase
+          .from("volunteer_commitments")
+          .select("id,volunteer_id,event_id,status,note,updated_at,created_at")
+          .order("updated_at", { ascending: false })
+          .limit(2000);
+
+        if (resp.error) {
+          resp = await state.supabase
+            .from("volunteer_commitments")
+            .select("id,volunteer_id,event_id,status,updated_at,created_at")
+            .order("updated_at", { ascending: false })
+            .limit(2000);
+        }
+
+        if (resp.error) return;
+        state.commitments = resp.data || [];
       }
 
       async function loadIncentives() {
@@ -1243,6 +1397,14 @@
         }
       }
 
+      async function onStudioContentClick(event) {
+        const button = event.target.closest("[data-commit-event][data-commit-status]");
+        if (!button) return;
+        const eventId = button.getAttribute("data-commit-event");
+        const status = button.getAttribute("data-commit-status");
+        await setCommitmentStatus(eventId, status);
+      }
+
       function openReviewDialog() {
         renderReviewSelectors();
         if (state.selectedVolunteerId) el.reviewVolunteerSelect.value = state.selectedVolunteerId;
@@ -1272,6 +1434,101 @@
       function openStudioDialog() {
         renderStudio();
         if (!el.studioDialog.open) el.studioDialog.showModal();
+      }
+
+      async function setCommitmentStatus(eventId, status) {
+        const allowed = ["committed", "unavailable"];
+        if (!eventId || !allowed.includes(String(status))) return;
+
+        if (!state.user) {
+          setStatus(el.studioSessionStatus, "Sign in to update sessions.", "err");
+          return;
+        }
+
+        if (!state.volunteerLink || !state.volunteerLink.volunteer_id) {
+          setStatus(el.studioSessionStatus, "No linked volunteer account.", "err");
+          return;
+        }
+
+        const volunteerId = state.volunteerLink.volunteer_id;
+        const okMessage = status === "committed" ? "Marked as available." : "Marked unavailable.";
+
+        if (state.demoMode) {
+          const nowIso = new Date().toISOString();
+          const row = {
+            id: "demo-commit-" + Math.random().toString(16).slice(2),
+            volunteer_id: volunteerId,
+            event_id: eventId,
+            status: status,
+            updated_at: nowIso,
+            created_at: nowIso
+          };
+
+          const idx = state.commitments.findIndex(function (item) {
+            return String(item.volunteer_id) === String(volunteerId) && String(item.event_id) === String(eventId);
+          });
+          if (idx >= 0) {
+            state.commitments[idx] = Object.assign({}, state.commitments[idx], row);
+          } else {
+            state.commitments.unshift(row);
+          }
+
+          const dIdx = (DEMO.commitments || []).findIndex(function (item) {
+            return String(item.volunteer_id) === String(volunteerId) && String(item.event_id) === String(eventId);
+          });
+          if (dIdx >= 0) {
+            DEMO.commitments[dIdx] = Object.assign({}, DEMO.commitments[dIdx], row);
+          } else {
+            DEMO.commitments.unshift(row);
+          }
+
+          setStatus(el.studioSessionStatus, okMessage, "ok");
+          renderAll();
+          return;
+        }
+
+        const rpcResp = await state.supabase.rpc("set_volunteer_commitment_secure", {
+          p_event_id: eventId,
+          p_status: status,
+          p_note: null
+        });
+
+        if (!rpcResp.error) {
+          setStatus(el.studioSessionStatus, okMessage, "ok");
+          await loadAllData();
+          renderAll();
+          return;
+        }
+
+        const rpcMessage = String((rpcResp.error && rpcResp.error.message) || "");
+        const rpcMissing =
+          /set_volunteer_commitment_secure/i.test(rpcMessage) &&
+          /(does not exist|not found|schema cache|undefined function)/i.test(rpcMessage);
+
+        if (!rpcMissing) {
+          setStatus(el.studioSessionStatus, "Update failed: " + rpcMessage, "err");
+          return;
+        }
+
+        const resp = await state.supabase.from("volunteer_commitments").upsert(
+          {
+            volunteer_id: volunteerId,
+            event_id: eventId,
+            status: status,
+            committed_by_user_id: state.user.id,
+            updated_at: new Date().toISOString()
+          },
+          { onConflict: "volunteer_id,event_id" }
+        );
+
+        if (resp.error) {
+          setStatus(el.studioSessionStatus, "Update failed.", "err");
+          return;
+        }
+
+        setStatus(el.studioSessionStatus, okMessage, "ok");
+        await loadAllData();
+        renderAll();
       }
 
       function memberApproved() {
@@ -1673,9 +1930,10 @@
         el.volunteerList.innerHTML = list.map(function (row) {
           const v = row.volunteer;
           const s = row.stats;
+          const showUpLabel = s.showUpRate == null ? "--" : (s.showUpRate + "%");
           return '<article class="vol-item ' + (state.selectedVolunteerId === v.id ? "active" : "") + '" data-volunteer="' + esc(v.id) + '">' +
             avatarHtml(v, 40) +
-            '<div><h3>' + esc(v.display_name || "Volunteer") + '</h3><div class="muted">' + stars(s.avgRating) + ' ' + s.avgRating.toFixed(2) + ' · ' + s.reviewCount + '</div></div>' +
+            '<div><h3>' + esc(v.display_name || "Volunteer") + '</h3><div class="muted">' + stars(s.avgRating) + ' ' + s.avgRating.toFixed(2) + ' · ' + s.reviewCount + ' · show-up ' + showUpLabel + '</div></div>' +
             '<span class="score">Rep ' + Math.round(s.score) + '</span>' +
           '</article>';
         }).join("");
@@ -1691,6 +1949,8 @@
         const stats = volunteerStats(volunteer.id);
         const reviews = reviewsForVolunteer(volunteer.id);
         const incentiveChips = renderIncentiveChips(volunteer.id, 4);
+        const showUpLabel = stats.showUpRate == null ? "--" : (stats.showUpRate + "%");
+        const upcomingLabel = stats.upcomingTotal ? (stats.upcomingCommitted + "/" + stats.upcomingTotal) : "0/0";
 
         const reviewHtml = reviews.slice(0, 8).map(function (r) {
           const alreadyVoted = hasVotedHelpful(r.id);
@@ -1708,12 +1968,14 @@
               '<div><h2>' + esc(volunteer.display_name || "Volunteer") + '</h2><div class="muted">' + esc(volunteer.tagline || volunteer.bio || "") + '</div></div>' +
               '<div class="actions"><button class="mini" type="button" data-action="review">Review</button><button class="mini ghost" type="button" data-action="report">Report</button><button class="mini ghost" type="button" data-action="studio">Studio</button></div>' +
             '</div>' +
-            '<div class="chips"><span class="chip">' + stars(stats.avgRating) + ' ' + stats.avgRating.toFixed(2) + '</span><span class="chip">' + stats.reviewCount + ' reviews</span><span class="chip">Rep ' + Math.round(stats.score) + '</span><span class="chip">Confidence ' + stats.confidence + '%</span>' + incentiveChips + '</div>' +
+            '<div class="chips"><span class="chip">' + stars(stats.avgRating) + ' ' + stats.avgRating.toFixed(2) + '</span><span class="chip">' + stats.reviewCount + ' reviews</span><span class="chip">Rep ' + Math.round(stats.score) + '</span><span class="chip">Show-up ' + showUpLabel + '</span><span class="chip">Upcoming ' + upcomingLabel + '</span>' + incentiveChips + '</div>' +
           '</section>' +
           '<section class="metric-grid">' +
             metricBox("Rating", stats.avgRating.toFixed(2)) +
+            metricBox("Show-up", showUpLabel) +
             metricBox("Positive", stats.positiveRate + "%") +
-            metricBox("Helpful", String(stats.helpfulTotal)) +
+            metricBox("Upcoming", upcomingLabel) +
+            metricBox("No-shows", String(stats.noShowRecent)) +
             metricBox("Open reports", String(stats.openReports)) +
           '</section>' +
           '<section class="reviews">' + (reviewHtml || '<div class="empty">No reviews yet</div>') + '</section>';
@@ -1753,12 +2015,14 @@
         if (!state.user) {
           el.studioGate.textContent = "Sign in to open Studio.";
           el.studioContent.style.display = "none";
+          clearStatus(el.studioSessionStatus);
           return;
         }
 
         if (!state.volunteerLink || !state.volunteerLink.volunteer_id) {
           el.studioGate.textContent = "No volunteer profile linked.";
           el.studioContent.style.display = "none";
+          clearStatus(el.studioSessionStatus);
           return;
         }
 
@@ -1766,6 +2030,7 @@
         if (!volunteer) {
           el.studioGate.textContent = "Linked profile not found.";
           el.studioContent.style.display = "none";
+          clearStatus(el.studioSessionStatus);
           return;
         }
 
@@ -1779,7 +2044,16 @@
         el.profileActive.checked = volunteer.active !== false;
 
         const stats = volunteerStats(volunteer.id);
-        el.studioMetrics.innerHTML = metricBox("Avg", stats.avgRating.toFixed(2)) + metricBox("Reviews", String(stats.reviewCount)) + metricBox("Helpful", String(stats.helpfulTotal)) + metricBox("Open", String(stats.openReports));
+        const showUpLabel = stats.showUpRate == null ? "--" : (stats.showUpRate + "%");
+        const upcomingLabel = stats.upcomingTotal ? (stats.upcomingCommitted + "/" + stats.upcomingTotal) : "0/0";
+        el.studioMetrics.innerHTML =
+          metricBox("Avg", stats.avgRating.toFixed(2)) +
+          metricBox("Reviews", String(stats.reviewCount)) +
+          metricBox("Show-up", showUpLabel) +
+          metricBox("Upcoming", upcomingLabel) +
+          metricBox("No-shows", String(stats.noShowRecent));
+
+        renderStudioSessions(volunteer.id);
         el.studioIncentives.innerHTML = renderIncentiveChips(volunteer.id, 12) || '<span class="chip">No incentives yet</span>';
 
         renderCategoryBars(volunteer.id);
@@ -1794,6 +2068,31 @@
         el.studioOpenReports.innerHTML = openReports.length ? openReports.map(function (rp) {
           return '<article class="review"><div class="headline">' + esc((rp.reason || "report").toUpperCase()) + ' · ' + esc(rp.severity || "medium") + '</div><div class="muted">' + relDate(rp.created_at) + '</div><div>' + esc(rp.details || "") + '</div></article>';
         }).join("") : '<div class="empty">No open reports</div>';
+      }
+
+      function renderStudioSessions(volunteerId) {
+        const sessions = upcomingEventsForVolunteer(volunteerId);
+        if (!sessions.length) {
+          el.studioSessions.innerHTML = '<div class="empty">No upcoming sessions</div>';
+          return;
+        }
+
+        const canEdit = !!(state.volunteerLink && String(state.volunteerLink.volunteer_id) === String(volunteerId));
+
+        el.studioSessions.innerHTML = sessions.map(function (ev) {
+          const row = findCommitment(volunteerId, ev.id);
+          const status = row ? String(row.status || "").toLowerCase() : "";
+          const statusClass = status === "committed" ? " ok" : "";
+          const statusText = status ? commitmentStatusLabel(status) : "No response";
+          const committedActive = status === "committed" ? " active" : "";
+          const unavailableActive = status === "unavailable" ? " active" : "";
+
+          return '<article class="session-row">' +
+            '<div class="session-meta"><div class="headline">' + esc(ev.title || "Session") + '</div><span class="session-status' + statusClass + '">' + esc(statusText) + '</span></div>' +
+            '<div class="muted">' + formatDateTime(ev.starts_at) + '</div>' +
+            (canEdit ? '<div class="session-actions"><button type="button" class="mini ghost' + committedActive + '" data-commit-event="' + esc(ev.id) + '" data-commit-status="committed">I can make it</button><button type="button" class="mini ghost' + unavailableActive + '" data-commit-event="' + esc(ev.id) + '" data-commit-status="unavailable">Can&#39;t make it</button></div>' : "") +
+          '</article>';
+        }).join("");
       }
 
       function renderCategoryBars(volunteerId) {
@@ -1841,6 +2140,44 @@
         return publishedReviews().filter(function (r) { return r.volunteer_id === volunteerId; }).sort(function (a, b) { return new Date(b.created_at) - new Date(a.created_at); });
       }
 
+      function upcomingEventsForVolunteer(volunteerId) {
+        return state.upcomingEvents
+          .filter(function (ev) {
+            const allowed = state.eventVolunteerMap[ev.id];
+            if (!Array.isArray(allowed) || !allowed.length) return true;
+            return allowed.includes(volunteerId);
+          })
+          .sort(function (a, b) { return new Date(a.starts_at) - new Date(b.starts_at); });
+      }
+
+      function findCommitment(volunteerId, eventId) {
+        const candidates = state.commitments.filter(function (row) {
+          return String(row.volunteer_id) === String(volunteerId) && String(row.event_id) === String(eventId);
+        });
+        if (!candidates.length) return null;
+
+        candidates.sort(function (a, b) {
+          const aTime = new Date(a.updated_at || a.created_at || 0).getTime();
+          const bTime = new Date(b.updated_at || b.created_at || 0).getTime();
+          return bTime - aTime;
+        });
+        return candidates[0];
+      }
+
+      function commitmentStatusLabel(status) {
+        if (status === "committed") return "Committed";
+        if (status === "unavailable") return "Unavailable";
+        return "No response";
+      }
+
+      function eventIndexById() {
+        const map = {};
+        state.events.concat(state.upcomingEvents).forEach(function (ev) {
+          if (ev && ev.id) map[String(ev.id)] = ev;
+        });
+        return map;
+      }
+
       function volunteerStats(volunteerId) {
         const rows = reviewsForVolunteer(volunteerId);
         const openReports = state.reports.filter(function (rp) { return rp.volunteer_id === volunteerId && (rp.status === "open" || rp.status === "investigating"); }).length;
@@ -1862,12 +2199,101 @@
 
         const avgRating = weightTotal > 0 ? weightedSum / weightTotal : globalMean;
         const bayesian = ((weightTotal / (weightTotal + m)) * avgRating) + ((m / (weightTotal + m)) * globalMean);
-        const score = clamp((((bayesian - 1) / 4) * 100) - (openReports * 4.5), 0, 100);
-        const confidence = clamp(Math.round((weightTotal / (weightTotal + 9)) * 100), 5, 99);
         const positives = rows.filter(function (r) { return Number(r.overall_rating || 0) >= 4; }).length;
         const positiveRate = reviewCount ? Math.round((positives / reviewCount) * 100) : 0;
 
-        return { avgRating: avgRating || 0, reviewCount: reviewCount, score: score, confidence: confidence, openReports: openReports, helpfulTotal: helpfulTotal, positiveRate: positiveRate };
+        const upcoming = upcomingEventsForVolunteer(volunteerId);
+        let upcomingCommitted = 0;
+        let upcomingResponded = 0;
+        upcoming.forEach(function (ev) {
+          const row = findCommitment(volunteerId, ev.id);
+          const status = row ? String(row.status || "").toLowerCase() : "";
+          if (!status) return;
+          if (status === "committed") upcomingCommitted += 1;
+          if (status === "committed" || status === "unavailable") upcomingResponded += 1;
+        });
+
+        const upcomingTotal = upcoming.length;
+        const responseRate = upcomingTotal ? Math.round((upcomingResponded / upcomingTotal) * 100) : 0;
+
+        const nowMs = Date.now();
+        const eventsById = eventIndexById();
+        const committedPast = state.commitments
+          .filter(function (row) {
+            return String(row.volunteer_id) === String(volunteerId) && String(row.status || "").toLowerCase() === "committed";
+          })
+          .map(function (row) {
+            const ev = eventsById[String(row.event_id)];
+            const startsAt = ev && ev.starts_at ? new Date(ev.starts_at).getTime() : NaN;
+            return { row: row, startsAt: startsAt };
+          })
+          .filter(function (item) {
+            return isFinite(item.startsAt) && item.startsAt < nowMs;
+          })
+          .sort(function (a, b) { return b.startsAt - a.startsAt; });
+
+        let attendedEvidence = 0;
+        let missedEvidence = 0;
+        let streak = 0;
+        for (let i = 0; i < committedPast.length; i += 1) {
+          const eventId = String(committedPast[i].row.event_id || "");
+          const hasNoShowReport = state.reports.some(function (rp) {
+            return String(rp.volunteer_id) === String(volunteerId) &&
+              String(rp.reason || "").toLowerCase() === "absence" &&
+              String(rp.event_id || "") === eventId &&
+              String(rp.status || "").toLowerCase() !== "dismissed";
+          });
+          const hasReviewEvidence = rows.some(function (rv) { return String(rv.event_id || "") === eventId; });
+
+          if (hasNoShowReport) {
+            missedEvidence += 1;
+            if (streak === i) break;
+            continue;
+          }
+
+          if (hasReviewEvidence) {
+            attendedEvidence += 1;
+            if (streak === i) streak += 1;
+            continue;
+          }
+
+          if (streak === i) break;
+        }
+
+        const noShowCutoff = Date.now() - (90 * 24 * 60 * 60 * 1000);
+        const noShowRecent = state.reports.filter(function (rp) {
+          const created = new Date(rp.created_at || 0).getTime();
+          return String(rp.volunteer_id) === String(volunteerId) &&
+            String(rp.reason || "").toLowerCase() === "absence" &&
+            isFinite(created) &&
+            created >= noShowCutoff &&
+            String(rp.status || "").toLowerCase() !== "dismissed";
+        }).length;
+
+        const showEvidenceTotal = attendedEvidence + missedEvidence;
+        const showUpRate = showEvidenceTotal ? Math.round((attendedEvidence / showEvidenceTotal) * 100) : null;
+        const baseScore = (((bayesian - 1) / 4) * 100);
+        const showUpAdj = showUpRate == null ? 0 : ((showUpRate - 80) * 0.18);
+        const responseAdj = upcomingTotal ? ((responseRate - 60) * 0.08) : 0;
+        const score = clamp(baseScore + showUpAdj + responseAdj - (openReports * 4.5) - (noShowRecent * 6), 0, 100);
+        const confidenceBase = weightTotal + showEvidenceTotal;
+        const confidence = clamp(Math.round((confidenceBase / (confidenceBase + 9)) * 100), 5, 99);
+
+        return {
+          avgRating: avgRating || 0,
+          reviewCount: reviewCount,
+          score: score,
+          confidence: confidence,
+          openReports: openReports,
+          helpfulTotal: helpfulTotal,
+          positiveRate: positiveRate,
+          upcomingTotal: upcomingTotal,
+          upcomingCommitted: upcomingCommitted,
+          responseRate: responseRate,
+          showUpRate: showUpRate,
+          noShowRecent: noShowRecent,
+          streak: streak
+        };
       }
 
       function publishedReviews() {
@@ -1963,6 +2389,12 @@
       function round(value, places) { const p = Math.pow(10, places || 0); return Math.round(value * p) / p; }
       function stars(rating) { const r = clamp(Math.round(Number(rating || 0)), 0, 5); return "★".repeat(r) + "☆".repeat(5 - r); }
       function formatDate(iso) { const d = new Date(iso); return isFinite(d.getTime()) ? d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "Unknown"; }
+      function formatDateTime(iso) {
+        const d = new Date(iso);
+        return isFinite(d.getTime())
+          ? d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+          : "Unknown";
+      }
 
       function relDate(iso) {
         const d = new Date(iso);
