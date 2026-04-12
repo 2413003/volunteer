@@ -226,6 +226,12 @@
       gap: 8px;
     }
 
+    .left-actions {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
     .left-head input,
     .left-head select,
     .field input,
@@ -572,6 +578,10 @@
     <section class="layout">
       <aside class="panel">
         <div class="left-head">
+          <div class="left-actions">
+            <button id="addVolunteerBtn" type="button" class="mini">Add volunteer</button>
+            <button id="startSetupBtn" type="button" class="mini ghost">Start setup</button>
+          </div>
           <input id="searchInput" type="text" placeholder="Search volunteers" />
           <select id="sortSelect">
             <option value="top">Top rated</option>
@@ -648,6 +658,31 @@
           <label class="muted"><input id="truthCheckbox" type="checkbox" /> Real event, truthful review</label>
           <button id="submitReviewBtn" type="submit">Submit Review</button>
           <p id="reviewStatus" class="status"></p>
+        </form>
+      </div>
+    </dialog>
+
+    <dialog id="addVolunteerDialog" class="dialog">
+      <div class="dialog-body">
+        <div class="dialog-head">
+          <h3>Add Volunteer</h3>
+          <button type="button" class="ghost mini" data-close="addVolunteerDialog">Close</button>
+        </div>
+        <form id="addVolunteerForm" class="stack">
+          <div class="field">
+            <label for="addVolunteerName">Name</label>
+            <input id="addVolunteerName" type="text" maxlength="80" placeholder="Volunteer name" required />
+          </div>
+          <div class="field">
+            <label for="addVolunteerTagline">Tagline</label>
+            <input id="addVolunteerTagline" type="text" maxlength="120" placeholder="Optional short role summary" />
+          </div>
+          <div class="field">
+            <label for="addVolunteerBio">Bio</label>
+            <textarea id="addVolunteerBio" maxlength="800" placeholder="Optional profile bio"></textarea>
+          </div>
+          <button id="createVolunteerBtn" type="submit">Create Volunteer</button>
+          <p id="addVolunteerStatus" class="status"></p>
         </form>
       </div>
     </dialog>
@@ -863,9 +898,10 @@
       function cacheEls() {
         [
           "emailInput", "sendLinkBtn", "signOutBtn", "supaUrlInput", "supaKeyInput", "allowedDomainInput",
-          "openSettingsBtn", "settingsDialog", "connectBtn", "demoBtn", "authStatus", "backendStatus", "backendStatusTop", "searchInput", "sortSelect", "volunteerList", "profileSurface",
+          "openSettingsBtn", "settingsDialog", "connectBtn", "demoBtn", "authStatus", "backendStatus", "backendStatusTop", "searchInput", "sortSelect", "volunteerList", "profileSurface", "addVolunteerBtn", "startSetupBtn",
           "reviewDialog", "reviewForm", "reviewEventSelect", "reviewVolunteerSelect", "overallRating", "commRating", "relRating", "warmRating", "clearRating",
           "reviewTitleInput", "reviewBodyInput", "truthCheckbox", "submitReviewBtn", "reviewStatus",
+          "addVolunteerDialog", "addVolunteerForm", "addVolunteerName", "addVolunteerTagline", "addVolunteerBio", "createVolunteerBtn", "addVolunteerStatus",
           "reportDialog", "reportForm", "reportVolunteerSelect", "reportEventSelect", "reportReasonSelect", "reportSeveritySelect", "reportDetailsInput", "submitReportBtn", "reportStatus",
           "studioDialog", "studioGate", "studioContent", "profileForm", "profileDisplayName", "profileTagline", "profileAvatarUrl", "profileBio", "profileActive", "saveProfileBtn", "profileStatus",
           "studioMetrics", "categoryBars", "trendBars", "studioSessions", "studioSessionStatus", "studioIncentives", "studioRecentReviews", "studioOpenReports"
@@ -880,6 +916,8 @@
         el.demoBtn.addEventListener("click", onDemoClick);
         el.sendLinkBtn.addEventListener("click", onSendMagicLink);
         el.signOutBtn.addEventListener("click", onSignOut);
+        el.addVolunteerBtn.addEventListener("click", openAddVolunteerDialog);
+        el.startSetupBtn.addEventListener("click", runOwnerSetup);
         el.searchInput.addEventListener("input", renderVolunteerList);
         el.sortSelect.addEventListener("change", renderVolunteerList);
         el.volunteerList.addEventListener("click", onVolunteerClick);
@@ -887,6 +925,7 @@
         el.studioContent.addEventListener("click", onStudioContentClick);
         el.reviewEventSelect.addEventListener("change", renderReviewVolunteerOptions);
         el.reviewForm.addEventListener("submit", onSubmitReview);
+        el.addVolunteerForm.addEventListener("submit", onCreateVolunteer);
         el.reportForm.addEventListener("submit", onSubmitReport);
         el.profileForm.addEventListener("submit", onSaveProfile);
         document.addEventListener("click", onGlobalClick);
@@ -1402,6 +1441,10 @@
             onDemoClick();
             return;
           }
+          if (type === "add-volunteer") {
+            openAddVolunteerDialog();
+            return;
+          }
           if (type === "setup") {
             runOwnerSetup();
             return;
@@ -1436,6 +1479,8 @@
           openStudioDialog();
         } else if (type === "demo") {
           onDemoClick();
+        } else if (type === "add-volunteer") {
+          openAddVolunteerDialog();
         } else if (type === "setup") {
           runOwnerSetup();
         } else if (type === "settings") {
@@ -1482,6 +1527,102 @@
         if (!el.studioDialog.open) el.studioDialog.showModal();
       }
 
+      function openAddVolunteerDialog() {
+        if (el.addVolunteerForm) el.addVolunteerForm.reset();
+        clearStatus(el.addVolunteerStatus);
+        if (!el.addVolunteerDialog.open) el.addVolunteerDialog.showModal();
+      }
+
+      async function onCreateVolunteer(event) {
+        event.preventDefault();
+
+        const displayName = String(el.addVolunteerName.value || "").trim();
+        const tagline = String(el.addVolunteerTagline.value || "").trim();
+        const bio = String(el.addVolunteerBio.value || "").trim();
+
+        if (displayName.length < 2) {
+          setStatus(el.addVolunteerStatus, "Name must be at least 2 characters.", "err");
+          return;
+        }
+
+        if (state.demoMode) {
+          const newVolunteer = {
+            id: "demo-v-" + Math.random().toString(16).slice(2),
+            display_name: displayName,
+            tagline: tagline,
+            bio: bio,
+            avatar_url: "",
+            active: true
+          };
+          state.volunteers.push(newVolunteer);
+          DEMO.volunteers.push(newVolunteer);
+          state.selectedVolunteerId = newVolunteer.id;
+          setStatus(el.addVolunteerStatus, "Volunteer added (demo).", "ok");
+          renderAll();
+          if (el.addVolunteerDialog.open) el.addVolunteerDialog.close();
+          return;
+        }
+
+        if (!state.supabase) {
+          setStatus(el.addVolunteerStatus, "Connect backend first.", "err");
+          return;
+        }
+
+        if (!state.user) {
+          setStatus(el.addVolunteerStatus, "Sign in first.", "err");
+          return;
+        }
+
+        let createdId = null;
+        const rpcResp = await state.supabase.rpc("create_volunteer_secure", {
+          p_display_name: displayName,
+          p_tagline: tagline || null,
+          p_bio: bio || null,
+          p_avatar_url: null,
+          p_active: true
+        });
+
+        if (!rpcResp.error) {
+          createdId = rpcResp.data || null;
+        } else {
+          const message = String(rpcResp.error.message || "");
+          const rpcMissing =
+            /create_volunteer_secure/i.test(message) &&
+            /(does not exist|not found|schema cache|undefined function)/i.test(message);
+
+          if (!rpcMissing) {
+            setStatus(el.addVolunteerStatus, "Create failed: " + message, "err");
+            return;
+          }
+
+          const insertResp = await state.supabase
+            .from("volunteers")
+            .insert({
+              display_name: displayName,
+              tagline: tagline,
+              bio: bio,
+              avatar_url: "",
+              active: true
+            })
+            .select("id")
+            .maybeSingle();
+
+          if (insertResp.error) {
+            const fallbackMessage = String(insertResp.error.message || "Not allowed to add volunteer.");
+            setStatus(el.addVolunteerStatus, "Create failed: " + fallbackMessage + ". Run Start setup first.", "err");
+            return;
+          }
+
+          createdId = insertResp.data && insertResp.data.id ? insertResp.data.id : null;
+        }
+
+        await loadAllData();
+        if (createdId) state.selectedVolunteerId = createdId;
+        renderAll();
+        setStatus(el.addVolunteerStatus, "Volunteer added.", "ok");
+        if (el.addVolunteerDialog.open) el.addVolunteerDialog.close();
+      }
+
       async function runOwnerSetup() {
         if (!state.user) {
           setStatus(el.authStatus, "Sign in first, then run setup.", "err");
@@ -1520,7 +1661,7 @@
 
         const role = (state.member && state.member.role) ? state.member.role : "member";
         const status = (state.member && state.member.status) ? state.member.status : "pending";
-        setBackendStatus("Setup complete. Role: " + role + " · Status: " + status, "ok");
+        setBackendStatus("Setup complete. Role: " + role + " · Status: " + status + ". Now click Add volunteer.", "ok");
       }
 
       async function setCommitmentStatus(eventId, status) {
@@ -1986,7 +2127,11 @@
       function renderHeader() {
         el.signOutBtn.style.display = state.user ? "" : "none";
         if (!state.user) {
-          clearStatus(el.authStatus);
+          if (!state.demoMode) {
+            setStatus(el.authStatus, "Sign in, then click Start setup or Add volunteer.", "err");
+          } else {
+            clearStatus(el.authStatus);
+          }
           return;
         }
 
@@ -2024,11 +2169,11 @@
           if (!state.demoMode) {
             setBackendStatus("No volunteers found. Add volunteers or use demo preview.", "err");
           }
-          const setupBtn = (!state.demoMode && state.user)
-            ? '<button type="button" class="mini" data-action="setup">Start setup</button>'
+          const setupBtn = !state.demoMode
+            ? '<button type="button" class="mini ghost" data-action="setup">Start setup</button>'
             : "";
           el.volunteerList.innerHTML =
-            '<div class="empty">No volunteers<div class="empty-actions">' + setupBtn + '<button type="button" class="mini" data-action="demo">Load demo</button><button type="button" class="mini ghost" data-action="settings">Connect</button></div></div>';
+            '<div class="empty">No volunteers<div class="empty-actions"><button type="button" class="mini" data-action="add-volunteer">Add volunteer</button>' + setupBtn + '<button type="button" class="mini" data-action="demo">Load demo</button><button type="button" class="mini ghost" data-action="settings">Connect</button></div></div>';
           return;
         }
 
@@ -2050,11 +2195,11 @@
       function renderProfile() {
         const volunteer = state.volunteers.find(function (v) { return v.id === state.selectedVolunteerId; });
         if (!volunteer) {
-          const setupBtn = (!state.demoMode && state.user)
-            ? '<button type="button" class="mini" data-action="setup">Start setup</button>'
+          const setupBtn = !state.demoMode
+            ? '<button type="button" class="mini ghost" data-action="setup">Start setup</button>'
             : "";
           el.profileSurface.innerHTML =
-            '<div class="empty">Select a volunteer<div class="empty-actions">' + setupBtn + '<button type="button" class="mini" data-action="demo">Load demo</button><button type="button" class="mini ghost" data-action="settings">Connect</button></div></div>';
+            '<div class="empty">Select a volunteer<div class="empty-actions"><button type="button" class="mini" data-action="add-volunteer">Add volunteer</button>' + setupBtn + '<button type="button" class="mini" data-action="demo">Load demo</button><button type="button" class="mini ghost" data-action="settings">Connect</button></div></div>';
           return;
         }
 
