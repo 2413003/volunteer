@@ -4,7 +4,9 @@
   const STORAGE = {
     url: "mk_ops_url",
     key: "mk_ops_key",
-    domain: "mk_ops_domain"
+    domain: "mk_ops_domain",
+    previewMode: "mk_ops_preview_mode",
+    previewData: "mk_ops_preview_data_v1"
   };
 
   const DEFAULT_SUPABASE = {
@@ -30,7 +32,10 @@
     metricsByVolunteer: {},
     selectedVolunteerId: null,
     attendanceSessionId: null,
-    loading: false
+    loading: false,
+    previewMode: true,
+    syncInFlight: false,
+    syncRequested: false
   };
 
   const el = {};
@@ -41,16 +46,25 @@
     bindEvents();
     restoreSettings();
     renderAll();
-
-    await connectSupabase();
-    await refreshSession();
-    await loadAllData();
+    try {
+      await connectSupabase();
+      if (!state.previewMode) {
+        await refreshSession();
+        await ensureAccountProvisioned();
+        await loadProfile();
+      }
+      await loadAllData();
+      if (!state.previewMode) attachAuthSubscription();
+    } catch (error) {
+      setBackendStatus(errorText(error, "App init failed"), "err");
+      state.loading = false;
+    }
     renderAll();
   }
 
   function cacheEls() {
     [
-      "emailInput", "sendLinkBtn", "signOutBtn", "startSetupBtn", "addVolunteerBtn", "addSessionBtn", "openSettingsBtn",
+      "emailInput", "sendLinkBtn", "signOutBtn", "startSetupBtn", "addVolunteerBtn", "addSessionBtn", "demoModeBtn", "openSettingsBtn",
       "authStatus", "backendStatus", "commandBoard", "searchInput", "volunteerList", "volunteerDetail", "studioPanel",
       "settingsDialog", "supaUrlInput", "supaKeyInput", "allowedDomainInput", "connectBtn",
       "volunteerDialog", "volunteerForm", "volunteerNameInput", "volunteerTaglineInput", "volunteerBioInput", "volunteerStatus", "createVolunteerBtn",
@@ -70,6 +84,7 @@
     el.startSetupBtn.addEventListener("click", onStartSetup);
     el.addVolunteerBtn.addEventListener("click", openVolunteerDialog);
     el.addSessionBtn.addEventListener("click", openSessionDialog);
+    el.demoModeBtn.addEventListener("click", onTogglePreviewMode);
     el.openSettingsBtn.addEventListener("click", () => openDialog(el.settingsDialog));
     el.connectBtn.addEventListener("click", onConnectClick);
     el.searchInput.addEventListener("input", renderVolunteerList);
@@ -98,13 +113,23 @@
     const savedUrl = safeGet(STORAGE.url);
     const savedKey = safeGet(STORAGE.key);
     const savedDomain = safeGet(STORAGE.domain);
+    const savedPreview = safeGet(STORAGE.previewMode);
 
     el.supaUrlInput.value = savedUrl || DEFAULT_SUPABASE.url;
     el.supaKeyInput.value = savedKey || DEFAULT_SUPABASE.anonKey;
     el.allowedDomainInput.value = savedDomain || "";
+    state.previewMode = savedPreview === null ? true : savedPreview === "1";
 
     if (!savedUrl) safeSet(STORAGE.url, DEFAULT_SUPABASE.url);
     if (!savedKey) safeSet(STORAGE.key, DEFAULT_SUPABASE.anonKey);
+    if (savedPreview === null) safeSet(STORAGE.previewMode, "1");
+  }
+
+  async function onTogglePreviewMode() {
+    state.previewMode = !state.previewMode;
+    safeSet(STORAGE.previewMode, state.previewMode ? "1" : "0");
+    await reconnectAndReload();
+    setBackendStatus(state.previewMode ? "Preview mode active (local demo data)." : "Live mode active.", "ok");
   }
 
   async function onConnectClick() {
@@ -118,8 +143,16 @@
   async function reconnectAndReload() {
     detachAuthSubscription();
     await connectSupabase();
-    await refreshSession();
+    if (!state.previewMode) {
+      await refreshSession();
+      await ensureAccountProvisioned();
+      await loadProfile();
+    } else {
+      state.user = null;
+      state.profile = null;
+    }
     await loadAllData();
+    if (!state.previewMode) attachAuthSubscription();
     renderAll();
   }
 
@@ -149,7 +182,6 @@
           storageKey: "mk_volunteer_ops_auth_v3"
         }
       });
-      attachAuthSubscription();
       setBackendStatus("Backend connected.", "ok");
     } catch (error) {
       state.supabase = null;
@@ -161,11 +193,9 @@
     if (!state.supabase) return;
     detachAuthSubscription();
     state.authSubscription = state.supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (state.previewMode) return;
       state.user = session ? session.user : null;
-      await ensureAccountProvisioned();
-      await loadProfile();
-      await loadAllData();
-      renderAll();
+      await syncFromAuth();
     });
   }
 
@@ -177,26 +207,62 @@
   }
 
   async function refreshSession() {
+    if (state.previewMode) {
+      state.user = null;
+      state.profile = null;
+      return;
+    }
     if (!state.supabase) {
       state.user = null;
       state.profile = null;
       return;
     }
 
-    const { data, error } = await state.supabase.auth.getSession();
+    let data = null;
+    let error = null;
+    try {
+      const response = await state.supabase.auth.getSession();
+      data = response.data;
+      error = response.error;
+    } catch (caught) {
+      error = caught;
+    }
     if (error) {
       state.user = null;
       state.profile = null;
-      setBackendStatus(errorText(error, "Session check failed"), "err");
+      const text = errorText(error, "Session check failed");
+      if (!/lock:mk_volunteer_ops_auth_v3/i.test(text)) setBackendStatus(text, "err");
       return;
     }
     state.user = data && data.session ? data.session.user : null;
-    await ensureAccountProvisioned();
-    await loadProfile();
+  }
+
+  async function syncFromAuth() {
+    if (state.previewMode) return;
+    if (state.syncInFlight) {
+      state.syncRequested = true;
+      return;
+    }
+    state.syncInFlight = true;
+    try {
+      await ensureAccountProvisioned();
+      await loadProfile();
+      await loadAllData();
+    } catch (error) {
+      setBackendStatus(errorText(error, "Sync failed"), "err");
+      state.loading = false;
+    } finally {
+      state.syncInFlight = false;
+      renderAll();
+      if (state.syncRequested) {
+        state.syncRequested = false;
+        await syncFromAuth();
+      }
+    }
   }
 
   async function ensureAccountProvisioned() {
-    if (!state.user || !state.supabase) return;
+    if (state.previewMode || !state.user || !state.supabase) return;
     const suggestedName = String(state.user.email || "member").split("@")[0];
     const response = await rpc("ops_bootstrap_admin_setup", { p_display_name: suggestedName }, 20000);
     if (response.error && looksLikeMissingSetup(response.error.message || response.error)) {
@@ -205,22 +271,63 @@
   }
 
   async function loadProfile() {
+    if (state.previewMode) {
+      state.profile = {
+        user_id: "preview-user",
+        email: "preview@local",
+        display_name: "Preview Admin",
+        role: "admin",
+        status: "approved",
+        volunteer_id: state.profile && state.profile.volunteer_id ? state.profile.volunteer_id : null
+      };
+      return;
+    }
+
     if (!state.user || !state.supabase) {
       state.profile = null;
       return;
     }
 
-    const response = await state.supabase
-      .from("ops_profiles")
-      .select("user_id,email,display_name,role,status,volunteer_id,created_at")
-      .eq("user_id", state.user.id)
-      .maybeSingle();
+    let response = null;
+    try {
+      response = await state.supabase
+        .from("ops_profiles")
+        .select("user_id,email,display_name,role,status,volunteer_id,created_at")
+        .eq("user_id", state.user.id)
+        .maybeSingle();
+    } catch (error) {
+      const text = errorText(error, "Profile load failed");
+      if (/lock:mk_volunteer_ops_auth_v3/i.test(text)) {
+        state.profile = {
+          user_id: state.user.id,
+          email: state.user.email || "",
+          display_name: state.user.email || "Member",
+          role: "member",
+          status: "pending",
+          volunteer_id: null
+        };
+        return;
+      }
+      throw error;
+    }
 
     if (response.error) {
+      const message = errorText(response.error, "Unknown error");
+      if (/lock:mk_volunteer_ops_auth_v3/i.test(message)) {
+        state.profile = {
+          user_id: state.user.id,
+          email: state.user.email || "",
+          display_name: state.user.email || "Member",
+          role: "member",
+          status: "pending",
+          volunteer_id: null
+        };
+        return;
+      }
       if (looksLikeMissingSetup(response.error.message || response.error)) {
         setBackendStatus("Run supabase/all_in_one_setup.sql in Supabase SQL Editor.", "err");
       } else {
-        setBackendStatus("Profile load issue: " + errorText(response.error, "Unknown error"), "err");
+        setBackendStatus("Profile load issue: " + message, "err");
       }
       state.profile = {
         user_id: state.user.id,
@@ -244,6 +351,12 @@
   }
 
   async function loadAllData() {
+    if (state.previewMode) {
+      state.loading = false;
+      loadPreviewData();
+      return;
+    }
+
     if (!state.supabase) {
       state.volunteers = [];
       state.sessions = [];
@@ -316,6 +429,9 @@
       state.attendance = attendanceResponse.error ? [] : (attendanceResponse.data || []);
       state.feedback = feedbackResponse.error ? [] : (feedbackResponse.data || []);
       state.metricsRows = metricsResponse.error ? [] : (metricsResponse.data || []);
+      if (!state.metricsRows.length) {
+        state.metricsRows = computeDerivedMetricsRows();
+      }
 
       state.metricsByVolunteer = {};
       state.metricsRows.forEach((row) => {
@@ -328,6 +444,13 @@
       }
       if (!state.selectedVolunteerId || !state.volunteers.some((v) => String(v.id) === String(state.selectedVolunteerId))) {
         state.selectedVolunteerId = state.volunteers.length ? String(state.volunteers[0].id) : null;
+      }
+    } catch (error) {
+      const text = errorText(error, "Data load failed");
+      if (/lock:mk_volunteer_ops_auth_v3/i.test(text)) {
+        setBackendStatus("Auth lock conflict detected. Close duplicate tabs or use Preview mode.", "warn");
+      } else {
+        setBackendStatus("Data load issue: " + text, "err");
       }
     } finally {
       state.loading = false;
@@ -345,15 +468,23 @@
   function renderHeader() {
     const signedIn = Boolean(state.user);
     const admin = isAdmin();
+    if (el.demoModeBtn) el.demoModeBtn.textContent = state.previewMode ? "Preview: On" : "Preview: Off";
 
-    el.sendLinkBtn.style.display = signedIn ? "none" : "";
-    el.signOutBtn.style.display = signedIn ? "" : "none";
-    el.emailInput.disabled = signedIn;
-    el.startSetupBtn.style.display = "none";
+    el.sendLinkBtn.style.display = state.previewMode ? "none" : (signedIn ? "none" : "");
+    el.signOutBtn.style.display = state.previewMode ? "none" : (signedIn ? "" : "none");
+    el.emailInput.disabled = state.previewMode || signedIn;
+    el.startSetupBtn.style.display = (!state.previewMode && signedIn && !admin) ? "" : "none";
     el.addVolunteerBtn.style.display = admin ? "" : "none";
     el.addSessionBtn.style.display = admin ? "" : "none";
 
+    if (state.previewMode) {
+      el.emailInput.value = "Preview mode enabled";
+      setStatus(el.authStatus, "Preview mode active. No login required while testing features.", "ok");
+      return;
+    }
+
     if (signedIn) el.emailInput.value = state.user.email || "";
+    else if (el.emailInput.value === "Preview mode enabled") el.emailInput.value = "";
 
     if (!signedIn) {
       setStatus(el.authStatus, "Sign in to manage volunteer operations.", "");
@@ -597,10 +728,11 @@
     const streak = showUpStreak(volunteer.id);
     const pendingCount = pendingUpcomingResponses(volunteer.id);
     const myId = myVolunteerId();
-    const canClaim = Boolean(state.user) && !myId && !volunteer.owner_user_id;
-    const canLeaveFeedback = Boolean(state.user) && isApprovedMember() && pastSessionsForVolunteer(volunteer.id).length > 0;
-    const canReport = Boolean(state.user) && isApprovedMember() && (!volunteer.owner_user_id || String(volunteer.owner_user_id) !== String(state.user.id));
-    const canEdit = isAdmin() || (state.user && String(volunteer.owner_user_id || "") === String(state.user.id));
+    const actorUserId = state.user ? String(state.user.id) : "preview-user";
+    const canClaim = (state.previewMode || Boolean(state.user)) && !myId && !volunteer.owner_user_id;
+    const canLeaveFeedback = (state.previewMode || Boolean(state.user)) && isApprovedMember() && pastSessionsForVolunteer(volunteer.id).length > 0;
+    const canReport = (state.previewMode || Boolean(state.user)) && isApprovedMember() && (!volunteer.owner_user_id || String(volunteer.owner_user_id) !== actorUserId);
+    const canEdit = isAdmin() || String(volunteer.owner_user_id || "") === actorUserId;
 
     const feedbackButton = canLeaveFeedback ? '<button type="button" class="mini" data-action="open-feedback" data-volunteer-id="' + esc(volunteer.id) + '">Leave feedback</button>' : '';
     const reportButton = canReport ? '<button type="button" class="mini ghost" data-action="open-report" data-volunteer-id="' + esc(volunteer.id) + '">Report issue</button>' : '';
@@ -661,7 +793,7 @@
       el.studioPanel.innerHTML = '<div class="empty">Loading studio...</div>';
       return;
     }
-    if (!state.user) {
+    if (!state.user && !state.previewMode) {
       el.studioPanel.innerHTML = '<div class="empty">Sign in to open your volunteer studio.</div>';
       return;
     }
@@ -786,6 +918,10 @@
   }
 
   async function onSendLink() {
+    if (state.previewMode) {
+      setStatus(el.authStatus, "Turn Preview mode off first to use email login.", "warn");
+      return;
+    }
     if (!state.supabase) {
       setStatus(el.authStatus, "Connect backend first.", "err");
       return;
@@ -821,7 +957,9 @@
   }
 
   async function onSignOut() {
-    if (state.supabase) await state.supabase.auth.signOut();
+    if (state.supabase) {
+      try { await state.supabase.auth.signOut(); } catch (_error) {}
+    }
     state.user = null;
     state.profile = null;
     await loadAllData();
@@ -829,6 +967,10 @@
   }
 
   async function onStartSetup() {
+    if (state.previewMode) {
+      setBackendStatus("Preview mode is already fully enabled.", "ok");
+      return;
+    }
     if (!state.user || !state.supabase) {
       setStatus(el.authStatus, "Sign in first.", "err");
       return;
@@ -989,7 +1131,7 @@
   }
 
   function openFeedbackDialog(volunteerId) {
-    if (!state.user) {
+    if (!state.previewMode && !state.user) {
       setBackendStatus("Sign in first.", "err");
       return;
     }
@@ -1000,9 +1142,10 @@
     el.feedbackForm.reset();
     el.feedbackVolunteerIdInput.value = String(volunteer.id);
 
+    const reviewerId = state.user ? String(state.user.id) : "preview-user";
     const alreadyReviewed = new Set(
       state.feedback
-        .filter((row) => String(row.reviewer_user_id || "") === String(state.user.id) && String(row.volunteer_id || "") === String(volunteer.id))
+        .filter((row) => String(row.reviewer_user_id || "") === reviewerId && String(row.volunteer_id || "") === String(volunteer.id))
         .map((row) => String(row.session_id))
     );
 
@@ -1054,7 +1197,7 @@
     }
   }
   function openReportDialog(volunteerId) {
-    if (!state.user) {
+    if (!state.previewMode && !state.user) {
       setBackendStatus("Sign in first.", "err");
       return;
     }
@@ -1224,17 +1367,17 @@
   }
 
   async function onClaimVolunteer(volunteerId) {
-    if (!state.user || !state.supabase) { setBackendStatus("Sign in first.", "err"); return; }
+    if (!state.previewMode && (!state.user || !state.supabase)) { setBackendStatus("Sign in first.", "err"); return; }
     const response = await rpc("ops_claim_volunteer", { p_volunteer_id: volunteerId }, 25000);
     if (response.error) { setBackendStatus(errorText(response.error, "Claim failed"), "err"); return; }
-    await refreshSession();
+    if (!state.previewMode) await refreshSession();
     await loadAllData();
     renderAll();
     setBackendStatus("Volunteer profile claimed.", "ok");
   }
 
   async function onSetCommitment(sessionId, status) {
-    if (!state.user || !state.supabase) { setBackendStatus("Sign in first.", "err"); return; }
+    if (!state.previewMode && (!state.user || !state.supabase)) { setBackendStatus("Sign in first.", "err"); return; }
 
     let note = null;
     let planLeaveAt = null;
@@ -1271,7 +1414,7 @@
   }
 
   async function onCheckInSession(sessionId) {
-    if (!state.user || !state.supabase) { setBackendStatus("Sign in first.", "err"); return; }
+    if (!state.previewMode && (!state.user || !state.supabase)) { setBackendStatus("Sign in first.", "err"); return; }
     const response = await rpc("ops_check_in_session", { p_session_id: sessionId, p_note: "On my way" }, 25000);
     if (response.error) { setBackendStatus(errorText(response.error, "Check-in failed"), "err"); return; }
     await loadAllData();
@@ -1346,6 +1489,7 @@
   }
 
   async function rpc(name, params, timeoutMs) {
+    if (state.previewMode) return previewRpc(name, params || {});
     if (!state.supabase) return { data: null, error: new Error("Backend not connected.") };
     try {
       const response = await withTimeout(
@@ -1357,6 +1501,416 @@
     } catch (error) {
       return { data: null, error };
     }
+  }
+
+  function loadPreviewData() {
+    const raw = safeGet(STORAGE.previewData);
+    let seed = null;
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed && Array.isArray(parsed.volunteers) && Array.isArray(parsed.sessions) && Array.isArray(parsed.assignments) &&
+            Array.isArray(parsed.commitments) && Array.isArray(parsed.attendance) && Array.isArray(parsed.feedback)) {
+          seed = parsed;
+        }
+      } catch (_error) {}
+    }
+    if (!seed) seed = defaultPreviewSeed();
+
+    state.volunteers = seed.volunteers || [];
+    state.sessions = seed.sessions || [];
+    state.assignments = seed.assignments || [];
+    state.commitments = seed.commitments || [];
+    state.attendance = seed.attendance || [];
+    state.feedback = seed.feedback || [];
+    state.metricsRows = computeDerivedMetricsRows();
+    state.metricsByVolunteer = {};
+    state.metricsRows.forEach((row) => { state.metricsByVolunteer[String(row.volunteer_id)] = row; });
+
+    if (!state.profile) {
+      state.profile = {
+        user_id: "preview-user",
+        email: "preview@local",
+        display_name: "Preview Admin",
+        role: "admin",
+        status: "approved",
+        volunteer_id: seed.profileVolunteerId || null
+      };
+    } else if (!state.profile.volunteer_id && seed.profileVolunteerId) {
+      state.profile.volunteer_id = seed.profileVolunteerId;
+    }
+    if (state.profile && state.profile.volunteer_id && !state.volunteers.some((row) => String(row.id) === String(state.profile.volunteer_id))) {
+      state.profile.volunteer_id = seed.profileVolunteerId && state.volunteers.some((row) => String(row.id) === String(seed.profileVolunteerId))
+        ? seed.profileVolunteerId
+        : (state.volunteers[0] ? state.volunteers[0].id : null);
+    }
+
+    if (!state.selectedVolunteerId || !state.volunteers.some((row) => String(row.id) === String(state.selectedVolunteerId))) {
+      state.selectedVolunteerId = seed.selectedVolunteerId && state.volunteers.some((row) => String(row.id) === String(seed.selectedVolunteerId))
+        ? String(seed.selectedVolunteerId)
+        : (state.volunteers[0] ? String(state.volunteers[0].id) : null);
+    }
+  }
+
+  function savePreviewData() {
+    if (!state.previewMode) return;
+    safeSet(STORAGE.previewData, JSON.stringify({
+      volunteers: state.volunteers,
+      sessions: state.sessions,
+      assignments: state.assignments,
+      commitments: state.commitments,
+      attendance: state.attendance,
+      feedback: state.feedback,
+      selectedVolunteerId: state.selectedVolunteerId,
+      profileVolunteerId: state.profile ? state.profile.volunteer_id : null
+    }));
+  }
+
+  function defaultPreviewSeed() {
+    const now = Date.now();
+    const volunteers = [
+      { id: "pv_alex", owner_user_id: "preview-user", display_name: "Alex Johnson", tagline: "Kids opening coach", bio: "Runs warm-ups and opening drills.", active: true, created_at: new Date(now - (60 * 86400000)).toISOString() },
+      { id: "pv_maya", owner_user_id: null, display_name: "Maya Patel", tagline: "Beginner board helper", bio: "Supports first-time attendees.", active: true, created_at: new Date(now - (48 * 86400000)).toISOString() },
+      { id: "pv_liam", owner_user_id: null, display_name: "Liam Khan", tagline: "Tournament desk lead", bio: "Handles pairings and arrivals.", active: true, created_at: new Date(now - (45 * 86400000)).toISOString() }
+    ];
+
+    const sessions = [
+      { id: "ps_past_1", title: "Thursday Club Night", starts_at: new Date(now - (7 * 86400000)).toISOString(), required_volunteers: 2, status: "completed", created_at: new Date(now - (10 * 86400000)).toISOString() },
+      { id: "ps_past_2", title: "Saturday Juniors", starts_at: new Date(now - (14 * 86400000)).toISOString(), required_volunteers: 2, status: "completed", created_at: new Date(now - (17 * 86400000)).toISOString() },
+      { id: "ps_up_1", title: "Monday Juniors", starts_at: new Date(now + (26 * 3600000)).toISOString(), required_volunteers: 2, status: "scheduled", created_at: new Date(now - (1 * 86400000)).toISOString() },
+      { id: "ps_up_2", title: "Wednesday Club Night", starts_at: new Date(now + (50 * 3600000)).toISOString(), required_volunteers: 3, status: "scheduled", created_at: new Date(now - (1 * 86400000)).toISOString() },
+      { id: "ps_up_3", title: "Friday Match Prep", starts_at: new Date(now + (4 * 3600000)).toISOString(), required_volunteers: 2, status: "scheduled", created_at: new Date(now - (1 * 86400000)).toISOString() }
+    ];
+
+    const assignments = [];
+    sessions.forEach((session) => {
+      volunteers.forEach((volunteer) => {
+        assignments.push({ session_id: session.id, volunteer_id: volunteer.id });
+      });
+    });
+
+    const commitments = [
+      { session_id: "ps_up_1", volunteer_id: "pv_alex", status: "committed", note: "Planned leave 18:20", plan_leave_at: new Date(now + (23.5 * 3600000)).toISOString(), last_check_in_at: null, updated_at: new Date(now - 3600000).toISOString() },
+      { session_id: "ps_up_1", volunteer_id: "pv_maya", status: "unavailable", note: "Family conflict", plan_leave_at: null, last_check_in_at: null, updated_at: new Date(now - 5400000).toISOString() },
+      { session_id: "ps_up_3", volunteer_id: "pv_alex", status: "committed", note: "Planned leave 18:00", plan_leave_at: new Date(now + (3 * 3600000)).toISOString(), last_check_in_at: null, updated_at: new Date(now - 3000000).toISOString() }
+    ];
+
+    const attendance = [
+      { session_id: "ps_past_1", volunteer_id: "pv_alex", outcome: "showed_up", note: "", marked_at: new Date(now - (7 * 86400000) + 3600000).toISOString() },
+      { session_id: "ps_past_1", volunteer_id: "pv_maya", outcome: "late", note: "Arrived 10 mins late", marked_at: new Date(now - (7 * 86400000) + 3700000).toISOString() },
+      { session_id: "ps_past_1", volunteer_id: "pv_liam", outcome: "showed_up", note: "", marked_at: new Date(now - (7 * 86400000) + 3800000).toISOString() },
+      { session_id: "ps_past_2", volunteer_id: "pv_alex", outcome: "showed_up", note: "", marked_at: new Date(now - (14 * 86400000) + 3600000).toISOString() },
+      { session_id: "ps_past_2", volunteer_id: "pv_maya", outcome: "no_show", note: "", marked_at: new Date(now - (14 * 86400000) + 3800000).toISOString() },
+      { session_id: "ps_past_2", volunteer_id: "pv_liam", outcome: "showed_up", note: "", marked_at: new Date(now - (14 * 86400000) + 3900000).toISOString() }
+    ];
+
+    const feedback = [
+      { id: "pf_1", session_id: "ps_past_1", volunteer_id: "pv_alex", reviewer_user_id: "preview-r1", rating: 5, feedback_type: "coaching", note: "Very supportive and clear.", created_at: new Date(now - (6.8 * 86400000)).toISOString() },
+      { id: "pf_2", session_id: "ps_past_1", volunteer_id: "pv_liam", reviewer_user_id: "preview-r2", rating: 4, feedback_type: "organisation", note: "Good check-in and pairing support.", created_at: new Date(now - (6.7 * 86400000)).toISOString() },
+      { id: "pf_3", session_id: "ps_past_2", volunteer_id: "pv_maya", reviewer_user_id: "preview-r3", rating: 2, feedback_type: "communication", note: "Could not find volunteer at session start.", created_at: new Date(now - (13.7 * 86400000)).toISOString() }
+    ];
+
+    return {
+      volunteers,
+      sessions,
+      assignments,
+      commitments,
+      attendance,
+      feedback,
+      selectedVolunteerId: "pv_alex",
+      profileVolunteerId: "pv_alex"
+    };
+  }
+
+  function previewActorUserId() {
+    return state.user ? String(state.user.id) : "preview-user";
+  }
+
+  function buildPreviewId(prefix) {
+    return prefix + "_" + Math.random().toString(36).slice(2, 10) + "_" + Date.now().toString(36);
+  }
+
+  function previewUpsertCommitment(row) {
+    const index = state.commitments.findIndex((entry) =>
+      String(entry.session_id) === String(row.session_id) &&
+      String(entry.volunteer_id) === String(row.volunteer_id)
+    );
+    if (index >= 0) state.commitments[index] = { ...state.commitments[index], ...row };
+    else state.commitments.push(row);
+  }
+
+  function previewUpsertAttendance(row) {
+    const index = state.attendance.findIndex((entry) =>
+      String(entry.session_id) === String(row.session_id) &&
+      String(entry.volunteer_id) === String(row.volunteer_id)
+    );
+    if (index >= 0) state.attendance[index] = { ...state.attendance[index], ...row };
+    else state.attendance.push(row);
+  }
+
+  function previewRpc(name, params) {
+    try {
+      const actorUserId = previewActorUserId();
+      const nowIso = new Date().toISOString();
+
+      if (name === "ops_bootstrap_admin_setup") {
+        return { data: { user_id: actorUserId, role: "admin", status: "approved", volunteer_id: myVolunteerId() }, error: null };
+      }
+
+      if (name === "ops_create_volunteer") {
+        const display = String(params.p_display_name || "").trim();
+        if (!display) return { data: null, error: new Error("Display name is required") };
+        const id = buildPreviewId("pv");
+        state.volunteers.push({
+          id,
+          owner_user_id: null,
+          display_name: display,
+          tagline: String(params.p_tagline || ""),
+          bio: String(params.p_bio || ""),
+          active: true,
+          created_at: nowIso
+        });
+        state.sessions
+          .filter((session) => String(session.status || "scheduled") !== "cancelled")
+          .forEach((session) => state.assignments.push({ session_id: session.id, volunteer_id: id }));
+        savePreviewData();
+        return { data: id, error: null };
+      }
+
+      if (name === "ops_update_volunteer_profile") {
+        const volunteer = state.volunteers.find((row) => String(row.id) === String(params.p_volunteer_id));
+        if (!volunteer) return { data: null, error: new Error("Volunteer not found") };
+        volunteer.display_name = String(params.p_display_name || volunteer.display_name || "").trim() || volunteer.display_name;
+        volunteer.tagline = params.p_tagline == null ? volunteer.tagline : String(params.p_tagline);
+        volunteer.bio = params.p_bio == null ? volunteer.bio : String(params.p_bio);
+        savePreviewData();
+        return { data: true, error: null };
+      }
+
+      if (name === "ops_create_session") {
+        const title = String(params.p_title || "").trim();
+        const startsAt = new Date(params.p_starts_at);
+        if (!title) return { data: null, error: new Error("Session title is required") };
+        if (!isFinite(startsAt.getTime())) return { data: null, error: new Error("Invalid session start") };
+        const id = buildPreviewId("ps");
+        state.sessions.push({
+          id,
+          title,
+          starts_at: startsAt.toISOString(),
+          required_volunteers: Math.max(1, Math.min(20, Number(params.p_required_volunteers || 2))),
+          status: "scheduled",
+          created_at: nowIso
+        });
+        if (params.p_assign_all !== false) {
+          state.volunteers.forEach((volunteer) => {
+            state.assignments.push({ session_id: id, volunteer_id: volunteer.id });
+          });
+        }
+        savePreviewData();
+        return { data: id, error: null };
+      }
+
+      if (name === "ops_claim_volunteer") {
+        const volunteer = state.volunteers.find((row) => String(row.id) === String(params.p_volunteer_id));
+        if (!volunteer) return { data: null, error: new Error("Volunteer not found") };
+        if (volunteer.owner_user_id && String(volunteer.owner_user_id) !== actorUserId) {
+          return { data: null, error: new Error("Volunteer profile already claimed") };
+        }
+        volunteer.owner_user_id = actorUserId;
+        if (!state.profile) {
+          state.profile = {
+            user_id: actorUserId,
+            email: "preview@local",
+            display_name: "Preview Admin",
+            role: "admin",
+            status: "approved",
+            volunteer_id: volunteer.id
+          };
+        } else {
+          state.profile.volunteer_id = volunteer.id;
+        }
+        savePreviewData();
+        return { data: true, error: null };
+      }
+
+      if (name === "ops_set_commitment") {
+        const sessionId = String(params.p_session_id || "");
+        const session = sessionById(sessionId);
+        if (!session) return { data: null, error: new Error("Session not found") };
+        const volunteerId = myVolunteerId() || state.selectedVolunteerId || (state.volunteers[0] ? String(state.volunteers[0].id) : null);
+        if (!volunteerId) return { data: null, error: new Error("No volunteer profile selected") };
+        const status = String(params.p_status || "");
+        if (status !== "committed" && status !== "unavailable") return { data: null, error: new Error("Invalid commitment status") };
+        if (status === "committed" && !params.p_plan_leave_at) return { data: null, error: new Error("Leave-time plan is required when committing") };
+        if (!state.assignments.some((row) => String(row.session_id) === sessionId && String(row.volunteer_id) === String(volunteerId))) {
+          state.assignments.push({ session_id: sessionId, volunteer_id: volunteerId });
+        }
+        previewUpsertCommitment({
+          session_id: sessionId,
+          volunteer_id: volunteerId,
+          status,
+          note: String(params.p_note || ""),
+          plan_leave_at: status === "committed" ? params.p_plan_leave_at : null,
+          last_check_in_at: status === "unavailable" ? null : (commitmentFor(volunteerId, sessionId) || {}).last_check_in_at || null,
+          updated_at: nowIso
+        });
+        savePreviewData();
+        return { data: true, error: null };
+      }
+
+      if (name === "ops_check_in_session") {
+        const sessionId = String(params.p_session_id || "");
+        const session = sessionById(sessionId);
+        if (!session) return { data: null, error: new Error("Session not found") };
+        const volunteerId = myVolunteerId() || state.selectedVolunteerId || (state.volunteers[0] ? String(state.volunteers[0].id) : null);
+        if (!volunteerId) return { data: null, error: new Error("No volunteer profile selected") };
+        if (!state.assignments.some((row) => String(row.session_id) === sessionId && String(row.volunteer_id) === String(volunteerId))) {
+          state.assignments.push({ session_id: sessionId, volunteer_id: volunteerId });
+        }
+        const previous = commitmentFor(volunteerId, sessionId);
+        previewUpsertCommitment({
+          session_id: sessionId,
+          volunteer_id: volunteerId,
+          status: "committed",
+          note: String(params.p_note || (previous ? previous.note : "") || ""),
+          plan_leave_at: previous ? previous.plan_leave_at : null,
+          last_check_in_at: nowIso,
+          updated_at: nowIso
+        });
+        savePreviewData();
+        return { data: true, error: null };
+      }
+
+      if (name === "ops_submit_feedback") {
+        const sessionId = String(params.p_session_id || "");
+        const volunteerId = String(params.p_volunteer_id || "");
+        const rating = Number(params.p_rating || 0);
+        if (!sessionById(sessionId)) return { data: null, error: new Error("Session not found") };
+        if (!state.volunteers.some((row) => String(row.id) === volunteerId)) return { data: null, error: new Error("Volunteer not found") };
+        if (rating < 1 || rating > 5) return { data: null, error: new Error("Rating must be between 1 and 5") };
+        if (state.feedback.some((row) =>
+          String(row.session_id) === sessionId &&
+          String(row.volunteer_id) === volunteerId &&
+          String(row.reviewer_user_id) === actorUserId
+        )) return { data: null, error: new Error("You already submitted feedback for this session") };
+
+        const id = buildPreviewId("pf");
+        state.feedback.unshift({
+          id,
+          session_id: sessionId,
+          volunteer_id: volunteerId,
+          reviewer_user_id: actorUserId,
+          rating,
+          feedback_type: String(params.p_feedback_type || "general"),
+          note: String(params.p_note || ""),
+          created_at: nowIso
+        });
+        savePreviewData();
+        return { data: id, error: null };
+      }
+
+      if (name === "ops_submit_report") {
+        const volunteerId = String(params.p_volunteer_id || "");
+        if (!state.volunteers.some((row) => String(row.id) === volunteerId)) return { data: null, error: new Error("Volunteer not found") };
+        return { data: buildPreviewId("pr"), error: null };
+      }
+
+      if (name === "ops_mark_attendance") {
+        const sessionId = String(params.p_session_id || "");
+        const volunteerId = String(params.p_volunteer_id || "");
+        const outcome = String(params.p_outcome || "");
+        if (!sessionById(sessionId)) return { data: null, error: new Error("Session not found") };
+        if (!state.volunteers.some((row) => String(row.id) === volunteerId)) return { data: null, error: new Error("Volunteer not found") };
+        if (!["showed_up", "late", "no_show", "excused"].includes(outcome)) return { data: null, error: new Error("Invalid attendance outcome") };
+        previewUpsertAttendance({
+          session_id: sessionId,
+          volunteer_id: volunteerId,
+          outcome,
+          note: String(params.p_note || ""),
+          marked_at: nowIso
+        });
+        const session = sessionById(sessionId);
+        if (session && String(session.status || "scheduled") === "scheduled" && new Date(session.starts_at).getTime() <= Date.now()) {
+          session.status = "completed";
+        }
+        savePreviewData();
+        return { data: true, error: null };
+      }
+
+      return { data: null, error: new Error("Unsupported preview action: " + name) };
+    } catch (error) {
+      return { data: null, error };
+    }
+  }
+
+  function computeDerivedMetricsRows() {
+    return state.volunteers.map((volunteer) => {
+      const volunteerId = String(volunteer.id);
+      const feedbackRows = state.feedback.filter((row) => String(row.volunteer_id) === volunteerId);
+      const attendanceRows = state.attendance.filter((row) => String(row.volunteer_id) === volunteerId);
+      const now = Date.now();
+      const upcomingSessionIds = Array.from(new Set(
+        state.assignments
+          .filter((row) => String(row.volunteer_id) === volunteerId)
+          .map((row) => String(row.session_id))
+      ))
+        .filter((sessionId) => {
+          const session = sessionById(sessionId);
+          if (!session) return false;
+          const starts = new Date(session.starts_at).getTime();
+          return isFinite(starts) && starts >= (now - 7200000) && String(session.status || "scheduled") !== "cancelled";
+        });
+      const assignedUpcoming = upcomingSessionIds.length;
+      const respondedUpcoming = upcomingSessionIds.filter((sessionId) => {
+        const commitment = commitmentFor(volunteerId, sessionId);
+        const status = commitment ? String(commitment.status || "") : "";
+        return status === "committed" || status === "unavailable";
+      }).length;
+      const committedUpcoming = upcomingSessionIds.filter((sessionId) => {
+        const commitment = commitmentFor(volunteerId, sessionId);
+        return commitment && String(commitment.status || "") === "committed";
+      }).length;
+      const responseRate = assignedUpcoming ? Math.round((respondedUpcoming / assignedUpcoming) * 100) : 0;
+
+      const positiveAttendance = attendanceRows.filter((row) => ["showed_up", "late", "excused"].includes(String(row.outcome || ""))).length;
+      const attendanceRate = attendanceRows.length ? Math.round((positiveAttendance / attendanceRows.length) * 100) : 0;
+
+      const avgRatingRaw = feedbackRows.length
+        ? feedbackRows.reduce((sum, row) => sum + Number(row.rating || 0), 0) / feedbackRows.length
+        : 0;
+      const avgRating = Number(avgRatingRaw.toFixed(2));
+      const feedbackCount = feedbackRows.length;
+
+      const cutoff90 = now - (90 * 86400000);
+      const noShow90 = attendanceRows.filter((row) => {
+        if (String(row.outcome || "") !== "no_show") return false;
+        const session = sessionById(row.session_id);
+        const at = session ? new Date(session.starts_at).getTime() : new Date(row.marked_at).getTime();
+        return isFinite(at) && at >= cutoff90;
+      }).length;
+
+      const ratingScore = avgRating ? (avgRating / 5) * 100 : 70;
+      const reliability = Math.max(0, Math.min(100, Math.round(
+        (attendanceRate * 0.45) +
+        (responseRate * 0.30) +
+        (ratingScore * 0.25) -
+        Math.min(noShow90 * 8, 24)
+      )));
+
+      return {
+        volunteer_id: volunteer.id,
+        avg_rating: avgRating,
+        feedback_count: feedbackCount,
+        assigned_upcoming: assignedUpcoming,
+        responded_upcoming: respondedUpcoming,
+        committed_upcoming: committedUpcoming,
+        response_rate_pct: responseRate,
+        attendance_rate_pct: attendanceRate,
+        no_show_90d: noShow90,
+        reliability_score: reliability,
+        at_risk: responseRate < 70 || attendanceRate < 80 || (feedbackCount >= 3 && avgRating < 3.8) || noShow90 >= 2
+      };
+    });
   }
 
   function upcomingSessions() {
@@ -1553,14 +2107,23 @@
   }
 
   function isAdmin() {
+    if (state.previewMode) return true;
     return Boolean(state.profile && state.profile.role === "admin" && state.profile.status === "approved");
   }
 
   function isApprovedMember() {
+    if (state.previewMode) return true;
     return Boolean(state.profile && state.profile.status === "approved");
   }
 
   function myVolunteerId() {
+    if (state.previewMode) {
+      if (state.profile && state.profile.volunteer_id && state.volunteers.some((row) => String(row.id) === String(state.profile.volunteer_id))) {
+        return String(state.profile.volunteer_id);
+      }
+      if (state.selectedVolunteerId && state.volunteers.some((row) => String(row.id) === String(state.selectedVolunteerId))) return String(state.selectedVolunteerId);
+      return state.volunteers[0] ? String(state.volunteers[0].id) : null;
+    }
     return state.profile && state.profile.volunteer_id ? String(state.profile.volunteer_id) : null;
   }
 
