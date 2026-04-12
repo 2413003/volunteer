@@ -376,6 +376,68 @@
     .metric .k { font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: #736c63; }
     .metric .v { font-size: 19px; font-weight: 800; line-height: 1; }
 
+    .ops-grid {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap: 8px;
+    }
+
+    .ops-card {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #fff;
+      padding: 10px;
+      display: grid;
+      gap: 7px;
+    }
+
+    .ops-list {
+      display: grid;
+      gap: 6px;
+    }
+
+    .ops-row {
+      border: 1px solid #e4ddd0;
+      border-radius: 10px;
+      background: #fcfaf3;
+      padding: 8px;
+      display: grid;
+      gap: 3px;
+    }
+
+    .risk-row {
+      border: 1px solid #e4ddd0;
+      border-radius: 10px;
+      background: #fcfaf3;
+      padding: 8px;
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .badge-ok,
+    .badge-warn {
+      border: 1px solid #d7d1c4;
+      border-radius: 999px;
+      padding: 3px 8px;
+      font-size: 11px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .badge-ok {
+      color: #1c5b44;
+      border-color: #b9d8c8;
+      background: #eaf5ef;
+    }
+
+    .badge-warn {
+      color: #7a2626;
+      border-color: #deb4b4;
+      background: #f8e7e7;
+    }
+
     .reviews {
       display: grid;
       gap: 8px;
@@ -537,6 +599,7 @@
       .settings-grid { grid-template-columns: 1fr; }
       .rating-grid { grid-template-columns: 1fr 1fr; }
       .split { grid-template-columns: 1fr; }
+      .ops-grid { grid-template-columns: 1fr; }
     }
 
     @media (max-width: 680px) {
@@ -580,6 +643,7 @@
         <div class="left-head">
           <div class="left-actions">
             <button id="addVolunteerBtn" type="button" class="mini">Add volunteer</button>
+            <button id="addSessionBtn" type="button" class="mini ghost">Add session</button>
             <button id="startSetupBtn" type="button" class="mini ghost">Start setup</button>
           </div>
           <input id="searchInput" type="text" placeholder="Search volunteers" />
@@ -595,6 +659,9 @@
       </aside>
 
       <section class="panel">
+        <div id="opsBoard" class="profile">
+          <div class="empty">Loading command center...</div>
+        </div>
         <div id="profileSurface" class="profile">
           <div class="empty">Select a volunteer</div>
         </div>
@@ -687,6 +754,28 @@
             <button id="createVolunteerBtn" type="submit">Create Volunteer</button>
             <button id="sendLinkFromDialogBtn" type="button" class="mini ghost">Send login link</button>
           </div>
+        </form>
+      </div>
+    </dialog>
+
+    <dialog id="sessionDialog" class="dialog">
+      <div class="dialog-body">
+        <div class="dialog-head">
+          <h3>Add Session</h3>
+          <button type="button" class="ghost mini" data-close="sessionDialog">Close</button>
+        </div>
+        <form id="sessionForm" class="stack">
+          <div class="field">
+            <label for="sessionTitleInput">Session title</label>
+            <input id="sessionTitleInput" type="text" maxlength="120" placeholder="Friday Club Night" required />
+          </div>
+          <div class="field">
+            <label for="sessionStartsInput">Start date & time</label>
+            <input id="sessionStartsInput" type="datetime-local" required />
+          </div>
+          <label class="muted"><input id="sessionAssignAllInput" type="checkbox" checked /> Assign all active volunteers by default</label>
+          <p id="sessionStatus" class="status"></p>
+          <button id="createSessionBtn" type="submit">Create Session</button>
         </form>
       </div>
     </dialog>
@@ -904,10 +993,11 @@
       function cacheEls() {
         [
           "emailInput", "sendLinkBtn", "signOutBtn", "supaUrlInput", "supaKeyInput", "allowedDomainInput",
-          "openSettingsBtn", "settingsDialog", "connectBtn", "demoBtn", "authStatus", "backendStatus", "backendStatusTop", "searchInput", "sortSelect", "volunteerList", "profileSurface", "addVolunteerBtn", "startSetupBtn",
+          "openSettingsBtn", "settingsDialog", "connectBtn", "demoBtn", "authStatus", "backendStatus", "backendStatusTop", "searchInput", "sortSelect", "volunteerList", "opsBoard", "profileSurface", "addVolunteerBtn", "addSessionBtn", "startSetupBtn",
           "reviewDialog", "reviewForm", "reviewEventSelect", "reviewVolunteerSelect", "overallRating", "commRating", "relRating", "warmRating", "clearRating",
           "reviewTitleInput", "reviewBodyInput", "truthCheckbox", "submitReviewBtn", "reviewStatus",
           "addVolunteerDialog", "addVolunteerForm", "addVolunteerName", "addVolunteerTagline", "addVolunteerBio", "addVolunteerHint", "createVolunteerBtn", "sendLinkFromDialogBtn", "addVolunteerStatus",
+          "sessionDialog", "sessionForm", "sessionTitleInput", "sessionStartsInput", "sessionAssignAllInput", "createSessionBtn", "sessionStatus",
           "reportDialog", "reportForm", "reportVolunteerSelect", "reportEventSelect", "reportReasonSelect", "reportSeveritySelect", "reportDetailsInput", "submitReportBtn", "reportStatus",
           "studioDialog", "studioGate", "studioContent", "profileForm", "profileDisplayName", "profileTagline", "profileAvatarUrl", "profileBio", "profileActive", "saveProfileBtn", "profileStatus",
           "studioMetrics", "categoryBars", "trendBars", "studioSessions", "studioSessionStatus", "studioIncentives", "studioRecentReviews", "studioOpenReports"
@@ -923,16 +1013,19 @@
         el.sendLinkBtn.addEventListener("click", onSendMagicLink);
         el.signOutBtn.addEventListener("click", onSignOut);
         el.addVolunteerBtn.addEventListener("click", openAddVolunteerDialog);
+        el.addSessionBtn.addEventListener("click", openSessionDialog);
         el.startSetupBtn.addEventListener("click", runOwnerSetup);
         el.sendLinkFromDialogBtn.addEventListener("click", onSendMagicLink);
         el.searchInput.addEventListener("input", renderVolunteerList);
         el.sortSelect.addEventListener("change", renderVolunteerList);
         el.volunteerList.addEventListener("click", onVolunteerClick);
+        if (el.opsBoard) el.opsBoard.addEventListener("click", onProfileClick);
         el.profileSurface.addEventListener("click", onProfileClick);
         el.studioContent.addEventListener("click", onStudioContentClick);
         el.reviewEventSelect.addEventListener("change", renderReviewVolunteerOptions);
         el.reviewForm.addEventListener("submit", onSubmitReview);
         el.addVolunteerForm.addEventListener("submit", onCreateVolunteer);
+        el.sessionForm.addEventListener("submit", onCreateSession);
         el.reportForm.addEventListener("submit", onSubmitReport);
         el.profileForm.addEventListener("submit", onSaveProfile);
         document.addEventListener("click", onGlobalClick);
@@ -1561,6 +1654,10 @@
           openReportDialog();
         } else if (type === "studio") {
           openStudioDialog();
+        } else if (type === "add-session") {
+          openSessionDialog();
+        } else if (type === "nudge") {
+          copyVolunteerNudge(action.getAttribute("data-volunteer"));
         } else if (type === "demo") {
           onDemoClick();
         } else if (type === "add-volunteer") {
@@ -1618,6 +1715,18 @@
         if (!el.addVolunteerDialog.open) el.addVolunteerDialog.showModal();
       }
 
+      function openSessionDialog() {
+        if (!el.sessionForm) return;
+        el.sessionForm.reset();
+        const now = new Date(Date.now() + (24 * 60 * 60 * 1000));
+        now.setMinutes(0, 0, 0);
+        const local = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().slice(0, 16);
+        el.sessionStartsInput.value = local;
+        el.sessionAssignAllInput.checked = true;
+        clearStatus(el.sessionStatus);
+        if (!el.sessionDialog.open) el.sessionDialog.showModal();
+      }
+
       function updateAddVolunteerDialogState() {
         if (!el.addVolunteerHint || !el.sendLinkFromDialogBtn || !el.createVolunteerBtn) return;
 
@@ -1651,6 +1760,14 @@
         el.createVolunteerBtn.disabled = false;
       }
 
+      async function createSessionViaRpc(title, startsAtIso, assignAll) {
+        return withTimeout(state.supabase.rpc("create_session_secure", {
+          p_title: title,
+          p_starts_at: startsAtIso,
+          p_assign_active_volunteers: !!assignAll
+        }), 20000, "Session create timed out");
+      }
+
       async function createVolunteerViaRpc(displayName, tagline, bio) {
         return withTimeout(state.supabase.rpc("create_volunteer_secure", {
           p_display_name: displayName,
@@ -1658,7 +1775,96 @@
           p_bio: bio || null,
           p_avatar_url: null,
           p_active: true
-        }), 12000, "Create request timed out");
+        }), 20000, "Create request timed out");
+      }
+
+      async function onCreateSession(event) {
+        event.preventDefault();
+        clearStatus(el.sessionStatus);
+
+        const title = String(el.sessionTitleInput.value || "").trim();
+        const startsRaw = String(el.sessionStartsInput.value || "").trim();
+        const assignAll = !!el.sessionAssignAllInput.checked;
+
+        if (title.length < 3) {
+          setStatus(el.sessionStatus, "Session title must be at least 3 characters.", "err");
+          return;
+        }
+        if (!startsRaw) {
+          setStatus(el.sessionStatus, "Pick a date/time.", "err");
+          return;
+        }
+
+        const parsed = new Date(startsRaw);
+        if (!isFinite(parsed.getTime())) {
+          setStatus(el.sessionStatus, "Invalid date/time.", "err");
+          return;
+        }
+
+        if (state.demoMode) {
+          const eventId = "demo-e-" + Math.random().toString(16).slice(2);
+          const row = { id: eventId, title: title, starts_at: parsed.toISOString() };
+          DEMO.events.push(row);
+          state.events.push(row);
+          state.upcomingEvents.push(row);
+          if (assignAll) {
+            state.eventVolunteerMap[eventId] = state.volunteers.map(function (v) { return v.id; });
+          }
+          await loadAllData();
+          renderAll();
+          setBackendStatus("Session created (demo).", "ok");
+          if (el.sessionDialog.open) el.sessionDialog.close();
+          return;
+        }
+
+        if (!state.supabase || !state.user) {
+          setStatus(el.sessionStatus, "Sign in first.", "err");
+          return;
+        }
+
+        el.createSessionBtn.disabled = true;
+        const original = el.createSessionBtn.textContent;
+        el.createSessionBtn.textContent = "Creating...";
+
+        try {
+          let resp = await createSessionViaRpc(title, parsed.toISOString(), assignAll);
+          if (resp.error) {
+            const msg = String(resp.error.message || "");
+            const missing = isRpcMissingError(msg, "create_session_secure");
+            const perms = /moderator|admin|required|permission|not authorized|row-level security|violates row-level security/i.test(msg);
+
+            if (missing) {
+              const text = "Session RPC missing. Run supabase/all_in_one_setup.sql in Supabase SQL editor.";
+              setStatus(el.sessionStatus, text, "err");
+              setBackendStatus(text, "err");
+              return;
+            }
+
+            if (perms) {
+              const setupOk = await runOwnerSetup({ silent: true });
+              if (setupOk) resp = await createSessionViaRpc(title, parsed.toISOString(), assignAll);
+            }
+          }
+
+          if (resp.error) {
+            const msg = String(resp.error.message || "Session create failed");
+            setStatus(el.sessionStatus, msg, "err");
+            setBackendStatus(msg, "err");
+            return;
+          }
+
+          await loadAllData();
+          renderAll();
+          setBackendStatus("Session created. Ask volunteers to mark availability in Studio.", "ok");
+          if (el.sessionDialog.open) el.sessionDialog.close();
+        } catch (err) {
+          const msg = err && err.message ? err.message : String(err || "Session create failed");
+          setStatus(el.sessionStatus, msg, "err");
+          setBackendStatus(msg, "err");
+        } finally {
+          el.createSessionBtn.disabled = false;
+          el.createSessionBtn.textContent = original || "Create Session";
+        }
       }
 
       async function onCreateVolunteer(event) {
@@ -1795,7 +2001,7 @@
           const preferredName = String(state.user.email || "Club Owner").split("@")[0];
           const rpcResp = await withTimeout(state.supabase.rpc("bootstrap_owner_setup_secure", {
             p_display_name: preferredName
-          }), 12000, "Setup request timed out");
+          }), 20000, "Setup request timed out");
 
           if (rpcResp.error) {
             const message = String(rpcResp.error.message || "");
@@ -2288,6 +2494,7 @@
       function renderAll() {
         safeRender("header", renderHeader);
         safeRender("volunteer-list", renderVolunteerList);
+        safeRender("ops-board", renderOpsBoard);
         safeRender("profile", renderProfile);
         safeRender("review-selectors", renderReviewSelectors);
         safeRender("report-selectors", renderReportSelectors);
@@ -2313,6 +2520,9 @@
       function renderHeader() {
         el.signOutBtn.style.display = state.user ? "" : "none";
         el.startSetupBtn.style.display = showSetupAction() ? "" : "none";
+        if (el.addSessionBtn) {
+          el.addSessionBtn.style.display = (state.user && memberApproved()) ? "" : "none";
+        }
         updateAddVolunteerDialogState();
         if (!state.user) {
           if (!state.demoMode) {
@@ -2414,6 +2624,115 @@
             metricBox("Open reports", String(stats.openReports)) +
           '</section>' +
           '<section class="reviews">' + (reviewHtml || '<div class="empty">No reviews yet</div>') + '</section>';
+      }
+
+      function renderOpsBoard() {
+        if (!el.opsBoard) return;
+
+        const upcoming = state.upcomingEvents
+          .slice()
+          .sort(function (a, b) { return new Date(a.starts_at) - new Date(b.starts_at); })
+          .slice(0, 6);
+
+        const coverageRows = upcoming.map(function (ev) {
+          const assigned = Array.isArray(state.eventVolunteerMap[ev.id]) && state.eventVolunteerMap[ev.id].length
+            ? state.eventVolunteerMap[ev.id].slice()
+            : state.volunteers.map(function (v) { return v.id; });
+          const assignedUnique = Array.from(new Set(assigned.map(String)));
+          let committed = 0;
+          let unavailable = 0;
+          let responded = 0;
+
+          assignedUnique.forEach(function (volId) {
+            const row = findCommitment(volId, ev.id);
+            const status = row ? String(row.status || "").toLowerCase() : "";
+            if (status === "committed") committed += 1;
+            if (status === "unavailable") unavailable += 1;
+            if (status === "committed" || status === "unavailable") responded += 1;
+          });
+
+          const target = Math.max(2, Math.min(4, assignedUnique.length || 2));
+          const gap = Math.max(0, target - committed);
+          return {
+            id: ev.id,
+            title: ev.title || "Session",
+            starts_at: ev.starts_at,
+            assigned: assignedUnique.length,
+            committed: committed,
+            unavailable: unavailable,
+            responded: responded,
+            gap: gap,
+            target: target
+          };
+        });
+
+        const overallAssigned = coverageRows.reduce(function (sum, row) { return sum + row.assigned; }, 0);
+        const overallResponded = coverageRows.reduce(function (sum, row) { return sum + row.responded; }, 0);
+        const overallCommitted = coverageRows.reduce(function (sum, row) { return sum + row.committed; }, 0);
+        const responseRate = overallAssigned ? Math.round((overallResponded / overallAssigned) * 100) : 0;
+        const fillRate = overallAssigned ? Math.round((overallCommitted / overallAssigned) * 100) : 0;
+
+        const riskRows = state.volunteers.map(function (v) {
+          const stats = volunteerStats(v.id);
+          const assignedUpcoming = coverageRows.filter(function (row) {
+            const mapped = Array.isArray(state.eventVolunteerMap[row.id]) && state.eventVolunteerMap[row.id].length
+              ? state.eventVolunteerMap[row.id].map(String)
+              : state.volunteers.map(function (vol) { return String(vol.id); });
+            return mapped.includes(String(v.id));
+          }).length;
+
+          const needsResponse = assignedUpcoming > 0 && stats.responseRate < 70;
+          const reliabilityRisk = stats.showUpRate != null && stats.showUpRate < 80;
+          const satisfactionRisk = stats.reviewCount >= 3 && stats.avgRating < 3.8;
+
+          const reasons = [];
+          if (needsResponse) reasons.push("low response");
+          if (reliabilityRisk) reasons.push("show-up dip");
+          if (satisfactionRisk) reasons.push("rating dip");
+          if (!reasons.length) return null;
+
+          let severity = 0;
+          if (needsResponse) severity += 2;
+          if (reliabilityRisk) severity += 2;
+          if (satisfactionRisk) severity += 1;
+
+          return {
+            volunteer: v,
+            reasons: reasons,
+            severity: severity
+          };
+        }).filter(Boolean).sort(function (a, b) { return b.severity - a.severity; }).slice(0, 6);
+
+        const coverageHtml = coverageRows.length ? coverageRows.map(function (row) {
+          const badge = row.gap > 0
+            ? '<span class="badge-warn">Need ' + row.gap + '</span>'
+            : '<span class="badge-ok">Covered</span>';
+          return '<article class="ops-row">' +
+            '<div class="session-meta"><div class="headline">' + esc(row.title) + '</div>' + badge + '</div>' +
+            '<div class="muted">' + formatDateTime(row.starts_at) + '</div>' +
+            '<div class="muted">Committed ' + row.committed + '/' + row.assigned + ' · unavailable ' + row.unavailable + '</div>' +
+          '</article>';
+        }).join("") : '<div class="empty">No upcoming sessions yet. Add your next session.</div>';
+
+        const riskHtml = riskRows.length ? riskRows.map(function (row) {
+          return '<article class="risk-row">' +
+            '<div><div class="headline">' + esc(row.volunteer.display_name || "Volunteer") + '</div><div class="muted">' + esc(row.reasons.join(" + ")) + '</div></div>' +
+            '<button type="button" class="mini ghost" data-action="nudge" data-volunteer="' + esc(row.volunteer.id) + '">Copy nudge</button>' +
+          '</article>';
+        }).join("") : '<div class="empty">No high-risk volunteers right now.</div>';
+
+        el.opsBoard.innerHTML =
+          '<section class="hero">' +
+            '<div class="hero-top">' +
+              '<div><h2>Command Center</h2><div class="muted">Focus: retention, attendance, satisfaction</div></div>' +
+              '<div class="actions"><button class="mini" type="button" data-action="add-session">Add session</button><button class="mini ghost" type="button" data-action="add-volunteer">Add volunteer</button></div>' +
+            '</div>' +
+            '<div class="chips"><span class="chip">Upcoming sessions ' + coverageRows.length + '</span><span class="chip">Response ' + responseRate + '%</span><span class="chip">Coverage ' + fillRate + '%</span></div>' +
+            '<div class="ops-grid">' +
+              '<section class="ops-card"><div class="muted">Session coverage</div><div class="ops-list">' + coverageHtml + '</div></section>' +
+              '<section class="ops-card"><div class="muted">At-risk volunteers</div><div class="ops-list">' + riskHtml + '</div></section>' +
+            '</div>' +
+          '</section>';
       }
 
       function renderReviewSelectors() {
@@ -2609,6 +2928,30 @@
         if (status === "committed") return "Committed";
         if (status === "unavailable") return "Unavailable";
         return "No response";
+      }
+
+      async function copyVolunteerNudge(volunteerId) {
+        const volunteer = state.volunteers.find(function (v) { return String(v.id) === String(volunteerId); });
+        if (!volunteer) return;
+
+        const upcoming = upcomingEventsForVolunteer(volunteer.id).slice(0, 3);
+        const nextLabel = upcoming.length
+          ? upcoming.map(function (ev) { return (ev.title || "Session") + " (" + formatDate(ev.starts_at) + ")"; }).join(", ")
+          : "next sessions";
+        const text =
+          "Hi " + (volunteer.display_name || "there") + ", quick check-in for MK Chess Club: can you confirm your availability for " +
+          nextLabel + "? Your attendance reliability is a big help for member experience. Thank you.";
+
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(text);
+          } else {
+            throw new Error("Clipboard API unavailable");
+          }
+          setBackendStatus("Nudge copied for " + (volunteer.display_name || "volunteer") + ".", "ok");
+        } catch (_err) {
+          setBackendStatus("Could not copy nudge automatically. Message: " + text, "err");
+        }
       }
 
       function eventIndexById() {
