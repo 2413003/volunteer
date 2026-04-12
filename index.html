@@ -1388,6 +1388,10 @@
             onDemoClick();
             return;
           }
+          if (type === "setup") {
+            runOwnerSetup();
+            return;
+          }
           if (type === "settings") {
             if (!el.settingsDialog.open) el.settingsDialog.showModal();
             return;
@@ -1418,6 +1422,8 @@
           openStudioDialog();
         } else if (type === "demo") {
           onDemoClick();
+        } else if (type === "setup") {
+          runOwnerSetup();
         } else if (type === "settings") {
           if (!el.settingsDialog.open) el.settingsDialog.showModal();
         }
@@ -1460,6 +1466,47 @@
       function openStudioDialog() {
         renderStudio();
         if (!el.studioDialog.open) el.studioDialog.showModal();
+      }
+
+      async function runOwnerSetup() {
+        if (!state.user) {
+          setStatus(el.authStatus, "Sign in first, then run setup.", "err");
+          return;
+        }
+
+        if (state.demoMode || !state.supabase) {
+          setBackendStatus("Connect Supabase first, then run setup.", "err");
+          if (!el.settingsDialog.open) el.settingsDialog.showModal();
+          return;
+        }
+
+        setBackendStatus("Setting up workspace...", "ok");
+
+        const preferredName = String(state.user.email || "Club Owner").split("@")[0];
+        const rpcResp = await state.supabase.rpc("bootstrap_owner_setup_secure", {
+          p_display_name: preferredName
+        });
+
+        if (rpcResp.error) {
+          const message = String(rpcResp.error.message || "");
+          const missing =
+            /bootstrap_owner_setup_secure/i.test(message) &&
+            /(does not exist|not found|schema cache|undefined function)/i.test(message);
+          if (missing) {
+            setBackendStatus("Setup RPC missing. Run supabase/all_in_one_setup.sql in Supabase.", "err");
+            return;
+          }
+          setBackendStatus("Setup failed: " + message, "err");
+          return;
+        }
+
+        await refreshSession();
+        await loadAllData();
+        renderAll();
+
+        const role = (state.member && state.member.role) ? state.member.role : "member";
+        const status = (state.member && state.member.status) ? state.member.status : "pending";
+        setBackendStatus("Setup complete. Role: " + role + " · Status: " + status, "ok");
       }
 
       async function setCommitmentStatus(eventId, status) {
@@ -1924,7 +1971,8 @@
         if (memberApproved()) {
           setStatus(el.authStatus, "Signed in: " + name, "ok");
         } else {
-          setStatus(el.authStatus, "Signed in: " + name + " (approval required to submit)", "err");
+          const hint = (!state.demoMode && state.volunteers.length === 0) ? " · click Start setup" : "";
+          setStatus(el.authStatus, "Signed in: " + name + " (approval required to submit)" + hint, "err");
         }
       }
 
@@ -1949,8 +1997,11 @@
           if (!state.demoMode) {
             setBackendStatus("No volunteers found. Add volunteers or use demo preview.", "err");
           }
+          const setupBtn = (!state.demoMode && state.user)
+            ? '<button type="button" class="mini" data-action="setup">Start setup</button>'
+            : "";
           el.volunteerList.innerHTML =
-            '<div class="empty">No volunteers<div class="empty-actions"><button type="button" class="mini" data-action="demo">Load demo</button><button type="button" class="mini ghost" data-action="settings">Connect</button></div></div>';
+            '<div class="empty">No volunteers<div class="empty-actions">' + setupBtn + '<button type="button" class="mini" data-action="demo">Load demo</button><button type="button" class="mini ghost" data-action="settings">Connect</button></div></div>';
           return;
         }
 
@@ -1972,8 +2023,11 @@
       function renderProfile() {
         const volunteer = state.volunteers.find(function (v) { return v.id === state.selectedVolunteerId; });
         if (!volunteer) {
+          const setupBtn = (!state.demoMode && state.user)
+            ? '<button type="button" class="mini" data-action="setup">Start setup</button>'
+            : "";
           el.profileSurface.innerHTML =
-            '<div class="empty">Select a volunteer<div class="empty-actions"><button type="button" class="mini" data-action="demo">Load demo</button><button type="button" class="mini ghost" data-action="settings">Connect</button></div></div>';
+            '<div class="empty">Select a volunteer<div class="empty-actions">' + setupBtn + '<button type="button" class="mini" data-action="demo">Load demo</button><button type="button" class="mini ghost" data-action="settings">Connect</button></div></div>';
           return;
         }
 
