@@ -5,8 +5,11 @@
     url: "mk_ops_url",
     key: "mk_ops_key",
     domain: "mk_ops_domain",
-    previewMode: "mk_ops_preview_mode",
-    previewData: "mk_ops_preview_data_v1"
+    previewMode: "mk_ops_preview_mode_v2",
+    previewData: "mk_ops_preview_data_v2",
+    simpleView: "mk_ops_simple_view_v3",
+    monthlyGoal: "mk_ops_monthly_goal_v1",
+    volunteerPurpose: "mk_ops_volunteer_purpose_v1"
   };
 
   const DEFAULT_SUPABASE = {
@@ -37,7 +40,10 @@
     loading: false,
     previewMode: true,
     syncInFlight: false,
-    syncRequested: false
+    syncRequested: false,
+    simpleView: true,
+    monthlyGoal: 2,
+    volunteerPurpose: "community"
   };
 
   const el = {};
@@ -66,7 +72,7 @@
 
   function cacheEls() {
     [
-      "emailInput", "sendLinkBtn", "signOutBtn", "startSetupBtn", "addVolunteerBtn", "addSessionBtn", "demoModeBtn", "openSettingsBtn",
+      "emailInput", "sendLinkBtn", "signOutBtn", "startSetupBtn", "addVolunteerBtn", "addSessionBtn", "toggleSimpleBtn", "demoModeBtn", "openSettingsBtn",
       "authStatus", "backendStatus", "commandBoard", "searchInput", "volunteerList", "volunteerDetail", "studioPanel",
       "settingsDialog", "supaUrlInput", "supaKeyInput", "allowedDomainInput", "connectBtn",
       "volunteerDialog", "volunteerForm", "volunteerNameInput", "volunteerTaglineInput", "volunteerBioInput", "volunteerStatus", "createVolunteerBtn",
@@ -88,6 +94,7 @@
     el.startSetupBtn.addEventListener("click", onStartSetup);
     el.addVolunteerBtn.addEventListener("click", openVolunteerDialog);
     el.addSessionBtn.addEventListener("click", openSessionDialog);
+    el.toggleSimpleBtn.addEventListener("click", onToggleSimpleView);
     el.demoModeBtn.addEventListener("click", onTogglePreviewMode);
     el.openSettingsBtn.addEventListener("click", () => openDialog(el.settingsDialog));
     el.connectBtn.addEventListener("click", onConnectClick);
@@ -96,6 +103,7 @@
     el.commandBoard.addEventListener("click", onActionClick);
     el.volunteerDetail.addEventListener("click", onActionClick);
     el.studioPanel.addEventListener("click", onActionClick);
+    el.volunteerList.addEventListener("click", onActionClick);
     el.volunteerList.addEventListener("click", onVolunteerListClick);
 
     el.volunteerForm.addEventListener("submit", onCreateVolunteer);
@@ -121,15 +129,32 @@
     const savedKey = safeGet(STORAGE.key);
     const savedDomain = safeGet(STORAGE.domain);
     const savedPreview = safeGet(STORAGE.previewMode);
+    const savedSimple = safeGet(STORAGE.simpleView);
+    const savedGoal = safeGet(STORAGE.monthlyGoal);
+    const savedPurpose = safeGet(STORAGE.volunteerPurpose);
 
     el.supaUrlInput.value = savedUrl || DEFAULT_SUPABASE.url;
     el.supaKeyInput.value = savedKey || DEFAULT_SUPABASE.anonKey;
     el.allowedDomainInput.value = savedDomain || "";
     state.previewMode = savedPreview === null ? true : savedPreview === "1";
+    state.simpleView = savedSimple === null ? true : savedSimple === "1";
+    state.monthlyGoal = [1, 2, 4].includes(Number(savedGoal)) ? Number(savedGoal) : 2;
+    state.volunteerPurpose = ["community", "coaching", "skills", "social"].includes(String(savedPurpose || ""))
+      ? String(savedPurpose)
+      : "community";
 
     if (!savedUrl) safeSet(STORAGE.url, DEFAULT_SUPABASE.url);
     if (!savedKey) safeSet(STORAGE.key, DEFAULT_SUPABASE.anonKey);
     if (savedPreview === null) safeSet(STORAGE.previewMode, "1");
+    if (savedSimple === null) safeSet(STORAGE.simpleView, "1");
+    if (!savedGoal) safeSet(STORAGE.monthlyGoal, "2");
+    if (!savedPurpose) safeSet(STORAGE.volunteerPurpose, "community");
+  }
+
+  function onToggleSimpleView() {
+    state.simpleView = !state.simpleView;
+    safeSet(STORAGE.simpleView, state.simpleView ? "1" : "0");
+    renderAll();
   }
 
   async function onTogglePreviewMode() {
@@ -238,7 +263,7 @@
       state.user = null;
       state.profile = null;
       const text = errorText(error, "Session check failed");
-      if (!/lock:mk_volunteer_ops_auth_v3/i.test(text)) setBackendStatus(text, "err");
+      if (!isAuthLockError(text)) setBackendStatus(text, "err");
       return;
     }
     state.user = data && data.session ? data.session.user : null;
@@ -256,7 +281,9 @@
       await loadProfile();
       await loadAllData();
     } catch (error) {
-      setBackendStatus(errorText(error, "Sync failed"), "err");
+      const text = errorText(error, "Sync failed");
+      if (isAuthLockError(text)) setBackendStatus("Session sync busy in another tab. Close duplicate tabs to avoid auth lock conflicts.", "warn");
+      else setBackendStatus(text, "err");
       state.loading = false;
     } finally {
       state.syncInFlight = false;
@@ -282,8 +309,8 @@
       state.profile = {
         user_id: "preview-user",
         email: "preview@local",
-        display_name: "Preview Admin",
-        role: "admin",
+        display_name: "Preview Volunteer",
+        role: "member",
         status: "approved",
         volunteer_id: state.profile && state.profile.volunteer_id ? state.profile.volunteer_id : null
       };
@@ -304,7 +331,7 @@
         .maybeSingle();
     } catch (error) {
       const text = errorText(error, "Profile load failed");
-      if (/lock:mk_volunteer_ops_auth_v3/i.test(text)) {
+      if (isAuthLockError(text)) {
         state.profile = {
           user_id: state.user.id,
           email: state.user.email || "",
@@ -320,7 +347,7 @@
 
     if (response.error) {
       const message = errorText(response.error, "Unknown error");
-      if (/lock:mk_volunteer_ops_auth_v3/i.test(message)) {
+      if (isAuthLockError(message)) {
         state.profile = {
           user_id: state.user.id,
           email: state.user.email || "",
@@ -487,7 +514,7 @@
       }
     } catch (error) {
       const text = errorText(error, "Data load failed");
-      if (/lock:mk_volunteer_ops_auth_v3/i.test(text)) {
+      if (isAuthLockError(text)) {
         setBackendStatus("Auth lock conflict detected. Close duplicate tabs or use Preview mode.", "warn");
       } else {
         setBackendStatus("Data load issue: " + text, "err");
@@ -508,6 +535,7 @@
   function renderHeader() {
     const signedIn = Boolean(state.user);
     const admin = isAdmin();
+    if (el.toggleSimpleBtn) el.toggleSimpleBtn.textContent = state.simpleView ? "Advanced view" : "Simple view";
     if (el.demoModeBtn) el.demoModeBtn.textContent = state.previewMode ? "Preview: On" : "Preview: Off";
 
     el.sendLinkBtn.style.display = state.previewMode ? "none" : (signedIn ? "none" : "");
@@ -519,7 +547,7 @@
 
     if (state.previewMode) {
       el.emailInput.value = "Preview mode enabled";
-      setStatus(el.authStatus, "Preview mode active. No login required while testing features.", "ok");
+      setStatus(el.authStatus, "Preview mode active. Volunteer experience loaded instantly, no login needed.", "ok");
       return;
     }
 
@@ -527,21 +555,28 @@
     else if (el.emailInput.value === "Preview mode enabled") el.emailInput.value = "";
 
     if (!signedIn) {
-      setStatus(el.authStatus, "Sign in to manage volunteer operations.", "");
+      setStatus(el.authStatus, "Sign in for live data, or keep Preview mode on to explore instantly.", "");
       return;
     }
     if (admin) {
-      setStatus(el.authStatus, "Admin signed in: " + (state.user.email || ""), "ok");
+      setStatus(el.authStatus, "Admin signed in: " + (state.user.email || "") + " • session coordinator mode", "ok");
       return;
     }
 
     const role = state.profile ? String(state.profile.role || "member") : "member";
     const status = state.profile ? String(state.profile.status || "pending") : "pending";
-    setStatus(el.authStatus, "Signed in: " + (state.user.email || "") + " (" + role + ", " + status + ")", status === "approved" ? "" : "warn");
+    const statusLine = status === "approved"
+      ? "Signed in: " + (state.user.email || "") + " (" + role + ", approved)"
+      : "Signed in: " + (state.user.email || "") + " (" + role + ", pending approval for live submissions)";
+    setStatus(el.authStatus, statusLine, status === "approved" ? "ok" : "warn");
   }
   function renderCommandBoard() {
     if (state.loading) {
-      el.commandBoard.innerHTML = '<div class="empty">Loading command center...</div>';
+      el.commandBoard.innerHTML = '<div class="empty">Loading next actions...</div>';
+      return;
+    }
+    if (state.simpleView) {
+      renderSimpleCommandBoard();
       return;
     }
 
@@ -687,7 +722,7 @@
     const riskHtml = riskRows.length
       ? riskRows.map((row) => [
         '<article class="row">',
-        '<div class="row-top"><p class="headline">' + esc(row.volunteer.display_name || 'Volunteer') + '</p><span class="warnpill">Rep ' + Math.round(Number(row.metric.reliability_score || 0)) + '</span></div>',
+        '<div class="row-top"><p class="headline">' + esc(row.volunteer.display_name || 'Volunteer') + '</p><span class="warnpill">Reliability ' + Math.round(Number(row.metric.reliability_score || 0)) + '</span></div>',
         '<p class="muted">' + esc(row.reasons.join(' + ')) + '</p>',
         '<div class="inline-actions"><button type="button" class="mini ghost" data-action="nudge-volunteer" data-volunteer-id="' + esc(row.volunteer.id) + '">Copy nudge</button></div>',
         '</article>'
@@ -717,7 +752,7 @@
     const topHtml = topRows.length
       ? topRows.map((row, index) => [
         '<article class="row">',
-        '<div class="row-top"><p class="headline">' + (index + 1) + '. ' + esc(row.volunteer.display_name || 'Volunteer') + '</p><span class="okpill">Rep ' + Math.round(Number(row.metric.reliability_score || 0)) + '</span></div>',
+        '<div class="row-top"><p class="headline">' + (index + 1) + '. ' + esc(row.volunteer.display_name || 'Volunteer') + '</p><span class="okpill">Reliability ' + Math.round(Number(row.metric.reliability_score || 0)) + '</span></div>',
         '<p class="muted">' + stars(row.metric.avg_rating) + ' • attendance ' + Number(row.metric.attendance_rate_pct || 0) + '%</p>',
         '</article>'
       ].join('')).join('')
@@ -768,9 +803,188 @@
     ].join('');
   }
 
+  function renderSimpleCommandBoard() {
+    const upcoming = upcomingSessions().slice(0, 6);
+    const coverageRows = upcoming.map(sessionCoverageRow);
+    const openSupportCount = state.supportRequests.filter((row) => String(row.status || "open") === "open").length;
+    const volunteersCount = state.volunteers.length;
+    const myId = myVolunteerId();
+    const actorId = state.user ? String(state.user.id) : "preview-user";
+    const myVolunteer = myId ? state.volunteers.find((row) => String(row.id) === String(myId)) : null;
+
+    if (myVolunteer) {
+      const myUpcoming = upcomingSessionsForVolunteer(myVolunteer.id).slice(0, 4);
+      const nextMine = myUpcoming[0] || null;
+      const myPending = pendingUpcomingResponses(myVolunteer.id);
+      const myHelped = countPositiveAttendance(myVolunteer.id);
+      const myHelped30 = countPositiveAttendance(myVolunteer.id, 30);
+      const myStreak = showUpStreak(myVolunteer.id);
+      const praiseCount = feedbackForVolunteer(myVolunteer.id).filter((row) => Number(row.rating || 0) >= 4).length;
+      const milestone = volunteerMilestone(myHelped);
+      const checkInNow = myUpcoming.find((session) => {
+        const commitment = commitmentFor(myVolunteer.id, session.id);
+        return commitment && String(commitment.status || "") === "committed" && !commitment.last_check_in_at && withinCheckInWindow(session.starts_at);
+      }) || null;
+      const pulsePending = pastSessionsForVolunteer(myVolunteer.id).find((session) => !pulseFor(myVolunteer.id, session.id, actorId)) || null;
+      const openShift = upcomingSessions().find((session) => !assignedVolunteerIds(session.id).includes(String(myVolunteer.id))) || null;
+      const monthlyGoal = Number(state.monthlyGoal || 2);
+      const goalRemaining = Math.max(0, monthlyGoal - myHelped30);
+      const paceLine = goalRemaining > 0
+        ? (goalRemaining + " more this month to hit your personal goal")
+        : "Personal monthly goal achieved";
+      const purpose = purposeSummary(state.volunteerPurpose);
+      const goalButtons = [
+        '<button type="button" class="mini' + (monthlyGoal === 1 ? "" : " ghost") + '" data-action="set-goal" data-goal="1">1/mo</button>',
+        '<button type="button" class="mini' + (monthlyGoal === 2 ? "" : " ghost") + '" data-action="set-goal" data-goal="2">2/mo</button>',
+        '<button type="button" class="mini' + (monthlyGoal === 4 ? "" : " ghost") + '" data-action="set-goal" data-goal="4">Weekly</button>'
+      ].join("");
+      const purposeButtons = [
+        '<button type="button" class="mini' + (state.volunteerPurpose === "community" ? "" : " ghost") + '" data-action="set-purpose" data-purpose="community">Community</button>',
+        '<button type="button" class="mini' + (state.volunteerPurpose === "coaching" ? "" : " ghost") + '" data-action="set-purpose" data-purpose="coaching">Coaching</button>',
+        '<button type="button" class="mini' + (state.volunteerPurpose === "skills" ? "" : " ghost") + '" data-action="set-purpose" data-purpose="skills">Skills</button>',
+        '<button type="button" class="mini' + (state.volunteerPurpose === "social" ? "" : " ghost") + '" data-action="set-purpose" data-purpose="social">Social</button>'
+      ].join("");
+
+      let actionHtml = '<div class="empty">You are up to date. Keep your momentum going.</div>';
+      if (checkInNow) {
+        actionHtml = [
+          '<article class="row">',
+          '<div class="row-top"><p class="headline">Check in now</p><span class="warnpill">Now</span></div>',
+          '<p class="muted">' + esc(checkInNow.title || "Session") + " • " + esc(formatDateTime(checkInNow.starts_at)) + '</p>',
+          '<div class="inline-actions"><button type="button" class="mini" data-action="check-in-session" data-session-id="' + esc(checkInNow.id) + '">I\'m on my way</button></div>',
+          '</article>'
+        ].join("");
+      } else if (myPending > 0 && nextMine) {
+        actionHtml = [
+          '<article class="row">',
+          '<div class="row-top"><p class="headline">Confirm your next session</p><span class="pill">Pending</span></div>',
+          '<p class="muted">' + esc(nextMine.title || "Session") + " • " + esc(formatDateTime(nextMine.starts_at)) + '</p>',
+          '<div class="inline-actions"><button type="button" class="mini" data-action="set-commitment" data-session-id="' + esc(nextMine.id) + '" data-status="committed">I can make it</button><button type="button" class="mini ghost" data-action="set-commitment" data-session-id="' + esc(nextMine.id) + '" data-status="unavailable">Can\'t make it</button></div>',
+          '</article>'
+        ].join("");
+      } else if (pulsePending) {
+        actionHtml = [
+          '<article class="row">',
+          '<div class="row-top"><p class="headline">Submit your quick pulse</p><span class="pill">1 min</span></div>',
+          '<p class="muted">' + esc(pulsePending.title || "Session") + " • " + esc(formatDate(pulsePending.starts_at)) + '</p>',
+          '<div class="inline-actions"><button type="button" class="mini ghost" data-action="open-pulse-dialog" data-session-id="' + esc(pulsePending.id) + '">Submit pulse</button></div>',
+          '</article>'
+        ].join("");
+      }
+
+      const momentumLine = milestone.remaining > 0
+        ? (milestone.remaining + " more session(s) to reach " + milestone.nextLabel)
+        : ("You are at " + milestone.currentLabel + " level");
+      const membersHelped = impactEstimate(myHelped);
+      const shiftHtml = openShift
+        ? '<article class="row"><div class="row-top"><p class="headline">' + esc(openShift.title || "Session") + '</p><span class="pill">' + esc(formatDateTime(openShift.starts_at)) + '</span></div><div class="inline-actions"><button type="button" class="mini ghost" data-action="take-open-shift" data-session-id="' + esc(openShift.id) + '">Take this shift</button></div></article>'
+        : '<div class="empty">No open shifts right now.</div>';
+
+      el.commandBoard.innerHTML = [
+        '<section class="card">',
+        '<div class="row-top"><p class="headline">Welcome back, ' + esc(myVolunteer.display_name || "Volunteer") + '</p><span class="score">' + esc(milestone.currentLabel) + '</span></div>',
+        '<p class="muted">Purpose: ' + esc(purpose.title) + ". " + esc(purpose.body) + '</p>',
+        '<p class="muted">You have supported about ' + membersHelped + ' member visits.' + (praiseCount > 0 ? (" " + praiseCount + " positive note(s) received.") : "") + '</p>',
+        '<div class="inline-actions"><button type="button" class="mini ghost" data-action="open-support-dialog">Need support</button>' + goalButtons + '</div>',
+        '<div class="inline-actions">' + purposeButtons + '</div>',
+        '</section>',
+        '<section class="grid2"><div class="card"><h3>Your Next Best Action</h3><div class="rows">' + actionHtml + '</div></div><div class="card"><h3>Progress</h3><div class="rows"><article class="row"><div class="row-top"><p class="headline">' + esc(momentumLine) + '</p><span class="okpill">' + myHelped + '/' + milestone.nextTarget + '</span></div><p class="muted">' + esc(paceLine) + '</p></article></div></div></section>',
+        '<section class="metric-grid">',
+        metricBox("Sessions helped", String(myHelped)),
+        metricBox("This month", String(myHelped30)),
+        metricBox("Streak", String(myStreak)),
+        metricBox("Upcoming", String(myUpcoming.length)),
+        '</section>',
+        '<section class="card"><h3>Optional Extra Shift</h3><div class="rows">' + shiftHtml + '</div></section>'
+      ].join("");
+      return;
+    }
+
+    const steps = [
+      {
+        label: "Add volunteers",
+        done: volunteersCount > 0,
+        text: volunteersCount > 0 ? (volunteersCount + " volunteer(s) added") : (isAdmin() ? "No volunteers yet" : "Waiting for coordinator to add profiles"),
+        action: isAdmin() ? '<button type="button" class="mini" data-action="open-volunteer-dialog">Add volunteer</button>' : '<button type="button" class="mini ghost" data-action="open-settings">Settings</button>'
+      },
+      {
+        label: "Create upcoming sessions",
+        done: upcoming.length > 0,
+        text: upcoming.length > 0 ? (upcoming.length + " upcoming session(s)") : "No upcoming sessions",
+        action: isAdmin() ? '<button type="button" class="mini ghost" data-action="open-session-dialog">Add session</button>' : ""
+      },
+      {
+        label: "Claim volunteer profile",
+        done: Boolean(myId),
+        text: myId ? "Profile linked" : "Needed for volunteer studio actions",
+        action: !myId && state.selectedVolunteerId ? '<button type="button" class="mini ghost" data-action="claim-volunteer" data-volunteer-id="' + esc(state.selectedVolunteerId) + '">Claim profile</button>' : ""
+      }
+    ];
+
+    const stepsHtml = steps.map((step, idx) => [
+      '<article class="row">',
+      '<div class="row-top"><p class="headline">' + (idx + 1) + ". " + esc(step.label) + '</p>' + (step.done ? '<span class="okpill">Done</span>' : '<span class="pill">Pending</span>') + '</div>',
+      '<p class="muted">' + esc(step.text) + '</p>',
+      '<div class="inline-actions">' + step.action + '</div>',
+      '</article>'
+    ].join("")).join("");
+
+    const todayRowsHtml = coverageRows.length
+      ? coverageRows.slice(0, 4).map((row) => {
+        const badge = row.gap > 0 ? '<span class="warnpill">Need ' + row.gap + '</span>' : '<span class="okpill">Covered</span>';
+        const nudges = row.pendingIds.length
+          ? '<button type="button" class="mini ghost" data-action="nudge-session" data-session-id="' + esc(row.id) + '" data-stage="Reminder">Nudge pending</button>'
+          : "";
+        const attendance = isAdmin() && new Date(row.starts_at).getTime() <= Date.now() + 3600000
+          ? '<button type="button" class="mini ghost" data-action="open-attendance" data-session-id="' + esc(row.id) + '">Mark attendance</button>'
+          : "";
+        return [
+          '<article class="row">',
+          '<div class="row-top"><p class="headline">' + esc(row.title) + '</p>' + badge + '</div>',
+          '<p class="muted">' + esc(formatDateTime(row.starts_at)) + '</p>',
+          '<p class="muted">Committed ' + row.committed + "/" + row.required + " • Pending " + row.pendingIds.length + '</p>',
+          '<div class="inline-actions">' + nudges + attendance + '</div>',
+          '</article>'
+        ].join("");
+      }).join("")
+      : '<div class="empty">No sessions yet. Create one to start coordination.</div>';
+
+    const nextAction = !volunteersCount
+      ? "Start by adding your first volunteer profile."
+      : !upcoming.length
+        ? "Next: create the next chess session so volunteers can commit."
+        : openSupportCount > 0
+          ? "You have open support requests. Resolve these first to protect volunteer retention."
+          : "Next: nudge pending volunteers and keep commitments up to date.";
+
+    el.commandBoard.innerHTML = [
+      '<section class="card">',
+      '<h3>What To Do Next</h3>',
+      '<p class="muted">' + esc(nextAction) + '</p>',
+      '<div class="rows">' + stepsHtml + '</div>',
+      '</section>',
+      '<section class="metric-grid">',
+      metricBox("Volunteers", String(volunteersCount)),
+      metricBox("Upcoming", String(upcoming.length)),
+      metricBox("Open support", String(openSupportCount)),
+      metricBox("Preview mode", state.previewMode ? "On" : "Off"),
+      '</section>',
+      '<section class="card"><h3>Sessions Needing Attention</h3><div class="rows">' + todayRowsHtml + '</div></section>'
+    ].join("");
+  }
+
   function renderVolunteerList() {
+    const selfFocus = state.simpleView && Boolean(myVolunteerId()) && !isAdmin();
+    if (el.searchInput) {
+      el.searchInput.placeholder = selfFocus ? "Your panel" : (state.simpleView ? "Find volunteer" : "Search volunteers");
+      el.searchInput.style.display = selfFocus ? "none" : "";
+    }
     if (state.loading) {
       el.volunteerList.innerHTML = '<div class="empty">Loading volunteers...</div>';
+      return;
+    }
+    if (state.simpleView) {
+      renderSimpleVolunteerList();
       return;
     }
 
@@ -801,7 +1015,84 @@
         '<article class="vol ' + active + '" data-volunteer-id="' + esc(volunteer.id) + '">',
         '<div class="av">' + esc(initials(volunteer.display_name || 'V')) + '</div>',
         '<div><p class="headline">' + esc(volunteer.display_name || 'Volunteer') + '</p><p class="muted">' + stars(metric.avg_rating) + ' ' + Number(metric.avg_rating || 0).toFixed(2) + ' • attendance ' + Number(metric.attendance_rate_pct || 0) + '%</p></div>',
-        '<span class="score">Rep ' + Math.round(Number(metric.reliability_score || 0)) + '</span>',
+        '<span class="score">Reliability ' + Math.round(Number(metric.reliability_score || 0)) + '</span>',
+        '</article>'
+      ].join('');
+    }).join('');
+  }
+
+  function renderSimpleVolunteerList() {
+    const myId = myVolunteerId();
+    const selfFocus = Boolean(myId) && !isAdmin();
+    if (selfFocus) {
+      const mine = state.volunteers.find((row) => String(row.id) === String(myId));
+      if (!mine) {
+        el.volunteerList.innerHTML = '<div class="empty">No linked volunteer profile.</div>';
+        return;
+      }
+      state.selectedVolunteerId = String(mine.id);
+      const metric = metricFor(mine.id);
+      const upcoming = upcomingSessionsForVolunteer(mine.id).slice(0, 2);
+      const next = upcoming[0] || null;
+      const helped30 = countPositiveAttendance(mine.id, 30);
+      const monthlyGoal = Number(state.monthlyGoal || 2);
+      const goalRemaining = Math.max(0, monthlyGoal - helped30);
+      const goalLine = goalRemaining > 0
+        ? (goalRemaining + " more this month to hit your goal")
+        : "Monthly goal reached";
+
+      el.volunteerList.innerHTML = [
+        '<section class="card">',
+        '<h3>Your Snapshot</h3>',
+        '<article class="row">',
+        '<div class="row-top"><p class="headline">' + esc(mine.display_name || "Volunteer") + '</p><span class="score">★ ' + Number(metric.avg_rating || 0).toFixed(1) + '</span></div>',
+        '<p class="muted">' + esc(mine.tagline || "Thanks for supporting MK Chess Club.") + '</p>',
+        '</article>',
+        '<article class="row">',
+        '<div class="row-top"><p class="headline">This month: ' + helped30 + "/" + monthlyGoal + '</p><span class="' + (goalRemaining > 0 ? 'pill' : 'okpill') + '">' + esc(goalRemaining > 0 ? "In progress" : "On track") + '</span></div>',
+        '<p class="muted">' + esc(goalLine) + '</p>',
+        next ? '<p class="muted">Next up: ' + esc(next.title || "Session") + " • " + esc(formatDateTime(next.starts_at)) + '</p>' : '<p class="muted">No upcoming session assigned yet.</p>',
+        '</article>',
+        '</section>'
+      ].join("");
+      return;
+    }
+
+    const search = String(el.searchInput.value || "").trim().toLowerCase();
+    const rows = state.volunteers
+      .filter((volunteer) => {
+        const haystack = ((volunteer.display_name || "") + " " + (volunteer.tagline || "") + " " + (volunteer.bio || "")).toLowerCase();
+        return !search || haystack.includes(search);
+      })
+      .map((volunteer) => ({ volunteer, metric: metricFor(volunteer.id) }))
+      .sort((a, b) => String(a.volunteer.display_name || "").localeCompare(String(b.volunteer.display_name || "")));
+
+    if (!rows.length) {
+      const actions = isAdmin() ? '<div class="inline-actions"><button type="button" class="mini" data-action="open-volunteer-dialog">Add volunteer</button></div>' : '';
+      el.volunteerList.innerHTML = '<div class="empty">No volunteers yet.' + actions + '</div>';
+      return;
+    }
+
+    if (!state.selectedVolunteerId || !rows.some((row) => String(row.volunteer.id) === String(state.selectedVolunteerId))) {
+      state.selectedVolunteerId = String(rows[0].volunteer.id);
+    }
+
+    el.volunteerList.innerHTML = rows.map((entry) => {
+      const volunteer = entry.volunteer;
+      const metric = entry.metric;
+      const active = String(volunteer.id) === String(state.selectedVolunteerId) ? "active" : "";
+      const upcoming = upcomingSessionsForVolunteer(volunteer.id);
+      const next = upcoming[0] || null;
+      const rating = Number(metric.avg_rating || 0);
+      const rightBadge = rating > 0 ? ("★ " + rating.toFixed(1)) : "New";
+      const subtitle = next
+        ? ("Next: " + formatDateTime(next.starts_at))
+        : (volunteer.tagline ? volunteer.tagline : "No upcoming sessions");
+      return [
+        '<article class="vol ' + active + '" data-volunteer-id="' + esc(volunteer.id) + '">',
+        '<div class="av">' + esc(initials(volunteer.display_name || 'V')) + '</div>',
+        '<div><p class="headline">' + esc(volunteer.display_name || 'Volunteer') + '</p><p class="muted">' + esc(subtitle) + '</p></div>',
+        '<span class="score">' + esc(rightBadge) + '</span>',
         '</article>'
       ].join('');
     }).join('');
@@ -817,6 +1108,10 @@
     const volunteer = state.volunteers.find((row) => String(row.id) === String(state.selectedVolunteerId));
     if (!volunteer) {
       el.volunteerDetail.innerHTML = '<div class="empty">Volunteer not found.</div>';
+      return;
+    }
+    if (state.simpleView) {
+      renderSimpleVolunteerDetail(volunteer);
       return;
     }
 
@@ -883,13 +1178,105 @@
       '<div><h2>' + esc(volunteer.display_name || 'Volunteer') + '</h2><p class="muted">' + esc(volunteer.tagline || volunteer.bio || '') + '</p></div>',
       '<div class="inline-actions">' + feedbackButton + reportButton + claimButton + editButton + nudgeButton + '</div>',
       '</div>',
-      '<div class="chips"><span class="chip">Rep ' + Math.round(Number(metric.reliability_score || 0)) + '</span><span class="chip">Attendance ' + Number(metric.attendance_rate_pct || 0) + '%</span><span class="chip">Response ' + Number(metric.response_rate_pct || 0) + '%</span><span class="chip">Rating ' + Number(metric.avg_rating || 0).toFixed(2) + '</span><span class="chip">Streak ' + streak + '</span><span class="chip">Pending ' + pendingCount + '</span><span class="chip">Open support ' + Number(metric.open_support_count || 0) + '</span><span class="chip">Pulse support ' + (pulseSupport ? pulseSupport.toFixed(2) : "0.00") + '</span><span class="chip">Pulse clarity ' + (pulseClarity ? pulseClarity.toFixed(2) : "0.00") + '</span><span class="chip">Pulse stress ' + (pulseStress ? pulseStress.toFixed(2) : "0.00") + '</span></div>',
+      '<div class="chips"><span class="chip">Reliability ' + Math.round(Number(metric.reliability_score || 0)) + '</span><span class="chip">Attendance ' + Number(metric.attendance_rate_pct || 0) + '%</span><span class="chip">Response ' + Number(metric.response_rate_pct || 0) + '%</span><span class="chip">Rating ' + Number(metric.avg_rating || 0).toFixed(2) + '</span><span class="chip">Streak ' + streak + '</span><span class="chip">Pending ' + pendingCount + '</span><span class="chip">Open support ' + Number(metric.open_support_count || 0) + '</span><span class="chip">Pulse support ' + (pulseSupport ? pulseSupport.toFixed(2) : "0.00") + '</span><span class="chip">Pulse clarity ' + (pulseClarity ? pulseClarity.toFixed(2) : "0.00") + '</span><span class="chip">Pulse stress ' + (pulseStress ? pulseStress.toFixed(2) : "0.00") + '</span></div>',
       '</section>',
       '<section class="grid2">',
       '<div class="card"><h3>Upcoming Commitments</h3><div class="rows">' + upcomingHtml + '</div></div>',
       '<div class="card"><h3>Recent Feedback</h3><div class="reviews">' + feedbackHtml + '</div></div>',
       '</section>'
     ].join('');
+  }
+
+  function renderSimpleVolunteerDetail(volunteer) {
+    const metric = metricFor(volunteer.id);
+    const actorUserId = state.user ? String(state.user.id) : "preview-user";
+    const myId = myVolunteerId();
+    const isMine = Boolean(myId) && String(myId) === String(volunteer.id);
+    const canClaim = (state.previewMode || Boolean(state.user)) && !myId && !volunteer.owner_user_id;
+    const canLeaveFeedback = (state.previewMode || Boolean(state.user)) && isApprovedMember() && pastSessionsForVolunteer(volunteer.id).length > 0;
+    const canReport = (state.previewMode || Boolean(state.user)) && isApprovedMember() && (!volunteer.owner_user_id || String(volunteer.owner_user_id) !== actorUserId);
+    const canEdit = isAdmin() || String(volunteer.owner_user_id || "") === actorUserId;
+    const nextSession = upcomingSessionsForVolunteer(volunteer.id)[0] || null;
+    const upcomingCount = upcomingSessionsForVolunteer(volunteer.id).length;
+    const streak = showUpStreak(volunteer.id);
+    const helpedCount = countPositiveAttendance(volunteer.id);
+    const helped30 = countPositiveAttendance(volunteer.id, 30);
+    const monthlyGoal = Number(state.monthlyGoal || 2);
+    const goalRemaining = Math.max(0, monthlyGoal - helped30);
+    const praiseRows = feedbackForVolunteer(volunteer.id).filter((row) => Number(row.rating || 0) >= 4).slice(0, 3);
+    const milestone = volunteerMilestone(helpedCount);
+    const purpose = purposeSummary(state.volunteerPurpose);
+
+    const feedbackButton = canLeaveFeedback ? '<button type="button" class="mini" data-action="open-feedback" data-volunteer-id="' + esc(volunteer.id) + '">Leave feedback</button>' : '';
+    const reportButton = canReport ? '<button type="button" class="mini ghost" data-action="open-report" data-volunteer-id="' + esc(volunteer.id) + '">Report issue</button>' : '';
+    const claimButton = canClaim ? '<button type="button" class="mini ghost" data-action="claim-volunteer" data-volunteer-id="' + esc(volunteer.id) + '">Claim profile</button>' : '';
+    const editButton = canEdit ? '<button type="button" class="mini ghost" data-action="open-edit-volunteer" data-volunteer-id="' + esc(volunteer.id) + '">Edit profile</button>' : '';
+
+    const nextCommitment = nextSession ? commitmentFor(volunteer.id, nextSession.id) : null;
+    const nextStatus = nextCommitment ? String(nextCommitment.status || "") : "pending";
+    const nextBadge = nextStatus === "committed"
+      ? '<span class="okpill">Committed</span>'
+      : nextStatus === "unavailable"
+        ? '<span class="warnpill">Unavailable</span>'
+        : '<span class="pill">Pending</span>';
+    const checkInOpen = nextSession && nextStatus === "committed" && withinCheckInWindow(nextSession.starts_at);
+    const nextButtons = isMine && nextSession
+      ? '<div class="inline-actions"><button type="button" class="mini' + (nextStatus === "committed" ? "" : " ghost") + '" data-action="set-commitment" data-session-id="' + esc(nextSession.id) + '" data-status="committed">I can make it</button><button type="button" class="mini' + (nextStatus === "unavailable" ? "" : " ghost") + '" data-action="set-commitment" data-session-id="' + esc(nextSession.id) + '" data-status="unavailable">Can\'t make it</button>' + (checkInOpen ? '<button type="button" class="mini ghost" data-action="check-in-session" data-session-id="' + esc(nextSession.id) + '">I\'m on my way</button>' : '') + '</div>'
+      : "";
+
+    const nextSessionHtml = nextSession
+      ? [
+        '<article class="row">',
+        '<div class="row-top"><p class="headline">' + esc(nextSession.title || "Session") + '</p><span class="pill">' + esc(formatDateTime(nextSession.starts_at)) + '</span></div>',
+        '<div class="row-top"><p class="muted">' + esc([nextSession.role_brief || "", nextSession.arrival_note || "", nextSession.backup_plan || ""].filter(Boolean).join(" • ")) + '</p>' + nextBadge + '</div>',
+        nextButtons,
+        '</article>'
+      ].join("")
+      : '<div class="empty">No upcoming session assigned.</div>';
+
+    const praiseHtml = praiseRows.length
+      ? praiseRows.map((row) => {
+        const session = sessionById(row.session_id);
+        const note = String(row.note || "").trim() || "Great support at this session.";
+        return [
+          '<article class="review">',
+          '<div class="row-top"><p class="muted">' + esc(session ? session.title : "Session") + '</p><p class="muted">' + stars(row.rating) + '</p></div>',
+          '<p>' + esc(note) + '</p>',
+          '</article>'
+        ].join("");
+      }).join("")
+      : '<div class="empty">No praise notes yet.</div>';
+
+    if (isMine && !isAdmin()) {
+      const membersHelped = impactEstimate(helpedCount);
+      el.volunteerDetail.innerHTML = [
+        '<section class="card">',
+        '<div class="row-top"><p class="headline">Your Impact</p><span class="score">' + esc(milestone.currentLabel) + '</span></div>',
+        '<p class="muted">You have supported about ' + membersHelped + ' member visits so far.</p>',
+        '<p class="muted">Focus: ' + esc(purpose.title) + '. ' + esc(purpose.body) + '</p>',
+        '<section class="metric-grid">' + metricBox("Sessions", String(helpedCount)) + metricBox("This month", String(helped30)) + metricBox("Streak", String(streak)) + metricBox("Rating", Number(metric.avg_rating || 0).toFixed(2)) + '</section>',
+        '<p class="muted">' + esc(goalRemaining > 0 ? (goalRemaining + " more this month to hit your goal.") : "Monthly goal achieved. Great consistency.") + '</p>',
+        '</section>',
+        '<section class="card"><h3>Recent Thanks</h3><div class="reviews">' + praiseHtml + '</div></section>'
+      ].join("");
+      return;
+    }
+
+    el.volunteerDetail.innerHTML = [
+      '<section class="card">',
+      '<div class="row-top"><p class="headline">' + esc(volunteer.display_name || "Volunteer") + '</p><span class="score">Reliability ' + Math.round(Number(metric.reliability_score || 0)) + '</span></div>',
+      '<p class="muted">' + esc(volunteer.tagline || volunteer.bio || "Volunteer profile") + '</p>',
+      '<div class="inline-actions">' + feedbackButton + reportButton + claimButton + editButton + '</div>',
+      '</section>',
+      '<section class="metric-grid">',
+      metricBox("Sessions helped", String(helpedCount)),
+      metricBox("Streak", String(streak)),
+      metricBox("Rating", Number(metric.avg_rating || 0).toFixed(2)),
+      metricBox("Upcoming", String(upcomingCount)),
+      '</section>',
+      '<section class="card"><h3>Next Session</h3><div class="rows">' + nextSessionHtml + '</div></section>',
+      '<section class="card"><h3>Recent Praise</h3><div class="reviews">' + praiseHtml + '</div></section>'
+    ].join("");
   }
 
   function renderStudio() {
@@ -906,14 +1293,18 @@
     if (!volunteerId) {
       const claimHelp = state.selectedVolunteerId
         ? '<div class="inline-actions"><button type="button" class="ghost" data-action="claim-volunteer" data-volunteer-id="' + esc(state.selectedVolunteerId) + '">Claim selected profile</button></div>'
-        : '';
-      el.studioPanel.innerHTML = '<div class="empty">No linked volunteer profile yet.' + claimHelp + '</div>';
+        : '<p class="muted">Ask the coordinator to add your volunteer profile, then claim it here.</p>';
+      el.studioPanel.innerHTML = '<div class="empty">No linked volunteer profile yet.' + claimHelp + '<div class="inline-actions"><button type="button" class="mini ghost" data-action="open-settings">Settings</button></div></div>';
       return;
     }
 
     const volunteer = state.volunteers.find((row) => String(row.id) === String(volunteerId));
     if (!volunteer) {
       el.studioPanel.innerHTML = '<div class="empty">Linked volunteer profile not found.</div>';
+      return;
+    }
+    if (state.simpleView) {
+      renderSimpleStudio(volunteerId, volunteer);
       return;
     }
 
@@ -1049,13 +1440,130 @@
       '<div><h2>My Studio</h2><p class="muted">' + esc(volunteer.display_name || 'Volunteer') + '</p></div>',
       '<div class="inline-actions"><button type="button" class="mini ghost" data-action="open-edit-volunteer" data-volunteer-id="' + esc(volunteer.id) + '">Edit profile</button><button type="button" class="mini ghost" data-action="open-support-dialog">Need support</button><button type="button" class="mini ghost" data-action="open-pulse-dialog">Session pulse</button></div>',
       '</div>',
-      '<div class="chips"><span class="chip">Rep ' + Math.round(Number(metric.reliability_score || 0)) + '</span><span class="chip">Attendance ' + Number(metric.attendance_rate_pct || 0) + '%</span><span class="chip">Response ' + Number(metric.response_rate_pct || 0) + '%</span><span class="chip">Rating ' + Number(metric.avg_rating || 0).toFixed(2) + '</span><span class="chip">Streak ' + streak + '</span><span class="chip">Pending ' + pendingCount + '</span><span class="chip">Open support ' + Number(metric.open_support_count || 0) + '</span></div>',
+      '<div class="chips"><span class="chip">Reliability ' + Math.round(Number(metric.reliability_score || 0)) + '</span><span class="chip">Attendance ' + Number(metric.attendance_rate_pct || 0) + '%</span><span class="chip">Response ' + Number(metric.response_rate_pct || 0) + '%</span><span class="chip">Rating ' + Number(metric.avg_rating || 0).toFixed(2) + '</span><span class="chip">Streak ' + streak + '</span><span class="chip">Pending ' + pendingCount + '</span><span class="chip">Open support ' + Number(metric.open_support_count || 0) + '</span></div>',
       '</section>',
       actionCardHtml,
       '<section class="card"><h3>Upcoming Sessions</h3><div class="rows">' + rowsHtml + '</div></section>',
       '<section class="grid2"><div class="card"><h3>Open Shifts You Can Take</h3><div class="rows">' + openShiftHtml + '</div></div><div class="card"><h3>Post-Session Pulse Backlog</h3><div class="rows">' + pulseBacklogHtml + '</div></div></section>',
       '<section class="card"><h3>My Support Requests</h3><div class="rows">' + mySupportHtml + '</div></section>'
     ].join('');
+  }
+
+  function renderSimpleStudio(volunteerId, volunteer) {
+    const metric = metricFor(volunteerId);
+    const upcoming = upcomingSessionsForVolunteer(volunteerId).slice(0, 4);
+    const checkInNow = upcoming.find((session) => {
+      const commitment = commitmentFor(volunteerId, session.id);
+      return commitment && String(commitment.status || "") === "committed" && !commitment.last_check_in_at && withinCheckInWindow(session.starts_at);
+    }) || null;
+    const firstPending = upcoming.find((session) => !commitmentFor(volunteerId, session.id)) || null;
+    const actorId = state.user ? String(state.user.id) : "preview-user";
+    const pulsePending = pastSessionsForVolunteer(volunteerId).find((session) => !pulseFor(volunteerId, session.id, actorId)) || null;
+    const openShift = upcomingSessions().find((session) => !assignedVolunteerIds(session.id).includes(String(volunteerId))) || null;
+    const helpedTotal = countPositiveAttendance(volunteerId);
+    const helped30 = countPositiveAttendance(volunteerId, 30);
+    const streak = showUpStreak(volunteerId);
+    const praiseRows = feedbackForVolunteer(volunteerId).filter((row) => Number(row.rating || 0) >= 4).slice(0, 2);
+    const praiseCount = feedbackForVolunteer(volunteerId).filter((row) => Number(row.rating || 0) >= 4).length;
+    const pending = pendingUpcomingResponses(volunteerId);
+    const milestone = volunteerMilestone(helpedTotal);
+    const badges = volunteerBadges(metric, streak, helpedTotal, praiseCount).slice(0, 3);
+    const monthlyGoal = Number(state.monthlyGoal || 2);
+    const goalRemaining = Math.max(0, monthlyGoal - helped30);
+    const purpose = purposeSummary(state.volunteerPurpose);
+    const membersHelped = impactEstimate(helpedTotal);
+    const goalButtons = [
+      '<button type="button" class="mini' + (monthlyGoal === 1 ? "" : " ghost") + '" data-action="set-goal" data-goal="1">1/mo</button>',
+      '<button type="button" class="mini' + (monthlyGoal === 2 ? "" : " ghost") + '" data-action="set-goal" data-goal="2">2/mo</button>',
+      '<button type="button" class="mini' + (monthlyGoal === 4 ? "" : " ghost") + '" data-action="set-goal" data-goal="4">Weekly</button>'
+    ].join("");
+    const purposeButtons = [
+      '<button type="button" class="mini' + (state.volunteerPurpose === "community" ? "" : " ghost") + '" data-action="set-purpose" data-purpose="community">Community</button>',
+      '<button type="button" class="mini' + (state.volunteerPurpose === "coaching" ? "" : " ghost") + '" data-action="set-purpose" data-purpose="coaching">Coaching</button>',
+      '<button type="button" class="mini' + (state.volunteerPurpose === "skills" ? "" : " ghost") + '" data-action="set-purpose" data-purpose="skills">Skills</button>',
+      '<button type="button" class="mini' + (state.volunteerPurpose === "social" ? "" : " ghost") + '" data-action="set-purpose" data-purpose="social">Social</button>'
+    ].join("");
+
+    let actionHtml = '<div class="empty">You are up to date. Keep your momentum going.</div>';
+    if (checkInNow) {
+      actionHtml = [
+        '<article class="row">',
+        '<div class="row-top"><p class="headline">Check in now</p><span class="warnpill">Now</span></div>',
+        '<p class="muted">' + esc(checkInNow.title || "Session") + " • " + esc(formatDateTime(checkInNow.starts_at)) + '</p>',
+        '<div class="inline-actions"><button type="button" class="mini" data-action="check-in-session" data-session-id="' + esc(checkInNow.id) + '">I\'m on my way</button></div>',
+        '</article>'
+      ].join("");
+    } else if (firstPending) {
+      actionHtml = [
+        '<article class="row">',
+        '<div class="row-top"><p class="headline">Confirm your next session</p><span class="pill">Pending</span></div>',
+        '<p class="muted">' + esc(firstPending.title || "Session") + " • " + esc(formatDateTime(firstPending.starts_at)) + '</p>',
+        '<div class="inline-actions"><button type="button" class="mini" data-action="set-commitment" data-session-id="' + esc(firstPending.id) + '" data-status="committed">I can make it</button><button type="button" class="mini ghost" data-action="set-commitment" data-session-id="' + esc(firstPending.id) + '" data-status="unavailable">Can\'t make it</button></div>',
+        '</article>'
+      ].join("");
+    } else if (pulsePending) {
+      actionHtml = [
+        '<article class="row">',
+        '<div class="row-top"><p class="headline">Submit your 1-minute pulse</p><span class="pill">Quick</span></div>',
+        '<p class="muted">' + esc(pulsePending.title || "Session") + " • " + esc(formatDate(pulsePending.starts_at)) + '</p>',
+        '<div class="inline-actions"><button type="button" class="mini ghost" data-action="open-pulse-dialog" data-session-id="' + esc(pulsePending.id) + '">Submit pulse</button></div>',
+        '</article>'
+      ].join("");
+    }
+
+    const sessionsHtml = upcoming.length
+      ? upcoming.map((session) => {
+        const commitment = commitmentFor(volunteerId, session.id);
+        const status = commitment ? String(commitment.status || "") : "pending";
+        const badge = status === "committed"
+          ? '<span class="okpill">Committed</span>'
+          : status === "unavailable"
+            ? '<span class="warnpill">Unavailable</span>'
+            : '<span class="pill">Pending</span>';
+        return [
+          '<article class="row">',
+          '<div class="row-top"><p class="headline">' + esc(session.title || "Session") + '</p>' + badge + '</div>',
+          '<p class="muted">' + esc(formatDateTime(session.starts_at)) + '</p>',
+          '</article>'
+        ].join("");
+      }).join("")
+      : '<div class="empty">No upcoming sessions assigned.</div>';
+
+    const shiftHtml = openShift
+      ? '<article class="row"><div class="row-top"><p class="headline">' + esc(openShift.title || "Session") + '</p><span class="pill">' + esc(formatDateTime(openShift.starts_at)) + '</span></div><p class="muted">Want to help more this week? This shift is available.</p><div class="inline-actions"><button type="button" class="mini ghost" data-action="take-open-shift" data-session-id="' + esc(openShift.id) + '">Take this shift</button></div></article>'
+      : '<div class="empty">No open shifts right now.</div>';
+
+    const praiseHtml = praiseRows.length
+      ? praiseRows.map((row) => {
+        const session = sessionById(row.session_id);
+        const note = String(row.note || "").trim() || "Thank you for showing up and helping.";
+        return [
+          '<article class="review">',
+          '<div class="row-top"><p class="muted">' + esc(session ? session.title : "Session") + '</p><p class="muted">' + stars(row.rating) + '</p></div>',
+          '<p>' + esc(note) + '</p>',
+          '</article>'
+        ].join("");
+      }).join("")
+      : '<div class="empty">No thank-you notes yet. Ask for quick feedback after your next session.</div>';
+
+    el.studioPanel.innerHTML = [
+      '<section class="card">',
+      '<div class="row-top"><p class="headline">Your Volunteer Journey</p><span class="score">' + esc(milestone.currentLabel) + '</span></div>',
+      '<p class="muted">You have supported about ' + membersHelped + ' member visits. Keep building momentum.</p>',
+      '<p class="muted">Focus: ' + esc(purpose.title) + ". " + esc(purpose.body) + '</p>',
+      '<div class="inline-actions"><button type="button" class="mini ghost" data-action="open-support-dialog">Need support</button><button type="button" class="mini ghost" data-action="open-edit-volunteer" data-volunteer-id="' + esc(volunteer.id) + '">Edit profile</button><button type="button" class="mini ghost" data-action="open-pulse-dialog">Session pulse</button></div>',
+      '<div class="inline-actions">' + goalButtons + purposeButtons + '</div>',
+      '</section>',
+      '<section class="metric-grid">',
+      metricBox("Sessions helped", String(helpedTotal)),
+      metricBox("This month", String(helped30)),
+      metricBox("Streak", String(streak)),
+      metricBox("Praise notes", String(praiseCount)),
+      metricBox("Pending", String(pending)),
+      '</section>',
+      '<section class="grid2"><div class="card"><h3>Your Next Best Action</h3><div class="rows">' + actionHtml + '</div></div><div class="card"><h3>Upcoming Sessions</h3><div class="rows">' + sessionsHtml + '</div></div></section>',
+      '<section class="grid2"><div class="card"><h3>Recognition</h3><div class="rows"><article class="row"><div class="row-top"><p class="headline">' + esc(milestone.currentLabel) + '</p><span class="okpill">' + helpedTotal + '/' + milestone.nextTarget + '</span></div><p class="muted">' + (milestone.remaining > 0 ? (milestone.remaining + " more session(s) to reach " + milestone.nextLabel) : "Top level reached") + '</p><p class="muted">' + (goalRemaining > 0 ? (goalRemaining + " more this month to hit your personal goal") : "Monthly goal achieved") + '</p><p class="muted">' + esc(badges.join(" • ") || "Build momentum by showing up and responding early.") + '</p></article></div><div class="reviews">' + praiseHtml + '</div></div><div class="card"><h3>Optional Extra Shift</h3><div class="rows">' + shiftHtml + '</div></div></section>'
+    ].join("");
   }
   async function onActionClick(event) {
     const target = event.target.closest("[data-action]");
@@ -1080,9 +1588,12 @@
     if (action === "open-support-dialog") { openSupportDialog(target.getAttribute("data-session-id")); return; }
     if (action === "resolve-support") { await onResolveSupportRequest(target.getAttribute("data-support-id")); return; }
     if (action === "take-open-shift") { await onTakeOpenShift(target.getAttribute("data-session-id")); return; }
+    if (action === "set-goal") { onSetMonthlyGoal(target.getAttribute("data-goal")); return; }
+    if (action === "set-purpose") { onSetVolunteerPurpose(target.getAttribute("data-purpose")); return; }
   }
 
   function onVolunteerListClick(event) {
+    if (event.target.closest("[data-action]")) return;
     const row = event.target.closest("[data-volunteer-id]");
     if (!row) return;
     state.selectedVolunteerId = row.getAttribute("data-volunteer-id");
@@ -1818,6 +2329,24 @@
     await onSetCommitment(sessionId, "committed");
   }
 
+  function onSetMonthlyGoal(goalRaw) {
+    const goal = Number(goalRaw || 0);
+    if (![1, 2, 4].includes(goal)) return;
+    state.monthlyGoal = goal;
+    safeSet(STORAGE.monthlyGoal, String(goal));
+    setBackendStatus("Monthly goal updated to " + goal + " session(s).", "ok");
+    renderAll();
+  }
+
+  function onSetVolunteerPurpose(purposeRaw) {
+    const purpose = String(purposeRaw || "");
+    if (!["community", "coaching", "skills", "social"].includes(purpose)) return;
+    state.volunteerPurpose = purpose;
+    safeSet(STORAGE.volunteerPurpose, purpose);
+    setBackendStatus("Volunteer focus updated.", "ok");
+    renderAll();
+  }
+
   async function copySessionNudge(sessionId, stageLabelRaw) {
     const session = sessionById(sessionId);
     if (!session) return;
@@ -1930,8 +2459,8 @@
       state.profile = {
         user_id: "preview-user",
         email: "preview@local",
-        display_name: "Preview Admin",
-        role: "admin",
+        display_name: "Preview Volunteer",
+        role: "member",
         status: "approved",
         volunteer_id: seed.profileVolunteerId || null
       };
@@ -2001,23 +2530,23 @@
       { session_id: "ps_past_1", volunteer_id: "pv_maya", outcome: "late", note: "Arrived 10 mins late", marked_at: new Date(now - (7 * 86400000) + 3700000).toISOString() },
       { session_id: "ps_past_1", volunteer_id: "pv_liam", outcome: "showed_up", note: "", marked_at: new Date(now - (7 * 86400000) + 3800000).toISOString() },
       { session_id: "ps_past_2", volunteer_id: "pv_alex", outcome: "showed_up", note: "", marked_at: new Date(now - (14 * 86400000) + 3600000).toISOString() },
-      { session_id: "ps_past_2", volunteer_id: "pv_maya", outcome: "no_show", note: "", marked_at: new Date(now - (14 * 86400000) + 3800000).toISOString() },
+      { session_id: "ps_past_2", volunteer_id: "pv_maya", outcome: "excused", note: "Shared conflict in advance", marked_at: new Date(now - (14 * 86400000) + 3800000).toISOString() },
       { session_id: "ps_past_2", volunteer_id: "pv_liam", outcome: "showed_up", note: "", marked_at: new Date(now - (14 * 86400000) + 3900000).toISOString() }
     ];
 
     const feedback = [
       { id: "pf_1", session_id: "ps_past_1", volunteer_id: "pv_alex", reviewer_user_id: "preview-r1", rating: 5, feedback_type: "coaching", note: "Very supportive and clear.", created_at: new Date(now - (6.8 * 86400000)).toISOString() },
       { id: "pf_2", session_id: "ps_past_1", volunteer_id: "pv_liam", reviewer_user_id: "preview-r2", rating: 4, feedback_type: "organisation", note: "Good check-in and pairing support.", created_at: new Date(now - (6.7 * 86400000)).toISOString() },
-      { id: "pf_3", session_id: "ps_past_2", volunteer_id: "pv_maya", reviewer_user_id: "preview-r3", rating: 2, feedback_type: "communication", note: "Could not find volunteer at session start.", created_at: new Date(now - (13.7 * 86400000)).toISOString() }
+      { id: "pf_3", session_id: "ps_past_2", volunteer_id: "pv_maya", reviewer_user_id: "preview-r3", rating: 4, feedback_type: "communication", note: "Warm and patient with junior players.", created_at: new Date(now - (13.7 * 86400000)).toISOString() }
     ];
 
     const sessionPulses = [
       { id: "pp_1", session_id: "ps_past_1", volunteer_id: "pv_alex", clarity_rating: 5, support_rating: 4, stress_rating: 2, note: "Great session flow.", created_by_user_id: "preview-user", created_at: new Date(now - (6.6 * 86400000)).toISOString() },
-      { id: "pp_2", session_id: "ps_past_2", volunteer_id: "pv_maya", clarity_rating: 2, support_rating: 2, stress_rating: 5, note: "Needed clearer handover.", created_by_user_id: "preview-user", created_at: new Date(now - (13.5 * 86400000)).toISOString() }
+      { id: "pp_2", session_id: "ps_past_2", volunteer_id: "pv_maya", clarity_rating: 4, support_rating: 4, stress_rating: 3, note: "Would like role reminders 24h before start.", created_by_user_id: "preview-user", created_at: new Date(now - (13.5 * 86400000)).toISOString() }
     ];
 
     const supportRequests = [
-      { id: "sr_1", volunteer_id: "pv_maya", session_id: "ps_up_1", request_type: "role_clarity", urgency: "high", details: "Need exact table assignment before session.", status: "open", resolution_note: "", created_by_user_id: "preview-user", resolved_by_user_id: null, created_at: new Date(now - (5 * 3600000)).toISOString(), resolved_at: null },
+      { id: "sr_1", volunteer_id: "pv_maya", session_id: "ps_up_1", request_type: "role_clarity", urgency: "normal", details: "Can I receive table assignment the day before?", status: "open", resolution_note: "", created_by_user_id: "preview-user", resolved_by_user_id: null, created_at: new Date(now - (5 * 3600000)).toISOString(), resolved_at: null },
       { id: "sr_2", volunteer_id: "pv_alex", session_id: null, request_type: "wellbeing", urgency: "normal", details: "Would like one lighter week next month.", status: "resolved", resolution_note: "Adjusted rota for next two sessions.", created_by_user_id: "preview-user", resolved_by_user_id: "preview-user", created_at: new Date(now - (10 * 86400000)).toISOString(), resolved_at: new Date(now - (9 * 86400000)).toISOString() }
     ];
 
@@ -2139,8 +2668,8 @@
           state.profile = {
             user_id: actorUserId,
             email: "preview@local",
-            display_name: "Preview Admin",
-            role: "admin",
+            display_name: "Preview Volunteer",
+            role: "member",
             status: "approved",
             volunteer_id: volunteer.id
           };
@@ -2554,6 +3083,98 @@
     return rows[0] || null;
   }
 
+  function isPositiveAttendanceOutcome(outcome) {
+    return ["showed_up", "late", "excused"].includes(String(outcome || ""));
+  }
+
+  function attendanceTimestamp(row) {
+    const session = sessionById(row.session_id);
+    const at = session ? new Date(session.starts_at).getTime() : new Date(row.marked_at || 0).getTime();
+    return isFinite(at) ? at : 0;
+  }
+
+  function countPositiveAttendance(volunteerId, days) {
+    const cutoff = days ? (Date.now() - (Math.max(1, Number(days)) * 86400000)) : null;
+    return state.attendance.filter((row) => {
+      if (String(row.volunteer_id) !== String(volunteerId)) return false;
+      if (!isPositiveAttendanceOutcome(row.outcome)) return false;
+      if (!cutoff) return true;
+      return attendanceTimestamp(row) >= cutoff;
+    }).length;
+  }
+
+  function volunteerMilestone(helpedCount) {
+    const helped = Math.max(0, Number(helpedCount || 0));
+    const levels = [
+      { label: "Starter", target: 1 },
+      { label: "Core Helper", target: 5 },
+      { label: "Club Anchor", target: 12 },
+      { label: "Community Champion", target: 25 }
+    ];
+    let current = levels[0];
+    let next = levels[0];
+    for (let i = 0; i < levels.length; i += 1) {
+      const level = levels[i];
+      if (helped >= level.target) current = level;
+      if (helped < level.target) {
+        next = level;
+        return {
+          currentLabel: current.label,
+          nextLabel: next.label,
+          nextTarget: next.target,
+          remaining: Math.max(0, next.target - helped)
+        };
+      }
+    }
+    return {
+      currentLabel: levels[levels.length - 1].label,
+      nextLabel: levels[levels.length - 1].label,
+      nextTarget: levels[levels.length - 1].target,
+      remaining: 0
+    };
+  }
+
+  function volunteerBadges(metric, streak, helpedCount, praiseCount) {
+    const badges = [];
+    if (Number(streak || 0) >= 3) badges.push("Consistency streak");
+    if (Number(metric && metric.response_rate_pct || 0) >= 90) badges.push("Fast responder");
+    if (Number(helpedCount || 0) >= 10) badges.push("Trusted regular");
+    if (Number(praiseCount || 0) >= 3) badges.push("Member favourite");
+    if (!badges.length) badges.push("Building momentum");
+    return badges;
+  }
+
+  function purposeSummary(purposeKey) {
+    const key = String(purposeKey || "community");
+    if (key === "coaching") {
+      return {
+        title: "Help members improve",
+        body: "Your presence creates better games, better habits, and faster progress."
+      };
+    }
+    if (key === "skills") {
+      return {
+        title: "Grow my own leadership",
+        body: "Each session builds confidence, communication, and coaching skill."
+      };
+    }
+    if (key === "social") {
+      return {
+        title: "Belong to the community",
+        body: "Showing up keeps friendships strong and makes sessions more welcoming."
+      };
+    }
+    return {
+      title: "Give back to the chess community",
+      body: "Reliable volunteering keeps sessions running and gives members a great experience."
+    };
+  }
+
+  function impactEstimate(helpedCount) {
+    const sessions = Math.max(0, Number(helpedCount || 0));
+    return Math.round(sessions * 10);
+  }
+
   function feedbackForVolunteer(volunteerId) {
     return state.feedback
       .filter((row) => String(row.volunteer_id) === String(volunteerId))
@@ -2638,7 +3259,7 @@
   }
 
   function isAdmin() {
-    if (state.previewMode) return true;
+    if (state.previewMode) return Boolean(state.profile && state.profile.role === "admin");
     return Boolean(state.profile && state.profile.role === "admin" && state.profile.status === "approved");
   }
 
@@ -2699,6 +3320,13 @@
     const text = String(message || "").toLowerCase();
     if (!/ops_/.test(text) && !/relation .* does not exist|schema cache|undefined function|function .* does not exist|no function matches/.test(text)) return false;
     return /does not exist|schema cache|undefined function|not found|no function matches/.test(text);
+  }
+
+  function isAuthLockError(message) {
+    const text = String(message || "");
+    return /lock:mk_volunteer_ops_auth_v3/i.test(text) ||
+      /navigatorlockacquiretimeouterror/i.test(text) ||
+      /another request stole it/i.test(text);
   }
 
   function errorText(error, fallback) {
