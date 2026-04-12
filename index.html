@@ -822,6 +822,7 @@
         supabase: null,
         authSub: null,
         demoMode: true,
+        loadingData: false,
         user: null,
         member: null,
         volunteerLink: null,
@@ -845,9 +846,18 @@
         cacheEls();
         bindEvents();
         restoreConfig();
-        await connectWithStoredConfig();
-        await refreshSession();
-        await loadAllData();
+        renderAll();
+        state.loadingData = true;
+        try {
+          await connectWithStoredConfig();
+          await refreshSession();
+          await withTimeout(loadAllData(), 12000, "Data load timed out");
+        } catch (err) {
+          const msg = err && err.message ? err.message : String(err || "Init failed");
+          setBackendStatus("Init error: " + msg, "err");
+        } finally {
+          state.loadingData = false;
+        }
         renderAll();
       }
       function cacheEls() {
@@ -2007,6 +2017,10 @@
         });
 
         if (!list.length) {
+          if (state.loadingData) {
+            el.volunteerList.innerHTML = '<div class="empty">Loading volunteers...</div>';
+            return;
+          }
           if (!state.demoMode) {
             setBackendStatus("No volunteers found. Add volunteers or use demo preview.", "err");
           }
@@ -2508,6 +2522,19 @@
         return isFinite(d.getTime())
           ? d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
           : "Unknown";
+      }
+
+      function withTimeout(promise, ms, message) {
+        let timer = null;
+        const timeout = new Promise(function (_resolve, reject) {
+          timer = setTimeout(function () {
+            reject(new Error(message || "Timed out"));
+          }, Math.max(1000, Number(ms || 0)));
+        });
+
+        return Promise.race([promise, timeout]).finally(function () {
+          if (timer) clearTimeout(timer);
+        });
       }
 
       function relDate(iso) {
