@@ -1044,6 +1044,7 @@
     const roleLine = [session.role_brief || "", session.arrival_note || "", session.backup_plan || ""].filter(Boolean);
     const rosterHtml = renderSessionRosterHtml(session);
     const historyHtml = renderSessionVolunteerHistoryHtml(session);
+    const claimAccessHtml = renderSessionClaimAccessHtml(actorVolunteerId);
     const activitiesHtml = renderSessionActivitiesHtml(session.id, {
       actorVolunteerId,
       showClaimActions: Boolean(actorVolunteerId),
@@ -1071,7 +1072,7 @@
       roleLine.map((line) => '<p class="soft-note">' + esc(line) + '</p>').join("") +
       (!roleLine.length ? '<p class="soft-note">Add role clarity, arrival notes, or a backup plan when you create the session.</p>' : '') +
       '</div>',
-      '<div class="card"><h3>Activities</h3><div class="rows">' + activitiesHtml + '</div></div>',
+      '<div class="card"><h3>Activities</h3>' + claimAccessHtml + '<div class="rows">' + activitiesHtml + '</div></div>',
       '<div class="card"><h3>Volunteer Roster</h3><div class="session-roster">' + rosterHtml + '</div></div>',
       '<div class="card"><h3>Past History</h3><div class="session-history-list">' + historyHtml + '</div></div>',
       '</section>'
@@ -3047,6 +3048,89 @@
     return sessionActivitiesForSession(sessionId).filter((row) => row.claimed_by_volunteer_id).length;
   }
 
+  function claimableVolunteersForCurrentUser() {
+    if (!state.user || myVolunteerId()) return [];
+    const actorUserId = String(state.user.id || "");
+    const emailStem = String((state.user.email || "").split("@")[0] || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "");
+    const normalize = (value) => String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+
+    return state.volunteers
+      .filter((row) => row.active !== false)
+      .filter((row) => {
+        const owner = String(row.owner_user_id || "");
+        return !owner || owner === actorUserId;
+      })
+      .map((row) => {
+        const nameKey = normalize(row.display_name);
+        const taglineKey = normalize(row.tagline);
+        let rank = 3;
+        if (emailStem && nameKey === emailStem) rank = 0;
+        else if (emailStem && nameKey.includes(emailStem)) rank = 1;
+        else if (emailStem && taglineKey.includes(emailStem)) rank = 2;
+        return { row, rank };
+      })
+      .sort((a, b) => a.rank - b.rank || String(a.row.display_name || "").localeCompare(String(b.row.display_name || "")))
+      .map((entry) => entry.row);
+  }
+
+  function renderSessionClaimAccessHtml(actorVolunteerId) {
+    if (!state.user) {
+      return '<div class="rows"><article class="row"><div class="row-top"><p class="headline">Want to help?</p><span class="pill">Sign in</span></div><p class="muted">Sign in to claim an activity for this session and have it added to your volunteer history.</p></article></div>';
+    }
+
+    if (actorVolunteerId) {
+      const volunteer = state.volunteers.find((row) => String(row.id) === String(actorVolunteerId));
+      const editButton = volunteer
+        ? '<button type="button" class="mini ghost" data-action="open-edit-volunteer" data-volunteer-id="' + esc(volunteer.id) + '">Edit my profile</button>'
+        : "";
+      return [
+        '<div class="rows">',
+        '<article class="row">',
+        '<div class="row-top"><p class="headline">Ready to claim</p><span class="okpill">' + esc(volunteer ? (volunteer.display_name || "Volunteer linked") : "Volunteer linked") + '</span></div>',
+        '<p class="muted">Claim any open activity below. The app will also mark you in for that session automatically.</p>',
+        editButton ? '<div class="inline-actions">' + editButton + '</div>' : '',
+        '</article>',
+        '</div>'
+      ].join("");
+    }
+
+    const claimable = claimableVolunteersForCurrentUser();
+    if (!claimable.length) {
+      const addVolunteerButton = isAdmin()
+        ? '<button type="button" class="mini ghost" data-action="open-volunteer-dialog">Add volunteer profile</button>'
+        : "";
+      return [
+        '<div class="rows">',
+        '<article class="row">',
+        '<div class="row-top"><p class="headline">Link your volunteer profile</p><span class="warnpill">Needed once</span></div>',
+        '<p class="muted">Your account is signed in, but it is not linked to a volunteer profile yet. Ask a coordinator to add your profile, then claim it here.</p>',
+        addVolunteerButton ? '<div class="inline-actions">' + addVolunteerButton + '</div>' : '',
+        '</article>',
+        '</div>'
+      ].join("");
+    }
+
+    const buttons = claimable
+      .slice(0, 6)
+      .map((volunteer) => '<button type="button" class="mini ghost" data-action="claim-volunteer" data-volunteer-id="' + esc(volunteer.id) + '">' + esc(volunteer.display_name || "Volunteer") + '</button>')
+      .join("");
+    const extraCount = Math.max(0, claimable.length - 6);
+    const extraLine = extraCount ? '<p class="muted">Showing the best matches first. ' + extraCount + ' more profile' + (extraCount === 1 ? '' : 's') + ' available.</p>' : '';
+
+    return [
+      '<div class="rows">',
+      '<article class="row">',
+      '<div class="row-top"><p class="headline">Link your volunteer profile</p><span class="warnpill">Needed once</span></div>',
+      '<p class="muted">Choose your volunteer profile once, then you can claim any open activity below.</p>',
+      '<div class="inline-actions">' + buttons + '</div>',
+      extraLine,
+      '</article>',
+      '</div>'
+    ].join("");
+  }
+
   function renderSessionActivitiesHtml(sessionId, options) {
     const opts = options || {};
     const actorVolunteerId = opts.actorVolunteerId ? String(opts.actorVolunteerId) : "";
@@ -3664,8 +3748,23 @@
     return Boolean(state.profile && state.profile.status === "approved");
   }
 
+  function ownedVolunteerForCurrentUser() {
+    if (!state.user) return null;
+    const actorUserId = String(state.user.id || "");
+    if (!actorUserId) return null;
+
+    const linkedId = state.profile && state.profile.volunteer_id ? String(state.profile.volunteer_id) : "";
+    if (linkedId) {
+      const linkedVolunteer = state.volunteers.find((row) => String(row.id) === linkedId);
+      if (linkedVolunteer) return linkedVolunteer;
+    }
+
+    return state.volunteers.find((row) => String(row.owner_user_id || "") === actorUserId && row.active !== false) || null;
+  }
+
   function myVolunteerId() {
-    return state.profile && state.profile.volunteer_id ? String(state.profile.volunteer_id) : null;
+    const volunteer = ownedVolunteerForCurrentUser();
+    return volunteer ? String(volunteer.id) : null;
   }
 
   function metricBox(label, value) {
