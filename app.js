@@ -823,12 +823,6 @@
       : '<div class="empty">No open support requests.</div>';
 
     el.commandBoard.innerHTML = [
-      '<section class="metric-grid">',
-      metricBox("Upcoming sessions", String(upcoming.length)),
-      metricBox("Coverage", String(coveragePct) + "%"),
-      metricBox("Claimed activities", totalActivities ? (claimedActivities + "/" + totalActivities) : "0"),
-      metricBox("Open support", String(openSupportRequests.length)),
-      '</section>',
       '<section class="grid2">',
       '<div class="card"><h3>Upcoming Sessions</h3><div class="rows">' + coverageHtml + '</div></div>',
       '<div class="card"><h3>Activity Ideas</h3><div class="rows">' + activityIdeasHtml + '</div>' + (canSuggestActivity ? '<div class="inline-actions"><button type="button" class="mini ghost" data-action="open-activity-suggestion-dialog">Suggest activity</button></div>' : '') + '</div>',
