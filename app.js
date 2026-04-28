@@ -141,7 +141,8 @@
     sessionMapInstance: null,
     sessionMapMarkers: [],
     sessionMapReady: false,
-    sessionMapError: ""
+    sessionMapError: "",
+    volunteerDialogMode: "admin"
   };
 
   const el = {};
@@ -173,7 +174,7 @@
     [
       "emailInput", "sendLinkBtn", "signOutBtn", "startSetupBtn", "addVolunteerBtn", "addSessionBtn",
       "authStatus", "backendStatus", "commandBoard", "sessionExplorer", "searchInput", "volunteerList", "volunteerDetail", "studioPanel", "directorySplit",
-      "volunteerDialog", "volunteerForm", "volunteerNameInput", "volunteerTaglineInput", "volunteerBioInput", "volunteerStatus", "createVolunteerBtn",
+      "volunteerDialog", "volunteerDialogTitle", "volunteerForm", "volunteerNameInput", "volunteerTaglineInput", "volunteerBioInput", "volunteerStatus", "createVolunteerBtn",
       "sessionDialog", "sessionForm", "sessionTitleInput", "sessionVenueKeyInput", "sessionVenueHint", "sessionStartsInput", "sessionRequiredInput", "sessionRoleBriefInput", "sessionActivitiesInput", "sessionSuggestedActivities", "sessionArrivalNoteInput", "sessionBackupPlanInput", "sessionAssignAllInput", "sessionStatus", "createSessionBtn",
       "feedbackDialog", "feedbackForm", "feedbackVolunteerIdInput", "feedbackSessionSelect", "feedbackRatingInput", "feedbackTypeSelect", "feedbackNoteInput", "feedbackStatus", "submitFeedbackBtn",
       "reportDialog", "reportForm", "reportVolunteerIdInput", "reportSessionSelect", "reportReasonSelect", "reportDetailsInput", "reportStatus", "submitReportBtn",
@@ -715,15 +716,16 @@
   function renderHeader() {
     const signedIn = Boolean(state.user);
     const admin = isAdmin();
-    const canManage = admin;
+    const needsVolunteerProfile = signedIn && !myVolunteerId();
 
     el.sendLinkBtn.style.display = signedIn ? "none" : "";
     el.signOutBtn.style.display = signedIn ? "" : "none";
     el.emailInput.style.display = "";
     el.emailInput.disabled = signedIn;
     el.startSetupBtn.style.display = (signedIn && !admin) ? "" : "none";
-    el.addVolunteerBtn.style.display = canManage ? "" : "none";
-    el.addSessionBtn.style.display = canManage ? "" : "none";
+    el.addVolunteerBtn.style.display = (admin || needsVolunteerProfile) ? "" : "none";
+    el.addVolunteerBtn.textContent = admin ? "Add volunteer" : "Create profile";
+    el.addSessionBtn.style.display = admin ? "" : "none";
 
     el.emailInput.placeholder = "member@yourdomain.com";
     if (signedIn) el.emailInput.value = state.user.email || "";
@@ -2019,7 +2021,7 @@
       }
       return;
     }
-    if (action === "open-volunteer-dialog") { openVolunteerDialog(); return; }
+    if (action === "open-volunteer-dialog") { openVolunteerDialog(target.getAttribute("data-mode")); return; }
     if (action === "open-session-dialog") { openSessionDialog(); return; }
     if (action === "open-feedback") { openFeedbackDialog(target.getAttribute("data-volunteer-id")); return; }
     if (action === "open-report") { openReportDialog(target.getAttribute("data-volunteer-id")); return; }
@@ -2125,13 +2127,37 @@
     }
   }
 
-  function openVolunteerDialog() {
-    if (!isAdmin()) {
+  function openVolunteerDialog(modeRaw) {
+    if (!state.user || !state.supabase) {
+      setBackendStatus("Sign in first.", "err");
+      return;
+    }
+
+    const mode = String(modeRaw || (isAdmin() ? "admin" : "self")).toLowerCase();
+    const selfMode = mode !== "admin";
+    if (!selfMode && !isAdmin()) {
       setBackendStatus("Admin role required.", "err");
       return;
     }
+
+    state.volunteerDialogMode = selfMode ? "self" : "admin";
     el.volunteerForm.reset();
     clearStatus(el.volunteerStatus);
+    if (el.volunteerDialogTitle) {
+      el.volunteerDialogTitle.textContent = selfMode ? "Create My Volunteer Profile" : "Add Volunteer";
+    }
+    if (el.createVolunteerBtn) {
+      el.createVolunteerBtn.textContent = selfMode ? "Create My Profile" : "Create Volunteer";
+    }
+    if (selfMode) {
+      const preferred = String(
+        (state.profile && state.profile.display_name)
+        || (state.user && state.user.email ? state.user.email.split("@")[0] : "")
+        || ""
+      ).trim();
+      if (el.volunteerNameInput) el.volunteerNameInput.value = preferred;
+      if (el.volunteerTaglineInput) el.volunteerTaglineInput.value = "MK Chess Club volunteer";
+    }
     openDialog(el.volunteerDialog);
   }
 
@@ -2150,17 +2176,30 @@
     const label = el.createVolunteerBtn.textContent;
     el.createVolunteerBtn.textContent = "Creating...";
     try {
-      const response = await rpc("mkchess_volunteer_hub_create_volunteer", {
+      const selfMode = state.volunteerDialogMode === "self";
+      const rpcName = selfMode
+        ? "mkchess_volunteer_hub_create_my_volunteer_profile"
+        : "mkchess_volunteer_hub_create_volunteer";
+      const response = await rpc(rpcName, {
         p_display_name: name,
         p_tagline: tagline || null,
         p_bio: bio || null
       }, 60000);
       if (response.error) {
         const message = errorText(response.error, "Create failed");
+        if (selfMode && (/does not exist/i.test(message) || /create_my_volunteer_profile/i.test(message))) {
+          setStatus(el.volunteerStatus, "Run the latest supabase/all_in_one_setup.sql to enable self-serve volunteer profiles.", "err");
+          return;
+        }
         if (/timed out/i.test(message)) {
+          if (selfMode) {
+            await refreshSession();
+            await loadProfile();
+          }
           await loadAllData();
           const now = Date.now();
           const created = state.volunteers.find((row) => {
+            if (selfMode && String(row.owner_user_id || "") === String((state.user || {}).id || "")) return true;
             if (String(row.display_name || "").trim().toLowerCase() !== name.toLowerCase()) return false;
             const createdAt = new Date(row.created_at || 0).getTime();
             return isFinite(createdAt) && Math.abs(now - createdAt) <= 300000;
@@ -2168,7 +2207,7 @@
           if (created) {
             state.selectedVolunteerId = String(created.id);
             renderAll();
-            setBackendStatus("Volunteer created.", "ok");
+            setBackendStatus(selfMode ? "Your volunteer profile is ready. You can claim activities now." : "Volunteer created.", "ok");
             if (el.volunteerDialog.open) el.volunteerDialog.close();
             return;
           }
@@ -2177,14 +2216,18 @@
         else setStatus(el.volunteerStatus, message, "err");
         return;
       }
+      if (selfMode) {
+        await refreshSession();
+        await loadProfile();
+      }
       await loadAllData();
       if (response.data) state.selectedVolunteerId = String(response.data);
       renderAll();
-      setBackendStatus("Volunteer created.", "ok");
+      setBackendStatus(selfMode ? "Your volunteer profile is ready. You can claim activities now." : "Volunteer created.", "ok");
       if (el.volunteerDialog.open) el.volunteerDialog.close();
     } finally {
       el.createVolunteerBtn.disabled = false;
-      el.createVolunteerBtn.textContent = label || "Create Volunteer";
+      el.createVolunteerBtn.textContent = label || (state.volunteerDialogMode === "self" ? "Create My Profile" : "Create Volunteer");
     }
   }
 
@@ -3097,16 +3140,14 @@
     }
 
     const claimable = claimableVolunteersForCurrentUser();
+    const createButton = '<button type="button" class="mini ghost" data-action="open-volunteer-dialog" data-mode="self">Create my profile</button>';
     if (!claimable.length) {
-      const addVolunteerButton = isAdmin()
-        ? '<button type="button" class="mini ghost" data-action="open-volunteer-dialog">Add volunteer profile</button>'
-        : "";
       return [
         '<div class="rows">',
         '<article class="row">',
-        '<div class="row-top"><p class="headline">Link your volunteer profile</p><span class="warnpill">Needed once</span></div>',
-        '<p class="muted">Your account is signed in, but it is not linked to a volunteer profile yet. Ask a coordinator to add your profile, then claim it here.</p>',
-        addVolunteerButton ? '<div class="inline-actions">' + addVolunteerButton + '</div>' : '',
+        '<div class="row-top"><p class="headline">Create your volunteer profile</p><span class="warnpill">Needed once</span></div>',
+        '<p class="muted">Create your own volunteer profile once, then you can claim any open activity below.</p>',
+        '<div class="inline-actions">' + createButton + '</div>',
         '</article>',
         '</div>'
       ].join("");
@@ -3122,9 +3163,9 @@
     return [
       '<div class="rows">',
       '<article class="row">',
-      '<div class="row-top"><p class="headline">Link your volunteer profile</p><span class="warnpill">Needed once</span></div>',
-      '<p class="muted">Choose your volunteer profile once, then you can claim any open activity below.</p>',
-      '<div class="inline-actions">' + buttons + '</div>',
+      '<div class="row-top"><p class="headline">Create or link your volunteer profile</p><span class="warnpill">Needed once</span></div>',
+      '<p class="muted">Create your own volunteer profile, or link an existing one if it was already added before.</p>',
+      '<div class="inline-actions">' + createButton + buttons + '</div>',
       extraLine,
       '</article>',
       '</div>'
