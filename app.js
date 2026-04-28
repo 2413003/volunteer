@@ -28,11 +28,14 @@
     volunteers: [],
     sessions: [],
     assignments: [],
+    sessionActivities: [],
     commitments: [],
     attendance: [],
     feedback: [],
     sessionPulses: [],
     supportRequests: [],
+    activitySuggestions: [],
+    activitySuggestionVotes: [],
     metricsRows: [],
     metricsByVolunteer: {},
     selectedVolunteerId: null,
@@ -47,6 +50,7 @@
   };
 
   const el = {};
+  let backendStatusClearTimer = null;
   document.addEventListener("DOMContentLoaded", init);
 
   async function init() {
@@ -76,11 +80,12 @@
       "authStatus", "backendStatus", "commandBoard", "searchInput", "volunteerList", "volunteerDetail", "studioPanel", "directorySplit",
       "settingsDialog", "supaUrlInput", "supaKeyInput", "allowedDomainInput", "connectBtn",
       "volunteerDialog", "volunteerForm", "volunteerNameInput", "volunteerTaglineInput", "volunteerBioInput", "volunteerStatus", "createVolunteerBtn",
-      "sessionDialog", "sessionForm", "sessionTitleInput", "sessionStartsInput", "sessionRequiredInput", "sessionRoleBriefInput", "sessionArrivalNoteInput", "sessionBackupPlanInput", "sessionAssignAllInput", "sessionStatus", "createSessionBtn",
+      "sessionDialog", "sessionForm", "sessionTitleInput", "sessionStartsInput", "sessionRequiredInput", "sessionRoleBriefInput", "sessionActivitiesInput", "sessionSuggestedActivities", "sessionArrivalNoteInput", "sessionBackupPlanInput", "sessionAssignAllInput", "sessionStatus", "createSessionBtn",
       "feedbackDialog", "feedbackForm", "feedbackVolunteerIdInput", "feedbackSessionSelect", "feedbackRatingInput", "feedbackTypeSelect", "feedbackNoteInput", "feedbackStatus", "submitFeedbackBtn",
       "reportDialog", "reportForm", "reportVolunteerIdInput", "reportSessionSelect", "reportReasonSelect", "reportDetailsInput", "reportStatus", "submitReportBtn",
       "attendanceDialog", "attendanceTitle", "attendanceRows", "attendanceForm", "attendanceStatus", "saveAttendanceBtn",
       "editVolunteerDialog", "editVolunteerForm", "editVolunteerIdInput", "editVolunteerNameInput", "editVolunteerTaglineInput", "editVolunteerBioInput", "editVolunteerStatus", "saveVolunteerProfileBtn",
+      "activitySuggestionDialog", "activitySuggestionForm", "activitySuggestionTitleInput", "activitySuggestionDetailsInput", "activitySuggestionStatus", "suggestActivityBtn",
       "pulseDialog", "pulseForm", "pulseSessionSelect", "pulseClarityInput", "pulseSupportInput", "pulseStressInput", "pulseNoteInput", "pulseStatus", "submitPulseBtn",
       "supportDialog", "supportForm", "supportSessionSelect", "supportTypeSelect", "supportUrgencySelect", "supportDetailsInput", "supportStatus", "submitSupportBtn"
     ].forEach((id) => {
@@ -105,6 +110,7 @@
     el.studioPanel.addEventListener("click", onActionClick);
     el.volunteerList.addEventListener("click", onActionClick);
     el.volunteerList.addEventListener("click", onVolunteerListClick);
+    if (el.sessionDialog) el.sessionDialog.addEventListener("click", onActionClick);
 
     el.volunteerForm.addEventListener("submit", onCreateVolunteer);
     el.sessionForm.addEventListener("submit", onCreateSession);
@@ -112,6 +118,7 @@
     el.reportForm.addEventListener("submit", onSubmitReport);
     el.attendanceForm.addEventListener("submit", onSubmitAttendance);
     el.editVolunteerForm.addEventListener("submit", onSaveVolunteerProfile);
+    el.activitySuggestionForm.addEventListener("submit", onSubmitActivitySuggestion);
     el.pulseForm.addEventListener("submit", onSubmitPulse);
     el.supportForm.addEventListener("submit", onSubmitSupportRequest);
     if (el.pulseSessionSelect) el.pulseSessionSelect.addEventListener("change", onPulseSessionChanged);
@@ -282,7 +289,7 @@
       await loadAllData();
     } catch (error) {
       const text = errorText(error, "Sync failed");
-      if (isAuthLockError(text)) setBackendStatus("Session sync busy in another tab. Close duplicate tabs to avoid auth lock conflicts.", "warn");
+      if (isAuthLockError(text)) setBackendStatus("Sync delayed. Close duplicate tabs, then refresh.", "warn");
       else setBackendStatus(text, "err");
       state.loading = false;
     } finally {
@@ -361,7 +368,7 @@
       if (looksLikeMissingSetup(response.error.message || response.error)) {
         setBackendStatus("Run supabase/all_in_one_setup.sql in Supabase SQL Editor.", "err");
       } else {
-        setBackendStatus("Profile load issue: " + message, "err");
+        setBackendStatus("Profile could not load right now. Refresh to retry.", "warn");
       }
       state.profile = {
         user_id: state.user.id,
@@ -395,11 +402,14 @@
       state.volunteers = [];
       state.sessions = [];
       state.assignments = [];
+      state.sessionActivities = [];
       state.commitments = [];
       state.attendance = [];
       state.feedback = [];
       state.sessionPulses = [];
       state.supportRequests = [];
+      state.activitySuggestions = [];
+      state.activitySuggestionVotes = [];
       state.metricsRows = [];
       state.metricsByVolunteer = {};
       return;
@@ -413,11 +423,14 @@
         volunteersResponse,
         sessionsResponse,
         assignmentsResponse,
+        sessionActivitiesResponse,
         commitmentsResponse,
         attendanceResponse,
         feedbackResponse,
         pulsesResponse,
         supportResponse,
+        activitySuggestionsResponse,
+        activitySuggestionVotesResponse,
         metricsResponse
       ] = await Promise.all([
         state.supabase.from("ops_volunteers")
@@ -429,6 +442,11 @@
           .order("starts_at", { ascending: true }),
         state.supabase.from("ops_session_assignments")
           .select("session_id,volunteer_id"),
+        state.supabase.from("ops_session_activities")
+          .select("id,session_id,title,details,sort_order,claimed_by_volunteer_id,claimed_at,created_by_user_id,created_at,updated_at")
+          .order("session_id", { ascending: true })
+          .order("sort_order", { ascending: true })
+          .order("created_at", { ascending: true }),
         state.supabase.from("ops_commitments")
           .select("session_id,volunteer_id,status,note,plan_leave_at,last_check_in_at,updated_at"),
         state.supabase.from("ops_attendance")
@@ -445,6 +463,13 @@
           .select("id,volunteer_id,session_id,request_type,urgency,details,status,resolution_note,created_by_user_id,resolved_by_user_id,created_at,resolved_at")
           .order("created_at", { ascending: false })
           .limit(1200),
+        state.supabase.from("ops_activity_suggestions")
+          .select("id,title,details,suggested_by_user_id,created_at,updated_at")
+          .order("created_at", { ascending: false })
+          .limit(500),
+        state.supabase.from("ops_activity_suggestion_votes")
+          .select("suggestion_id,voter_user_id,created_at")
+          .limit(5000),
         state.supabase.from("ops_volunteer_metrics")
           .select("*")
       ]);
@@ -453,11 +478,14 @@
         volunteersResponse.error,
         sessionsResponse.error,
         assignmentsResponse.error,
+        sessionActivitiesResponse.error,
         commitmentsResponse.error,
         attendanceResponse.error,
         feedbackResponse.error,
         pulsesResponse.error,
         supportResponse.error,
+        activitySuggestionsResponse.error,
+        activitySuggestionVotesResponse.error,
         metricsResponse.error
       ].filter(Boolean);
 
@@ -473,11 +501,14 @@
       state.volunteers = volunteersResponse.error ? [] : (volunteersResponse.data || []);
       state.sessions = sessionsResponse.error ? [] : (sessionsResponse.data || []);
       state.assignments = assignmentsResponse.error ? [] : (assignmentsResponse.data || []);
+      state.sessionActivities = sessionActivitiesResponse.error ? [] : (sessionActivitiesResponse.data || []);
       state.commitments = commitmentsResponse.error ? [] : (commitmentsResponse.data || []);
       state.attendance = attendanceResponse.error ? [] : (attendanceResponse.data || []);
       state.feedback = feedbackResponse.error ? [] : (feedbackResponse.data || []);
       state.sessionPulses = pulsesResponse.error ? [] : (pulsesResponse.data || []);
       state.supportRequests = supportResponse.error ? [] : (supportResponse.data || []);
+      state.activitySuggestions = activitySuggestionsResponse.error ? [] : (activitySuggestionsResponse.data || []);
+      state.activitySuggestionVotes = activitySuggestionVotesResponse.error ? [] : (activitySuggestionVotesResponse.data || []);
       state.metricsRows = metricsResponse.error ? [] : (metricsResponse.data || []);
       const derivedRows = computeDerivedMetricsRows();
       if (!state.metricsRows.length) {
@@ -515,7 +546,7 @@
     } catch (error) {
       const text = errorText(error, "Data load failed");
       if (isAuthLockError(text)) {
-        setBackendStatus("Auth lock conflict detected. Close duplicate tabs or use Preview mode.", "warn");
+        setBackendStatus("Sync delayed. Close duplicate tabs, then refresh.", "warn");
       } else {
         setBackendStatus("Data load issue: " + text, "err");
       }
@@ -534,49 +565,56 @@
   }
 
   function renderLayout() {
-    const focusMode = isVolunteerFocusMode();
     if (el.directorySplit) {
-      el.directorySplit.style.display = focusMode ? "none" : "grid";
+      el.directorySplit.style.display = state.simpleView ? "none" : "grid";
+    }
+    if (el.studioPanel) {
+      el.studioPanel.style.display = state.simpleView ? "none" : "grid";
     }
   }
 
   function renderHeader() {
     const signedIn = Boolean(state.user);
     const admin = isAdmin();
-    if (el.toggleSimpleBtn) el.toggleSimpleBtn.textContent = state.simpleView ? "Coordinator view" : "Volunteer view";
+    const canManage = admin || state.previewMode;
+    if (el.toggleSimpleBtn) el.toggleSimpleBtn.textContent = state.simpleView ? "Advanced view" : "Simple view";
     if (el.demoModeBtn) el.demoModeBtn.textContent = state.previewMode ? "Preview: On" : "Preview: Off";
 
     el.sendLinkBtn.style.display = state.previewMode ? "none" : (signedIn ? "none" : "");
     el.signOutBtn.style.display = state.previewMode ? "none" : (signedIn ? "" : "none");
-    el.emailInput.disabled = state.previewMode || signedIn;
+    el.emailInput.style.display = state.previewMode ? "none" : "";
+    el.emailInput.disabled = signedIn;
     el.startSetupBtn.style.display = (!state.previewMode && signedIn && !admin) ? "" : "none";
-    el.addVolunteerBtn.style.display = admin ? "" : "none";
-    el.addSessionBtn.style.display = admin ? "" : "none";
+    el.addVolunteerBtn.style.display = canManage ? "" : "none";
+    el.addSessionBtn.style.display = canManage ? "" : "none";
 
     if (state.previewMode) {
-      el.emailInput.value = "Preview mode enabled";
-      setStatus(el.authStatus, "Preview mode active. Volunteer experience loaded instantly, no login needed.", "ok");
+      el.emailInput.value = "";
+      el.emailInput.placeholder = "member@yourdomain.com";
+      setStatus(el.authStatus, "Preview mode", "ok");
       return;
     }
 
+    el.emailInput.placeholder = "member@yourdomain.com";
     if (signedIn) el.emailInput.value = state.user.email || "";
-    else if (el.emailInput.value === "Preview mode enabled") el.emailInput.value = "";
+    else el.emailInput.value = "";
 
     if (!signedIn) {
-      setStatus(el.authStatus, "Sign in for live data, or keep Preview mode on to explore instantly.", "");
+      clearStatus(el.authStatus);
       return;
     }
     if (admin) {
-      setStatus(el.authStatus, "Admin signed in: " + (state.user.email || "") + " • session coordinator mode", "ok");
+      setStatus(el.authStatus, "Admin mode", "ok");
       return;
     }
 
     const role = state.profile ? String(state.profile.role || "member") : "member";
     const status = state.profile ? String(state.profile.status || "pending") : "pending";
-    const statusLine = status === "approved"
-      ? "Signed in: " + (state.user.email || "") + " (" + role + ", approved)"
-      : "Signed in: " + (state.user.email || "") + " (" + role + ", pending approval for live submissions)";
-    setStatus(el.authStatus, statusLine, status === "approved" ? "ok" : "warn");
+    if (status === "approved") {
+      setStatus(el.authStatus, role === "volunteer" ? "Volunteer mode" : "Signed in", "ok");
+    } else {
+      setStatus(el.authStatus, "Pending approval", "warn");
+    }
   }
   function renderCommandBoard() {
     if (state.loading) {
@@ -608,6 +646,8 @@
         if (wa !== wb) return wb - wa;
         return new Date(b.created_at || 0) - new Date(a.created_at || 0);
       });
+    const canSuggestActivity = (state.previewMode || Boolean(state.user)) && isApprovedMember();
+    const activityIdeasHtml = renderActivitySuggestionsHtml({ variant: "default", limit: 5 });
 
     if (!state.volunteers.length) {
       const actions = isAdmin()
@@ -708,6 +748,7 @@
           '<div class="row-top"><p class="headline">' + esc(row.title) + '</p>' + badge + '</div>',
           '<p class="muted">' + esc(formatDateTime(row.starts_at)) + '</p>',
           '<p class="muted">Committed ' + row.committed + '/' + row.required + ' • Responded ' + row.responded + '/' + row.assigned + '</p>',
+          '<p class="muted">Activities ' + row.claimedActivityCount + '/' + row.activityCount + ' claimed</p>',
           '<div class="inline-actions">' + nudgeButton + attendanceButton + '</div>',
           '</article>'
         ].join('');
@@ -805,7 +846,7 @@
       metricBox("Avg rating", avgSatisfaction ? avgSatisfaction.toFixed(2) : "0.00"),
       '</section>',
       '<section class="grid2">',
-      '<div class="card"><h3>Coverage</h3><div class="rows">' + coverageHtml + '</div><h3>Reminder Queue</h3><div class="rows">' + remindersHtml + '</div></div>',
+      '<div class="card"><h3>Coverage</h3><div class="rows">' + coverageHtml + '</div><h3>Reminder Queue</h3><div class="rows">' + remindersHtml + '</div><h3>Activity Ideas</h3><div class="rows">' + activityIdeasHtml + '</div>' + (canSuggestActivity ? '<div class="inline-actions"><button type="button" class="mini ghost" data-action="open-activity-suggestion-dialog">Suggest activity</button></div>' : '') + '</div>',
       '<div class="card"><h3>Risk Signals</h3><div class="rows">' + riskHtml + '</div><h3>Pulse Risks</h3><div class="rows">' + pulseRiskHtml + '</div><h3>Recognition</h3><div class="rows">' + recognitionHtml + '</div><h3>Recovery Follow-up</h3><div class="rows">' + recoveryHtml + '</div><h3>Support Queue</h3><div class="rows">' + supportHtml + '</div><h3>Top Reliability</h3><div class="rows">' + topHtml + '</div></div>',
       '</section>'
     ].join('');
@@ -814,219 +855,187 @@
   function renderSimpleCommandBoard() {
     const upcoming = upcomingSessions().slice(0, 6);
     const coverageRows = upcoming.map(sessionCoverageRow);
-    const openSupportCount = state.supportRequests.filter((row) => String(row.status || "open") === "open").length;
     const volunteersCount = state.volunteers.length;
+    const canManage = isAdmin() || state.previewMode;
     const myId = myVolunteerId();
     const actorId = state.user ? String(state.user.id) : "preview-user";
+    const canSuggestActivity = (state.previewMode || Boolean(state.user)) && isApprovedMember();
     const myVolunteer = myId ? state.volunteers.find((row) => String(row.id) === String(myId)) : null;
 
     if (myVolunteer) {
       const myUpcoming = upcomingSessionsForVolunteer(myVolunteer.id).slice(0, 4);
-      const nextMine = myUpcoming[0] || null;
-      const myPending = pendingUpcomingResponses(myVolunteer.id);
       const myHelped = countPositiveAttendance(myVolunteer.id);
       const myHelped30 = countPositiveAttendance(myVolunteer.id, 30);
       const myStreak = showUpStreak(myVolunteer.id);
       const praiseCount = feedbackForVolunteer(myVolunteer.id).filter((row) => Number(row.rating || 0) >= 4).length;
-      const milestone = volunteerMilestone(myHelped);
-      const checkInNow = myUpcoming.find((session) => {
-        const commitment = commitmentFor(myVolunteer.id, session.id);
-        return commitment && String(commitment.status || "") === "committed" && !commitment.last_check_in_at && withinCheckInWindow(session.starts_at);
-      }) || null;
-      const pulsePending = pastSessionsForVolunteer(myVolunteer.id).find((session) => !pulseFor(myVolunteer.id, session.id, actorId)) || null;
-      const openShift = upcomingSessions().find((session) => !assignedVolunteerIds(session.id).includes(String(myVolunteer.id))) || null;
+      const myMetric = metricFor(myVolunteer.id);
+      const mission = buildVolunteerMission(myVolunteer.id, actorId);
+      const missionSession = mission.session || null;
+      const openShift = mission.kind === "take_shift" ? missionSession : (upcomingSessions().find((session) => !assignedVolunteerIds(session.id).includes(String(myVolunteer.id))) || null);
       const monthlyGoal = Number(state.monthlyGoal || 2);
-      const goalRemaining = Math.max(0, monthlyGoal - myHelped30);
-      const paceLine = goalRemaining > 0
-        ? (goalRemaining + " more this month to hit your personal goal")
-        : "Personal monthly goal achieved";
       const purpose = purposeSummary(state.volunteerPurpose);
       const goalButtons = [
         '<button type="button" class="mini' + (monthlyGoal === 1 ? "" : " ghost") + '" data-action="set-goal" data-goal="1">1/mo</button>',
         '<button type="button" class="mini' + (monthlyGoal === 2 ? "" : " ghost") + '" data-action="set-goal" data-goal="2">2/mo</button>',
         '<button type="button" class="mini' + (monthlyGoal === 4 ? "" : " ghost") + '" data-action="set-goal" data-goal="4">Weekly</button>'
       ].join("");
-      const purposeButtons = [
-        '<button type="button" class="mini' + (state.volunteerPurpose === "community" ? "" : " ghost") + '" data-action="set-purpose" data-purpose="community">Community</button>',
-        '<button type="button" class="mini' + (state.volunteerPurpose === "coaching" ? "" : " ghost") + '" data-action="set-purpose" data-purpose="coaching">Coaching</button>',
-        '<button type="button" class="mini' + (state.volunteerPurpose === "skills" ? "" : " ghost") + '" data-action="set-purpose" data-purpose="skills">Skills</button>',
-        '<button type="button" class="mini' + (state.volunteerPurpose === "social" ? "" : " ghost") + '" data-action="set-purpose" data-purpose="social">Social</button>'
-      ].join("");
       const progressPct = goalProgressPct(myHelped30, monthlyGoal);
       const motivation = motivationMessage(myHelped30, monthlyGoal, myStreak, praiseCount);
-      const topPraise = feedbackForVolunteer(myVolunteer.id).filter((row) => Number(row.rating || 0) >= 4)[0] || null;
-
-      let actionHtml = '<div class="empty">You are up to date. Keep your momentum going.</div>';
-      if (checkInNow) {
-        actionHtml = [
-          '<article class="row">',
-          '<div class="row-top"><p class="headline">Check in now and start strong</p><span class="warnpill">Now</span></div>',
-          '<p class="muted">' + esc(checkInNow.title || "Session") + " • " + esc(formatDateTime(checkInNow.starts_at)) + '</p>',
-          '<div class="inline-actions"><button type="button" class="mini" data-action="check-in-session" data-session-id="' + esc(checkInNow.id) + '">I\'m on my way</button></div>',
-          '</article>'
-        ].join("");
-      } else if (myPending > 0 && nextMine) {
-        actionHtml = [
-          '<article class="row">',
-          '<div class="row-top"><p class="headline">Confirm your next session</p><span class="pill">Pending</span></div>',
-          '<p class="muted">' + esc(nextMine.title || "Session") + " • " + esc(formatDateTime(nextMine.starts_at)) + '</p>',
-          '<div class="inline-actions"><button type="button" class="mini" data-action="set-commitment" data-session-id="' + esc(nextMine.id) + '" data-status="committed">I can make it</button><button type="button" class="mini ghost" data-action="set-commitment" data-session-id="' + esc(nextMine.id) + '" data-status="unavailable">Can\'t make it</button></div>',
-          '</article>'
-        ].join("");
-      } else if (pulsePending) {
-        actionHtml = [
-          '<article class="row">',
-          '<div class="row-top"><p class="headline">Share your quick pulse</p><span class="pill">1 min</span></div>',
-          '<p class="muted">' + esc(pulsePending.title || "Session") + " • " + esc(formatDate(pulsePending.starts_at)) + '</p>',
-          '<div class="inline-actions"><button type="button" class="mini ghost" data-action="open-pulse-dialog" data-session-id="' + esc(pulsePending.id) + '">Submit pulse</button></div>',
-          '</article>'
-        ].join("");
-      }
-
-      const momentumLine = milestone.remaining > 0
-        ? (milestone.remaining + " more session(s) to reach " + milestone.nextLabel)
-        : ("You are at " + milestone.currentLabel + " level");
+      const praiseRows = feedbackForVolunteer(myVolunteer.id).filter((row) => Number(row.rating || 0) >= 4).slice(0, 2);
+      const missionImpact = missionSession ? sessionImpactEstimate(missionSession) : 0;
       const membersHelped = impactEstimate(myHelped);
       const reward = nextRecognitionReward(myHelped);
-      const missionSession = checkInNow || nextMine || openShift || null;
-      const missionImpact = missionSession ? sessionImpactEstimate(missionSession) : 0;
+      const milestone = volunteerMilestone(myHelped);
+      const activityIdeasHtml = renderActivitySuggestionsHtml({ variant: "vx", limit: 4 });
       const shiftHtml = openShift
-        ? '<article class="row"><div class="row-top"><p class="headline">' + esc(openShift.title || "Session") + '</p><span class="pill">' + esc(formatDateTime(openShift.starts_at)) + '</span></div><div class="inline-actions"><button type="button" class="mini ghost" data-action="take-open-shift" data-session-id="' + esc(openShift.id) + '">Take this shift</button></div></article>'
+        ? '<article class="vx-row"><div class="vx-top"><p class="headline">' + esc(openShift.title || "Session") + '</p><span class="vx-tag">' + esc(formatDateTime(openShift.starts_at)) + '</span></div><div class="vx-actions"><button type="button" class="mini ghost" data-action="take-open-shift" data-session-id="' + esc(openShift.id) + '">Take Shift</button></div></article>'
         : '<div class="empty">No open shifts right now.</div>';
-      const praiseHtml = topPraise
-        ? '<article class="review"><p>' + esc(String(topPraise.note || "").trim() || "Thank you for helping at our sessions.") + '</p><p class="muted">Latest member feedback</p></article>'
-        : '<div class="empty">No member thank-you notes yet. You can collect your first after the next session.</div>';
-      const rewardHtml = reward.remaining > 0
-        ? '<article class="row"><div class="row-top"><p class="headline">Next recognition</p><span class="pill">' + reward.remaining + " to go" + '</span></div><p class="muted">' + esc(reward.label) + '</p></article>'
-        : '<article class="row"><div class="row-top"><p class="headline">Recognition unlocked</p><span class="okpill">Achieved</span></div><p class="muted">' + esc(reward.label) + '</p></article>';
-      let missionHtml = '<div class="empty">No mission assigned yet.</div>';
-      if (checkInNow) {
-        missionHtml = [
-          '<article class="row">',
-          '<div class="row-top"><p class="headline">Today\'s mission: ' + esc(checkInNow.title || "Session") + '</p><span class="warnpill">Check in now</span></div>',
-          '<p class="muted">' + esc(formatDateTime(checkInNow.starts_at)) + ' • likely helps ~' + missionImpact + ' member visits</p>',
-          '<div class="inline-actions"><button type="button" class="mini" data-action="check-in-session" data-session-id="' + esc(checkInNow.id) + '">I\'m on my way</button></div>',
-          '</article>'
-        ].join("");
-      } else if (myPending > 0 && nextMine) {
-        missionHtml = [
-          '<article class="row">',
-          '<div class="row-top"><p class="headline">Today\'s mission: confirm ' + esc(nextMine.title || "Session") + '</p><span class="pill">Pending</span></div>',
-          '<p class="muted">' + esc(formatDateTime(nextMine.starts_at)) + ' • likely helps ~' + sessionImpactEstimate(nextMine) + ' member visits</p>',
-          '<div class="inline-actions"><button type="button" class="mini" data-action="set-commitment" data-session-id="' + esc(nextMine.id) + '" data-status="committed">I can make it</button><button type="button" class="mini ghost" data-action="set-commitment" data-session-id="' + esc(nextMine.id) + '" data-status="unavailable">Can\'t make it</button></div>',
-          '</article>'
-        ].join("");
-      } else if (nextMine) {
-        missionHtml = [
-          '<article class="row">',
-          '<div class="row-top"><p class="headline">Today\'s mission: ' + esc(nextMine.title || "Session") + '</p><span class="okpill">Confirmed</span></div>',
-          '<p class="muted">' + esc(formatDateTime(nextMine.starts_at)) + ' • likely helps ~' + sessionImpactEstimate(nextMine) + ' member visits</p>',
-          '<p class="muted">' + esc([nextMine.role_brief || "", nextMine.arrival_note || ""].filter(Boolean).join(" • ")) + '</p>',
-          '</article>'
-        ].join("");
-      } else if (openShift) {
-        missionHtml = [
-          '<article class="row">',
-          '<div class="row-top"><p class="headline">Optional mission: take an extra shift</p><span class="pill">Optional</span></div>',
-          '<p class="muted">' + esc(openShift.title || "Session") + " • " + esc(formatDateTime(openShift.starts_at)) + " • helps ~" + sessionImpactEstimate(openShift) + ' member visits</p>',
-          '<div class="inline-actions"><button type="button" class="mini ghost" data-action="take-open-shift" data-session-id="' + esc(openShift.id) + '">Take this shift</button></div>',
-          '</article>'
-        ].join("");
+      const praiseHtml = praiseRows.length
+        ? praiseRows.map((row) => {
+          const session = sessionById(row.session_id);
+          const note = String(row.note || "").trim() || "Thank you for supporting this session.";
+          return '<article class="vx-row"><div class="vx-top"><p class="headline">' + esc(session ? session.title : "Session") + '</p><span class="vx-tag">' + stars(row.rating) + '</span></div><p class="vx-note">' + esc(trimText(note, 120)) + '</p></article>';
+        }).join("")
+        : '<div class="empty">No thank-you notes yet.</div>';
+      const badgeChips = volunteerBadges(myMetric, myStreak, myHelped, praiseCount).slice(0, 2).map((badge) => '<span class="vx-chip">' + esc(badge) + '</span>').join("");
+      const missionTitle = missionSession ? esc(missionSession.title || "Session") : "No session queued";
+      const missionMeta = missionSession ? esc(formatDateTime(missionSession.starts_at)) : "You are clear this week";
+      const missionSub = missionSession ? esc([missionSession.role_brief || "", missionSession.arrival_note || ""].filter(Boolean).join(" • ")) : "";
+      let missionActions = '<button type="button" class="mini ghost" data-action="open-support-dialog">Need support</button>';
+      if (mission.kind === "check_in" && missionSession) {
+        missionActions = '<button type="button" class="vx-primary" data-action="check-in-session" data-session-id="' + esc(missionSession.id) + '">Check In</button>';
+      } else if (mission.kind === "confirm" && missionSession) {
+        missionActions = '<button type="button" class="vx-primary" data-action="set-commitment" data-session-id="' + esc(missionSession.id) + '" data-status="committed">I\'m In</button><button type="button" class="mini ghost" data-action="set-commitment" data-session-id="' + esc(missionSession.id) + '" data-status="unavailable">Can\'t</button>';
+      } else if (mission.kind === "pulse" && missionSession) {
+        missionActions = '<button type="button" class="vx-primary" data-action="open-pulse-dialog" data-session-id="' + esc(missionSession.id) + '">1-Min Pulse</button>';
+      } else if (mission.kind === "take_shift" && missionSession) {
+        missionActions = '<button type="button" class="vx-primary" data-action="take-open-shift" data-session-id="' + esc(missionSession.id) + '">Take Shift</button>';
       }
 
+      const quickUpcomingHtml = myUpcoming.length
+        ? myUpcoming.slice(0, 3).map((session) => {
+          const commitment = commitmentFor(myVolunteer.id, session.id);
+          const status = commitment ? String(commitment.status || "") : "pending";
+          const statusTag = status === "committed" ? "Committed" : (status === "unavailable" ? "Unavailable" : "Pending");
+          return '<article class="vx-row"><div class="vx-top"><p class="headline">' + esc(session.title || "Session") + '</p><span class="vx-tag">' + esc(statusTag) + '</span></div><p class="vx-sub">' + esc(formatDateTime(session.starts_at)) + '</p></article>';
+        }).join("")
+        : '<div class="empty">No upcoming shifts.</div>';
+
       el.commandBoard.innerHTML = [
-        '<section class="card spark">',
-        '<div class="row-top"><p class="headline">Welcome back, ' + esc(myVolunteer.display_name || "Volunteer") + '</p><span class="score">' + esc(milestone.currentLabel) + '</span></div>',
-        '<p class="big-note">' + esc(motivation) + '</p>',
-        '<p class="muted">Purpose: ' + esc(purpose.title) + ". " + esc(purpose.body) + '</p>',
-        '<p class="muted">You have supported about ' + membersHelped + ' member visits.' + (praiseCount > 0 ? (" " + praiseCount + " positive note(s) received.") : "") + '</p>',
-        '<div class="goal-track"><div class="goal-fill" style="width:' + progressPct + '%"></div></div>',
-        '<p class="muted">Monthly goal progress: ' + myHelped30 + "/" + monthlyGoal + '</p>',
-        '<div class="inline-actions"><button type="button" class="mini ghost" data-action="open-support-dialog">Need support</button>' + goalButtons + '</div>',
-        '<div class="inline-actions">' + purposeButtons + '</div>',
+        '<section class="vx-grid">',
+        '<article class="vx-mission">',
+        '<p class="vx-kicker">Next Move</p>',
+        '<h3 class="vx-title">' + missionTitle + '</h3>',
+        '<div class="vx-top"><p class="vx-sub">' + missionMeta + '</p><span class="vx-tag">' + esc(mission.badge || "Ready") + '</span></div>',
+        missionSub ? '<p class="vx-sub">' + missionSub + '</p>' : '',
+        missionSession ? '<p class="vx-sub">Impact ~' + missionImpact + ' member visits</p>' : '',
+        '<div class="vx-actions">' + missionActions + '<button type="button" class="mini ghost" data-action="open-support-dialog">Need support</button></div>',
+        '</article>',
+        '<article class="vx-card">',
+        '<div class="vx-ringbox"><div class="vx-ring" style="--p:' + progressPct + '"><div class="vx-ring-center"><div class="vx-ring-main">' + myHelped30 + "/" + monthlyGoal + '</div><div class="vx-ring-sub">Monthly Goal</div></div></div><p class="big-note">' + esc(motivation) + '</p></div>',
+        '<div class="vx-chips"><span class="vx-chip">' + esc(milestone.currentLabel) + '</span><span class="vx-chip">~' + membersHelped + ' helped</span><span class="vx-chip">' + esc(purpose.title) + '</span>' + badgeChips + '</div>',
+        '<div class="vx-actions">' + goalButtons + '</div>',
+        '</article>',
         '</section>',
-        '<section class="grid2"><div class="card warm"><h3>Today\'s Mission</h3><div class="rows">' + missionHtml + '</div><h3>Next Best Action</h3><div class="rows">' + actionHtml + '</div></div><div class="card"><h3>Member Appreciation</h3><div class="rows">' + praiseHtml + '</div><h3>Progress</h3><div class="rows"><article class="row"><div class="row-top"><p class="headline">' + esc(momentumLine) + '</p><span class="okpill">' + myHelped + '/' + milestone.nextTarget + '</span></div><p class="muted">' + esc(paceLine) + '</p></article>' + rewardHtml + '</div></div></section>',
-        '<section class="metric-grid">',
-        metricBox("Sessions helped", String(myHelped)),
-        metricBox("This month", String(myHelped30)),
-        metricBox("Streak", String(myStreak)),
-        metricBox("Upcoming", String(myUpcoming.length)),
+        '<section class="vx-tiles">',
+        '<article class="vx-tile"><div class="vx-tk">Sessions</div><div class="vx-tv">' + myHelped + '</div></article>',
+        '<article class="vx-tile"><div class="vx-tk">Streak</div><div class="vx-tv">' + myStreak + '</div></article>',
+        '<article class="vx-tile"><div class="vx-tk">Rating</div><div class="vx-tv">' + Number(myMetric.avg_rating || 0).toFixed(1) + '</div></article>',
+        '<article class="vx-tile"><div class="vx-tk">Praise</div><div class="vx-tv">' + praiseCount + '</div></article>',
         '</section>',
-        '<section class="card"><h3>Optional Extra Shift</h3><div class="rows">' + shiftHtml + '</div></section>'
+        '<section class="vx-grid">',
+        '<article class="vx-card"><p class="vx-kicker">Your Sessions</p><div class="vx-list">' + quickUpcomingHtml + '</div></article>',
+        '<article class="vx-card"><p class="vx-kicker">Reputation</p><div class="vx-list">' + praiseHtml + (reward.remaining > 0 ? '<article class="vx-row"><div class="vx-top"><p class="headline">Next Reward</p><span class="vx-tag">' + reward.remaining + ' to go</span></div><p class="vx-sub">' + esc(reward.label) + '</p></article>' : '<article class="vx-row"><div class="vx-top"><p class="headline">Reward Unlocked</p><span class="vx-tag">Achieved</span></div><p class="vx-sub">' + esc(reward.label) + '</p></article>') + '</div></article>',
+        '</section>',
+        '<section class="vx-card"><p class="vx-kicker">Open Shift</p><div class="vx-list">' + shiftHtml + '</div></section>',
+        '<section class="vx-card"><p class="vx-kicker">Activity Ideas</p><div class="vx-list">' + activityIdeasHtml + '</div>' + (canSuggestActivity ? '<div class="vx-actions"><button type="button" class="mini ghost" data-action="open-activity-suggestion-dialog">Suggest activity</button></div>' : '') + '</section>'
       ].join("");
       return;
     }
 
-    const steps = [
-      {
-        label: "Add volunteers",
-        done: volunteersCount > 0,
-        text: volunteersCount > 0 ? (volunteersCount + " volunteer(s) added") : (isAdmin() ? "No volunteers yet" : "Waiting for coordinator to add profiles"),
-        action: isAdmin() ? '<button type="button" class="mini" data-action="open-volunteer-dialog">Add volunteer</button>' : '<button type="button" class="mini ghost" data-action="open-settings">Settings</button>'
-      },
-      {
-        label: "Create upcoming sessions",
-        done: upcoming.length > 0,
-        text: upcoming.length > 0 ? (upcoming.length + " upcoming session(s)") : "No upcoming sessions",
-        action: isAdmin() ? '<button type="button" class="mini ghost" data-action="open-session-dialog">Add session</button>' : ""
-      },
-      {
-        label: "Claim volunteer profile",
-        done: Boolean(myId),
-        text: myId ? "Profile linked" : "Needed for volunteer studio actions",
-        action: !myId && state.selectedVolunteerId ? '<button type="button" class="mini ghost" data-action="claim-volunteer" data-volunteer-id="' + esc(state.selectedVolunteerId) + '">Claim profile</button>' : ""
-      }
-    ];
+    const requiredTotal = coverageRows.reduce((sum, row) => sum + row.required, 0);
+    const committedTotal = coverageRows.reduce((sum, row) => sum + row.committed, 0);
+    const coveragePct = requiredTotal ? Math.round((committedTotal / requiredTotal) * 100) : 0;
+    const avgRating = mean(state.feedback.map((row) => Number(row.rating || 0)));
 
-    const stepsHtml = steps.map((step, idx) => [
-      '<article class="row">',
-      '<div class="row-top"><p class="headline">' + (idx + 1) + ". " + esc(step.label) + '</p>' + (step.done ? '<span class="okpill">Done</span>' : '<span class="pill">Pending</span>') + '</div>',
-      '<p class="muted">' + esc(step.text) + '</p>',
-      '<div class="inline-actions">' + step.action + '</div>',
-      '</article>'
-    ].join("")).join("");
+    if (!volunteersCount) {
+      const actions = canManage
+        ? '<button type="button" class="vx-primary" data-action="open-volunteer-dialog">Add volunteer</button><button type="button" class="mini ghost" data-action="open-session-dialog">Add session</button>'
+        : '<button type="button" class="vx-primary" data-action="open-settings">Open settings</button>';
+      el.commandBoard.innerHTML = [
+        '<section class="vx-mission">',
+        '<p class="vx-kicker">Launch</p>',
+        '<h3 class="vx-title">Build your volunteer team</h3>',
+        '<p class="vx-sub">Add profiles, publish sessions, and let volunteers commit fast.</p>',
+        '<div class="vx-actions">' + actions + '</div>',
+        '</section>',
+        '<section class="vx-tiles">',
+        '<article class="vx-tile"><div class="vx-tk">Volunteers</div><div class="vx-tv">0</div></article>',
+        '<article class="vx-tile"><div class="vx-tk">Sessions</div><div class="vx-tv">' + upcoming.length + '</div></article>',
+        '<article class="vx-tile"><div class="vx-tk">Coverage</div><div class="vx-tv">' + coveragePct + '%</div></article>',
+        '<article class="vx-tile"><div class="vx-tk">Rating</div><div class="vx-tv">' + (avgRating ? avgRating.toFixed(1) : "0.0") + '</div></article>',
+        '</section>'
+      ].join("");
+      return;
+    }
 
-    const todayRowsHtml = coverageRows.length
+    const topVolunteers = state.volunteers
+      .map((volunteer) => ({ volunteer, metric: metricFor(volunteer.id), streak: showUpStreak(volunteer.id) }))
+      .sort((a, b) => Number(b.metric.reliability_score || 0) - Number(a.metric.reliability_score || 0))
+      .slice(0, 4);
+
+    const sessionRowsHtml = coverageRows.length
       ? coverageRows.slice(0, 4).map((row) => {
         const badge = row.gap > 0 ? '<span class="warnpill">Need ' + row.gap + '</span>' : '<span class="okpill">Covered</span>';
-        const nudges = row.pendingIds.length
-          ? '<button type="button" class="mini ghost" data-action="nudge-session" data-session-id="' + esc(row.id) + '" data-stage="Reminder">Nudge pending</button>'
+        const nudgeButton = row.pendingIds.length
+          ? '<button type="button" class="mini ghost" data-action="nudge-session" data-session-id="' + esc(row.id) + '" data-stage="Reminder">Nudge</button>'
           : "";
-        const attendance = isAdmin() && new Date(row.starts_at).getTime() <= Date.now() + 3600000
-          ? '<button type="button" class="mini ghost" data-action="open-attendance" data-session-id="' + esc(row.id) + '">Mark attendance</button>'
+        const attendanceButton = canManage && new Date(row.starts_at).getTime() <= Date.now() + 3600000
+          ? '<button type="button" class="mini ghost" data-action="open-attendance" data-session-id="' + esc(row.id) + '">Attendance</button>'
           : "";
         return [
-          '<article class="row">',
-          '<div class="row-top"><p class="headline">' + esc(row.title) + '</p>' + badge + '</div>',
-          '<p class="muted">' + esc(formatDateTime(row.starts_at)) + '</p>',
-          '<p class="muted">Committed ' + row.committed + "/" + row.required + " • Pending " + row.pendingIds.length + '</p>',
-          '<div class="inline-actions">' + nudges + attendance + '</div>',
+          '<article class="vx-row">',
+          '<div class="vx-top"><p class="headline">' + esc(row.title) + '</p>' + badge + '</div>',
+          '<p class="vx-sub">' + esc(formatDateTime(row.starts_at)) + '</p>',
+          '<p class="vx-sub">' + row.committed + "/" + row.required + ' committed • ' + row.claimedActivityCount + "/" + row.activityCount + ' activities claimed</p>',
+          '<div class="vx-actions">' + nudgeButton + attendanceButton + '</div>',
           '</article>'
         ].join("");
       }).join("")
-      : '<div class="empty">No sessions yet. Create one to start coordination.</div>';
+      : '<div class="empty">No sessions yet.</div>';
 
-    const nextAction = !volunteersCount
-      ? "Start by adding your first volunteer profile."
-      : !upcoming.length
-        ? "Next: create the next chess session so volunteers can commit."
-        : openSupportCount > 0
-          ? "You have open support requests. Resolve these first to protect volunteer retention."
-          : "Next: nudge pending volunteers and keep commitments up to date.";
+    const teamRowsHtml = topVolunteers.length
+      ? topVolunteers.map((row, index) => {
+        const rating = Number(row.metric.avg_rating || 0);
+        return [
+          '<article class="vx-row">',
+          '<div class="vx-top"><p class="headline">' + (index + 1) + ". " + esc(row.volunteer.display_name || "Volunteer") + '</p><span class="vx-tag">R ' + Math.round(Number(row.metric.reliability_score || 0)) + '</span></div>',
+          '<p class="vx-sub">' + stars(rating) + ' • Streak ' + row.streak + '</p>',
+          '</article>'
+        ].join("");
+      }).join("")
+      : '<div class="empty">No ratings yet.</div>';
+
+    const quickActions = canManage
+      ? '<button type="button" class="vx-primary" data-action="open-volunteer-dialog">Add volunteer</button><button type="button" class="mini ghost" data-action="open-session-dialog">Add session</button>' + (canSuggestActivity ? '<button type="button" class="mini ghost" data-action="open-activity-suggestion-dialog">Suggest activity</button>' : '')
+      : (!myId && state.selectedVolunteerId
+        ? '<button type="button" class="vx-primary" data-action="claim-volunteer" data-volunteer-id="' + esc(state.selectedVolunteerId) + '">Claim profile</button>'
+        : '<button type="button" class="mini ghost" data-action="open-settings">Settings</button>' + (canSuggestActivity ? '<button type="button" class="mini ghost" data-action="open-activity-suggestion-dialog">Suggest activity</button>' : ''));
+    const activityIdeasHtml = renderActivitySuggestionsHtml({ variant: "vx", limit: 4 });
 
     el.commandBoard.innerHTML = [
-      '<section class="card">',
-      '<h3>What To Do Next</h3>',
-      '<p class="muted">' + esc(nextAction) + '</p>',
-      '<div class="rows">' + stepsHtml + '</div>',
+      '<section class="vx-tiles">',
+      '<article class="vx-tile"><div class="vx-tk">Volunteers</div><div class="vx-tv">' + volunteersCount + '</div></article>',
+      '<article class="vx-tile"><div class="vx-tk">Upcoming</div><div class="vx-tv">' + upcoming.length + '</div></article>',
+      '<article class="vx-tile"><div class="vx-tk">Coverage</div><div class="vx-tv">' + coveragePct + '%</div></article>',
+      '<article class="vx-tile"><div class="vx-tk">Rating</div><div class="vx-tv">' + (avgRating ? avgRating.toFixed(1) : "0.0") + '</div></article>',
       '</section>',
-      '<section class="metric-grid">',
-      metricBox("Volunteers", String(volunteersCount)),
-      metricBox("Upcoming", String(upcoming.length)),
-      metricBox("Open support", String(openSupportCount)),
-      metricBox("Preview mode", state.previewMode ? "On" : "Off"),
+      '<section class="vx-grid">',
+      '<article class="vx-card"><p class="vx-kicker">Sessions</p><div class="vx-list">' + sessionRowsHtml + '</div></article>',
+      '<article class="vx-card"><p class="vx-kicker">Top Volunteers</p><div class="vx-list">' + teamRowsHtml + '</div></article>',
       '</section>',
-      '<section class="card"><h3>Sessions Needing Attention</h3><div class="rows">' + todayRowsHtml + '</div></section>'
+      '<section class="vx-card"><p class="vx-kicker">Activity Ideas</p><div class="vx-list">' + activityIdeasHtml + '</div></section>',
+      '<section class="vx-card"><p class="vx-kicker">Quick Actions</p><div class="vx-actions">' + quickActions + '</div></section>'
     ].join("");
   }
 
@@ -1183,6 +1192,7 @@
     const pulseStress = pulseRows.length ? mean(pulseRows.map((row) => Number(row.stress_rating || 0))) : 0;
     const myId = myVolunteerId();
     const actorUserId = state.user ? String(state.user.id) : "preview-user";
+    const canClaimActivities = Boolean(myId) && String(myId) === String(volunteer.id);
     const canClaim = (state.previewMode || Boolean(state.user)) && !myId && !volunteer.owner_user_id;
     const canLeaveFeedback = (state.previewMode || Boolean(state.user)) && isApprovedMember() && pastSessionsForVolunteer(volunteer.id).length > 0;
     const canReport = (state.previewMode || Boolean(state.user)) && isApprovedMember() && (!volunteer.owner_user_id || String(volunteer.owner_user_id) !== actorUserId);
@@ -1203,12 +1213,18 @@
         const checkin = commitment && commitment.last_check_in_at ? "Checked in " + formatDateTime(commitment.last_check_in_at) : "";
         const roleLine = [session.role_brief || "", session.arrival_note || "", session.backup_plan || ""].filter(Boolean).join(" • ");
         const line = [plan, checkin].filter(Boolean).join(" • ");
+        const activitiesHtml = renderSessionActivitiesHtml(session.id, {
+          actorVolunteerId: canClaimActivities ? volunteer.id : null,
+          showClaimActions: canClaimActivities,
+          emptyText: "No activities added yet."
+        });
         return [
           '<article class="row">',
           '<div class="row-top"><p class="headline">' + esc(session.title || 'Session') + '</p>' + badge + '</div>',
           '<p class="muted">' + esc(formatDateTime(session.starts_at)) + '</p>',
           roleLine ? '<p class="muted">' + esc(roleLine) + '</p>' : '',
           line ? '<p class="muted">' + esc(line) + '</p>' : '',
+          '<div class="rows">' + activitiesHtml + '</div>',
           '</article>'
         ].join('');
       }).join('')
@@ -1280,12 +1296,20 @@
     const nextButtons = isMine && nextSession
       ? '<div class="inline-actions"><button type="button" class="mini' + (nextStatus === "committed" ? "" : " ghost") + '" data-action="set-commitment" data-session-id="' + esc(nextSession.id) + '" data-status="committed">I can make it</button><button type="button" class="mini' + (nextStatus === "unavailable" ? "" : " ghost") + '" data-action="set-commitment" data-session-id="' + esc(nextSession.id) + '" data-status="unavailable">Can\'t make it</button>' + (checkInOpen ? '<button type="button" class="mini ghost" data-action="check-in-session" data-session-id="' + esc(nextSession.id) + '">I\'m on my way</button>' : '') + '</div>'
       : "";
+    const nextActivitiesHtml = nextSession
+      ? renderSessionActivitiesHtml(nextSession.id, {
+        actorVolunteerId: isMine ? volunteer.id : null,
+        showClaimActions: isMine,
+        emptyText: "No activities added yet."
+      })
+      : "";
 
     const nextSessionHtml = nextSession
       ? [
         '<article class="row">',
         '<div class="row-top"><p class="headline">' + esc(nextSession.title || "Session") + '</p><span class="pill">' + esc(formatDateTime(nextSession.starts_at)) + '</span></div>',
         '<div class="row-top"><p class="muted">' + esc([nextSession.role_brief || "", nextSession.arrival_note || "", nextSession.backup_plan || ""].filter(Boolean).join(" • ")) + '</p>' + nextBadge + '</div>',
+        '<div class="rows">' + nextActivitiesHtml + '</div>',
         nextButtons,
         '</article>'
       ].join("")
@@ -1435,12 +1459,18 @@
         const checkin = checkedIn ? "Checked in " + formatDateTime(commitment.last_check_in_at) : "";
         const roleLine = [session.role_brief || "", session.arrival_note || "", session.backup_plan || ""].filter(Boolean).join(" • ");
         const planLine = [plan, checkin].filter(Boolean).join(" • ");
+        const activitiesHtml = renderSessionActivitiesHtml(session.id, {
+          actorVolunteerId: volunteerId,
+          showClaimActions: true,
+          emptyText: "No activities added yet."
+        });
 
         return [
           '<article class="row">',
           '<div class="row-top"><p class="headline">' + esc(session.title || 'Session') + '</p><span class="pill">' + esc(formatDateTime(session.starts_at)) + '</span></div>',
           roleLine ? '<p class="muted">' + esc(roleLine) + '</p>' : '',
           planLine ? '<p class="muted">' + esc(planLine) + '</p>' : '',
+          '<div class="rows">' + activitiesHtml + '</div>',
           '<div class="inline-actions">',
           '<button type="button" class="mini' + committedClass + '" data-action="set-commitment" data-session-id="' + esc(session.id) + '" data-status="committed">I can make it</button>',
           '<button type="button" class="mini' + unavailableClass + '" data-action="set-commitment" data-session-id="' + esc(session.id) + '" data-status="unavailable">Can\'t make it</button>',
@@ -1455,10 +1485,16 @@
     const openShiftHtml = openShifts.length
       ? openShifts.map((session) => {
         const roleLine = [session.role_brief || "", session.arrival_note || "", session.backup_plan || ""].filter(Boolean).join(" • ");
+        const activitiesHtml = renderSessionActivitiesHtml(session.id, {
+          actorVolunteerId: volunteerId,
+          showClaimActions: true,
+          emptyText: "No activities added yet."
+        });
         return [
           '<article class="row">',
           '<div class="row-top"><p class="headline">' + esc(session.title || "Session") + '</p><span class="pill">' + esc(formatDateTime(session.starts_at)) + '</span></div>',
           roleLine ? '<p class="muted">' + esc(roleLine) + '</p>' : '',
+          '<div class="rows">' + activitiesHtml + '</div>',
           '<div class="inline-actions"><button type="button" class="mini ghost" data-action="take-open-shift" data-session-id="' + esc(session.id) + '">Take this shift</button></div>',
           '</article>'
         ].join('');
@@ -1500,7 +1536,7 @@
       '<div class="hero-top">',
       '<div class="av">' + esc(initials(volunteer.display_name || 'V')) + '</div>',
       '<div><h2>My Studio</h2><p class="muted">' + esc(volunteer.display_name || 'Volunteer') + '</p></div>',
-      '<div class="inline-actions"><button type="button" class="mini ghost" data-action="open-edit-volunteer" data-volunteer-id="' + esc(volunteer.id) + '">Edit profile</button><button type="button" class="mini ghost" data-action="open-support-dialog">Need support</button><button type="button" class="mini ghost" data-action="open-pulse-dialog">Session pulse</button></div>',
+      '<div class="inline-actions"><button type="button" class="mini ghost" data-action="open-edit-volunteer" data-volunteer-id="' + esc(volunteer.id) + '">Edit profile</button><button type="button" class="mini ghost" data-action="open-support-dialog">Need support</button><button type="button" class="mini ghost" data-action="open-pulse-dialog">Session pulse</button><button type="button" class="mini ghost" data-action="open-activity-suggestion-dialog">Suggest activity</button></div>',
       '</div>',
       '<div class="chips"><span class="chip">Reliability ' + Math.round(Number(metric.reliability_score || 0)) + '</span><span class="chip">Attendance ' + Number(metric.attendance_rate_pct || 0) + '%</span><span class="chip">Response ' + Number(metric.response_rate_pct || 0) + '%</span><span class="chip">Rating ' + Number(metric.avg_rating || 0).toFixed(2) + '</span><span class="chip">Streak ' + streak + '</span><span class="chip">Pending ' + pendingCount + '</span><span class="chip">Open support ' + Number(metric.open_support_count || 0) + '</span></div>',
       '</section>',
@@ -1514,14 +1550,10 @@
   function renderSimpleStudio(volunteerId, volunteer) {
     const metric = metricFor(volunteerId);
     const upcoming = upcomingSessionsForVolunteer(volunteerId).slice(0, 4);
-    const checkInNow = upcoming.find((session) => {
-      const commitment = commitmentFor(volunteerId, session.id);
-      return commitment && String(commitment.status || "") === "committed" && !commitment.last_check_in_at && withinCheckInWindow(session.starts_at);
-    }) || null;
-    const firstPending = upcoming.find((session) => !commitmentFor(volunteerId, session.id)) || null;
     const actorId = state.user ? String(state.user.id) : "preview-user";
-    const pulsePending = pastSessionsForVolunteer(volunteerId).find((session) => !pulseFor(volunteerId, session.id, actorId)) || null;
-    const openShift = upcomingSessions().find((session) => !assignedVolunteerIds(session.id).includes(String(volunteerId))) || null;
+    const mission = buildVolunteerMission(volunteerId, actorId);
+    const missionSession = mission.session || null;
+    const openShift = mission.kind === "take_shift" ? missionSession : (upcomingSessions().find((session) => !assignedVolunteerIds(session.id).includes(String(volunteerId))) || null);
     const helpedTotal = countPositiveAttendance(volunteerId);
     const helped30 = countPositiveAttendance(volunteerId, 30);
     const streak = showUpStreak(volunteerId);
@@ -1535,9 +1567,7 @@
     const membersHelped = impactEstimate(helpedTotal);
     const progressPct = goalProgressPct(helped30, monthlyGoal);
     const motivation = motivationMessage(helped30, monthlyGoal, streak, praiseCount);
-    const topPraise = praiseRows[0] || null;
     const reward = nextRecognitionReward(helpedTotal);
-    const missionSession = checkInNow || firstPending || upcoming[0] || openShift || null;
     const missionImpact = missionSession ? sessionImpactEstimate(missionSession) : 0;
     const goalButtons = [
       '<button type="button" class="mini' + (monthlyGoal === 1 ? "" : " ghost") + '" data-action="set-goal" data-goal="1">1/mo</button>',
@@ -1550,40 +1580,15 @@
       '<button type="button" class="mini' + (state.volunteerPurpose === "skills" ? "" : " ghost") + '" data-action="set-purpose" data-purpose="skills">Skills</button>',
       '<button type="button" class="mini' + (state.volunteerPurpose === "social" ? "" : " ghost") + '" data-action="set-purpose" data-purpose="social">Social</button>'
     ].join("");
-
-    let actionHtml = '<div class="empty">You are up to date. Keep your momentum going.</div>';
-    if (checkInNow) {
-      actionHtml = [
-        '<article class="row">',
-        '<div class="row-top"><p class="headline">Check in now and start strong</p><span class="warnpill">Now</span></div>',
-        '<p class="muted">' + esc(checkInNow.title || "Session") + " • " + esc(formatDateTime(checkInNow.starts_at)) + '</p>',
-        '<div class="inline-actions"><button type="button" class="mini" data-action="check-in-session" data-session-id="' + esc(checkInNow.id) + '">I\'m on my way</button></div>',
-        '</article>'
-      ].join("");
-    } else if (firstPending) {
-      actionHtml = [
-        '<article class="row">',
-        '<div class="row-top"><p class="headline">Confirm your next session</p><span class="pill">Pending</span></div>',
-        '<p class="muted">' + esc(firstPending.title || "Session") + " • " + esc(formatDateTime(firstPending.starts_at)) + '</p>',
-        '<div class="inline-actions"><button type="button" class="mini" data-action="set-commitment" data-session-id="' + esc(firstPending.id) + '" data-status="committed">I can make it</button><button type="button" class="mini ghost" data-action="set-commitment" data-session-id="' + esc(firstPending.id) + '" data-status="unavailable">Can\'t make it</button></div>',
-        '</article>'
-      ].join("");
-    } else if (pulsePending) {
-      actionHtml = [
-        '<article class="row">',
-        '<div class="row-top"><p class="headline">Share your 1-minute pulse</p><span class="pill">Quick</span></div>',
-        '<p class="muted">' + esc(pulsePending.title || "Session") + " • " + esc(formatDate(pulsePending.starts_at)) + '</p>',
-        '<div class="inline-actions"><button type="button" class="mini ghost" data-action="open-pulse-dialog" data-session-id="' + esc(pulsePending.id) + '">Submit pulse</button></div>',
-        '</article>'
-      ].join("");
-    } else if (openShift) {
-      actionHtml = [
-        '<article class="row">',
-        '<div class="row-top"><p class="headline">Want to help one more table?</p><span class="pill">Optional</span></div>',
-        '<p class="muted">' + esc(openShift.title || "Session") + " • " + esc(formatDateTime(openShift.starts_at)) + '</p>',
-        '<div class="inline-actions"><button type="button" class="mini ghost" data-action="take-open-shift" data-session-id="' + esc(openShift.id) + '">Take this shift</button></div>',
-        '</article>'
-      ].join("");
+    let primaryActionHtml = '<button type="button" class="mini ghost" data-action="open-support-dialog">Need Support</button>';
+    if (mission.kind === "check_in" && missionSession) {
+      primaryActionHtml = '<button type="button" class="vx-primary" data-action="check-in-session" data-session-id="' + esc(missionSession.id) + '">Check In</button>';
+    } else if (mission.kind === "confirm" && missionSession) {
+      primaryActionHtml = '<button type="button" class="vx-primary" data-action="set-commitment" data-session-id="' + esc(missionSession.id) + '" data-status="committed">I\'m In</button><button type="button" class="mini ghost" data-action="set-commitment" data-session-id="' + esc(missionSession.id) + '" data-status="unavailable">Can\'t</button>';
+    } else if (mission.kind === "pulse" && missionSession) {
+      primaryActionHtml = '<button type="button" class="vx-primary" data-action="open-pulse-dialog" data-session-id="' + esc(missionSession.id) + '">1-Min Pulse</button>';
+    } else if (mission.kind === "take_shift" && missionSession) {
+      primaryActionHtml = '<button type="button" class="vx-primary" data-action="take-open-shift" data-session-id="' + esc(missionSession.id) + '">Take Shift</button>';
     }
 
     const sessionsHtml = upcoming.length
@@ -1592,25 +1597,21 @@
         const status = commitment ? String(commitment.status || "") : "pending";
         const committedClass = status === "committed" ? "" : " ghost";
         const unavailableClass = status === "unavailable" ? "" : " ghost";
-        const badge = status === "committed"
-          ? '<span class="okpill">Committed</span>'
-          : status === "unavailable"
-            ? '<span class="warnpill">Unavailable</span>'
-            : '<span class="pill">Pending</span>';
+        const badge = status === "committed" ? "Committed" : (status === "unavailable" ? "Unavailable" : "Pending");
         const roleLine = [session.role_brief || "", session.arrival_note || ""].filter(Boolean).join(" • ");
         return [
-          '<article class="row">',
-          '<div class="row-top"><p class="headline">' + esc(session.title || "Session") + '</p>' + badge + '</div>',
-          '<p class="muted">' + esc(formatDateTime(session.starts_at)) + '</p>',
-          roleLine ? '<p class="muted">' + esc(roleLine) + '</p>' : '',
-          '<div class="inline-actions"><button type="button" class="mini' + committedClass + '" data-action="set-commitment" data-session-id="' + esc(session.id) + '" data-status="committed">I can make it</button><button type="button" class="mini' + unavailableClass + '" data-action="set-commitment" data-session-id="' + esc(session.id) + '" data-status="unavailable">Can\'t make it</button></div>',
+          '<article class="vx-row">',
+          '<div class="vx-top"><p class="headline">' + esc(session.title || "Session") + '</p><span class="vx-tag">' + esc(badge) + '</span></div>',
+          '<p class="vx-sub">' + esc(formatDateTime(session.starts_at)) + '</p>',
+          roleLine ? '<p class="vx-sub">' + esc(roleLine) + '</p>' : '',
+          '<div class="vx-actions"><button type="button" class="mini' + committedClass + '" data-action="set-commitment" data-session-id="' + esc(session.id) + '" data-status="committed">I\'m In</button><button type="button" class="mini' + unavailableClass + '" data-action="set-commitment" data-session-id="' + esc(session.id) + '" data-status="unavailable">Can\'t</button></div>',
           '</article>'
         ].join("");
       }).join("")
       : '<div class="empty">No upcoming sessions assigned.</div>';
 
     const shiftHtml = openShift
-      ? '<article class="row"><div class="row-top"><p class="headline">' + esc(openShift.title || "Session") + '</p><span class="pill">' + esc(formatDateTime(openShift.starts_at)) + '</span></div><p class="muted">Want to help more this week? This shift is available.</p><div class="inline-actions"><button type="button" class="mini ghost" data-action="take-open-shift" data-session-id="' + esc(openShift.id) + '">Take this shift</button></div></article>'
+      ? '<article class="vx-row"><div class="vx-top"><p class="headline">' + esc(openShift.title || "Session") + '</p><span class="vx-tag">' + esc(formatDateTime(openShift.starts_at)) + '</span></div><div class="vx-actions"><button type="button" class="mini ghost" data-action="take-open-shift" data-session-id="' + esc(openShift.id) + '">Take Shift</button></div></article>'
       : '<div class="empty">No open shifts right now.</div>';
 
     const praiseHtml = praiseRows.length
@@ -1618,34 +1619,42 @@
         const session = sessionById(row.session_id);
         const note = String(row.note || "").trim() || "Thank you for showing up and helping.";
         return [
-          '<article class="review">',
-          '<div class="row-top"><p class="muted">' + esc(session ? session.title : "Session") + '</p><p class="muted">' + stars(row.rating) + '</p></div>',
-          '<p>' + esc(note) + '</p>',
+          '<article class="vx-row">',
+          '<div class="vx-top"><p class="headline">' + esc(session ? session.title : "Session") + '</p><span class="vx-tag">' + stars(row.rating) + '</span></div>',
+          '<p class="vx-note">' + esc(trimText(note, 140)) + '</p>',
           '</article>'
         ].join("");
       }).join("")
-      : '<div class="empty">No thank-you notes yet. Ask for quick feedback after your next session.</div>';
+      : '<div class="empty">No thank-you notes yet.</div>';
+    const missionTitle = missionSession ? esc(missionSession.title || "Session") : "No Mission";
+    const missionTime = missionSession ? esc(formatDateTime(missionSession.starts_at)) : "No shift queued";
+    const missionRole = missionSession ? esc([missionSession.role_brief || "", missionSession.arrival_note || ""].filter(Boolean).join(" • ")) : "";
+    const badgeChips = badges.map((badge) => '<span class="vx-chip">' + esc(badge) + '</span>').join("");
 
     el.studioPanel.innerHTML = [
-      '<section class="card spark">',
-      '<div class="row-top"><p class="headline">Your Volunteer Journey</p><span class="score">' + esc(milestone.currentLabel) + '</span></div>',
-      '<p class="big-note">' + esc(motivation) + '</p>',
-      '<p class="muted">You have supported about ' + membersHelped + ' member visits. Focus: ' + esc(purpose.title) + '.</p>',
-      (missionSession ? '<p class="muted">Your next shift likely supports about ' + missionImpact + ' member visits.</p>' : ''),
-      '<div class="goal-track"><div class="goal-fill" style="width:' + progressPct + '%"></div></div>',
-      '<p class="muted">This month: ' + helped30 + "/" + monthlyGoal + (goalRemaining > 0 ? (" • " + goalRemaining + " more to hit target") : " • goal achieved") + '</p>',
-      '<p class="muted">' + (reward.remaining > 0 ? ("Next recognition: " + reward.label + " (" + reward.remaining + " to go)") : ("Recognition unlocked: " + reward.label)) + '</p>',
-      '<div class="inline-actions"><button type="button" class="mini ghost" data-action="open-support-dialog">Need support</button><button type="button" class="mini ghost" data-action="open-edit-volunteer" data-volunteer-id="' + esc(volunteer.id) + '">Edit profile</button><button type="button" class="mini ghost" data-action="open-pulse-dialog">Session pulse</button></div>',
-      '<div class="inline-actions">' + goalButtons + purposeButtons + '</div>',
+      '<section class="vx-grid">',
+      '<article class="vx-mission">',
+      '<p class="vx-kicker">Live Mission</p>',
+      '<h3 class="vx-title">' + missionTitle + '</h3>',
+      '<div class="vx-top"><p class="vx-sub">' + missionTime + '</p><span class="vx-tag">' + esc(mission.badge || "Ready") + '</span></div>',
+      missionRole ? '<p class="vx-sub">' + missionRole + '</p>' : '',
+      missionSession ? '<p class="vx-sub">Impact ~' + missionImpact + ' member visits</p>' : '',
+      '<div class="vx-actions">' + primaryActionHtml + '<button type="button" class="mini ghost" data-action="open-support-dialog">Need Support</button></div>',
+      '<div class="vx-actions">' + goalButtons + '</div>',
+      '<div class="vx-actions">' + purposeButtons + '</div>',
+      '</article>',
+      '<article class="vx-card">',
+      '<div class="vx-ringbox"><div class="vx-ring" style="--p:' + progressPct + '"><div class="vx-ring-center"><div class="vx-ring-main">' + helped30 + "/" + monthlyGoal + '</div><div class="vx-ring-sub">Monthly Goal</div></div></div><p class="big-note">' + esc(motivation) + '</p></div>',
+      '<div class="vx-chips"><span class="vx-chip">' + esc(milestone.currentLabel) + '</span><span class="vx-chip">~' + membersHelped + ' helped</span>' + badgeChips + '</div>',
+      '<div class="vx-sub">Focus: ' + esc(purpose.title) + '</div>',
+      '<div class="vx-sub">' + (reward.remaining > 0 ? ("Next reward: " + reward.label + " (" + reward.remaining + " to go)") : ("Reward unlocked: " + reward.label)) + '</div>',
+      '</article>',
       '</section>',
-      '<section class="metric-grid">',
-      metricBox("Sessions helped", String(helpedTotal)),
-      metricBox("This month", String(helped30)),
-      metricBox("Streak", String(streak)),
-      metricBox("Praise notes", String(praiseCount)),
+      '<section class="vx-grid">',
+      '<article class="vx-card"><p class="vx-kicker">Upcoming Sessions</p><div class="vx-list">' + sessionsHtml + '</div></article>',
+      '<article class="vx-card"><p class="vx-kicker">Recognition</p><div class="vx-list">' + praiseHtml + '</div></article>',
       '</section>',
-      '<section class="grid2"><div class="card warm"><h3>Do This Next</h3><div class="rows">' + actionHtml + '</div></div><div class="card"><h3>Your Upcoming Sessions</h3><div class="rows">' + sessionsHtml + '</div></div></section>',
-      '<section class="grid2"><div class="card"><h3>Your Impact and Recognition</h3><div class="rows"><article class="row"><div class="row-top"><p class="headline">' + esc(milestone.currentLabel) + '</p><span class="okpill">' + helpedTotal + '/' + milestone.nextTarget + '</span></div><p class="muted">' + (milestone.remaining > 0 ? (milestone.remaining + " more session(s) to reach " + milestone.nextLabel) : "Top level reached") + '</p><p class="muted">' + esc(badges.join(" • ") || "Build momentum by showing up and responding early.") + '</p></article>' + (topPraise ? '<article class="review"><p>' + esc(String(topPraise.note || "").trim() || "Thank you for helping at our sessions.") + '</p><p class="muted">Latest member feedback</p></article>' : '') + '</div><div class="reviews">' + praiseHtml + '</div></div><div class="card"><h3>Optional Extra Shift</h3><div class="rows">' + shiftHtml + '</div></div></section>'
+      '<section class="vx-card"><p class="vx-kicker">Optional Extra Shift</p><div class="vx-list">' + shiftHtml + '</div></section>'
     ].join("");
   }
   async function onActionClick(event) {
@@ -1659,9 +1668,13 @@
     if (action === "open-feedback") { openFeedbackDialog(target.getAttribute("data-volunteer-id")); return; }
     if (action === "open-report") { openReportDialog(target.getAttribute("data-volunteer-id")); return; }
     if (action === "open-edit-volunteer") { openEditVolunteerDialog(target.getAttribute("data-volunteer-id")); return; }
+    if (action === "open-activity-suggestion-dialog") { openActivitySuggestionDialog(); return; }
     if (action === "claim-volunteer") { await onClaimVolunteer(target.getAttribute("data-volunteer-id")); return; }
+    if (action === "toggle-session-activity-claim") { await onToggleSessionActivityClaim(target.getAttribute("data-activity-id"), target.getAttribute("data-mode")); return; }
     if (action === "set-commitment") { await onSetCommitment(target.getAttribute("data-session-id"), target.getAttribute("data-status")); return; }
     if (action === "check-in-session") { await onCheckInSession(target.getAttribute("data-session-id")); return; }
+    if (action === "toggle-activity-suggestion-vote") { await onToggleActivitySuggestionVote(target.getAttribute("data-suggestion-id")); return; }
+    if (action === "add-suggested-activity") { onAddSuggestedActivityToDraft(target.getAttribute("data-suggestion-id")); return; }
     if (action === "nudge-session") { await copySessionNudge(target.getAttribute("data-session-id"), target.getAttribute("data-stage")); return; }
     if (action === "nudge-volunteer") { await copyVolunteerNudge(target.getAttribute("data-volunteer-id")); return; }
     if (action === "copy-recognition") { await copyRecognitionNudge(target.getAttribute("data-volunteer-id")); return; }
@@ -1765,7 +1778,7 @@
   }
 
   function openVolunteerDialog() {
-    if (!isAdmin()) {
+    if (!isAdmin() && !state.previewMode) {
       setBackendStatus("Admin role required.", "err");
       return;
     }
@@ -1828,7 +1841,7 @@
   }
 
   function openSessionDialog() {
-    if (!isAdmin()) {
+    if (!isAdmin() && !state.previewMode) {
       setBackendStatus("Admin role required.", "err");
       return;
     }
@@ -1839,9 +1852,11 @@
     el.sessionStartsInput.value = toDatetimeLocal(soon);
     el.sessionRequiredInput.value = "2";
     el.sessionRoleBriefInput.value = "Welcome attendees, set boards, and support pairings";
+    el.sessionActivitiesInput.value = defaultSessionActivityLines();
     el.sessionArrivalNoteInput.value = "Arrive 20 minutes before start";
     el.sessionBackupPlanInput.value = "If delayed, message coordinator immediately";
     el.sessionAssignAllInput.value = "0";
+    renderSessionDialogSuggestionButtons();
     openDialog(el.sessionDialog);
   }
 
@@ -1852,6 +1867,7 @@
     const startsRaw = String(el.sessionStartsInput.value || "").trim();
     const required = Math.max(1, Math.min(20, Number(el.sessionRequiredInput.value || 2)));
     const roleBrief = String(el.sessionRoleBriefInput.value || "").trim();
+    const activityTitles = parseActivityTitles(el.sessionActivitiesInput.value);
     const arrivalNote = String(el.sessionArrivalNoteInput.value || "").trim();
     const backupPlan = String(el.sessionBackupPlanInput.value || "").trim();
     const assignAll = String(el.sessionAssignAllInput.value || "0") === "1";
@@ -1861,6 +1877,10 @@
     }
     if (roleBrief.length < 4) {
       setStatus(el.sessionStatus, "Role clarity is required.", "err");
+      return;
+    }
+    if (!activityTitles.length) {
+      setStatus(el.sessionStatus, "Add at least one volunteer activity.", "err");
       return;
     }
     const startsAt = new Date(startsRaw);
@@ -1892,6 +1912,16 @@
             return isFinite(starts) && Math.abs(starts - startsAt.getTime()) <= 60000;
           });
           if (created) {
+            const activitiesResponse = await rpc("ops_add_session_activities", {
+              p_session_id: created.id,
+              p_titles: activityTitles
+            }, 25000);
+            if (activitiesResponse.error) {
+              setStatus(el.sessionStatus, errorText(activitiesResponse.error, "Session activities save failed"), "err");
+              renderAll();
+              return;
+            }
+            await loadAllData();
             renderAll();
             setBackendStatus("Session created.", "ok");
             if (el.sessionDialog.open) el.sessionDialog.close();
@@ -1901,6 +1931,18 @@
         if (looksLikeMissingSetup(message)) setStatus(el.sessionStatus, "Run supabase/all_in_one_setup.sql first.", "err");
         else setStatus(el.sessionStatus, message, "err");
         return;
+      }
+      if (response.data) {
+        const activitiesResponse = await rpc("ops_add_session_activities", {
+          p_session_id: response.data,
+          p_titles: activityTitles
+        }, 25000);
+        if (activitiesResponse.error) {
+          setStatus(el.sessionStatus, errorText(activitiesResponse.error, "Session activities save failed"), "err");
+          await loadAllData();
+          renderAll();
+          return;
+        }
       }
       await loadAllData();
       renderAll();
@@ -2068,6 +2110,124 @@
       el.saveVolunteerProfileBtn.disabled = false;
       el.saveVolunteerProfileBtn.textContent = label || "Save Changes";
     }
+  }
+
+  function openActivitySuggestionDialog() {
+    if (!state.previewMode && (!state.user || !state.supabase)) {
+      setBackendStatus("Sign in first or switch Preview mode on.", "err");
+      return;
+    }
+    if (!isApprovedMember()) {
+      setBackendStatus("Approved member access is required.", "err");
+      return;
+    }
+    clearStatus(el.activitySuggestionStatus);
+    el.activitySuggestionForm.reset();
+    openDialog(el.activitySuggestionDialog);
+  }
+
+  async function onSubmitActivitySuggestion(event) {
+    event.preventDefault();
+    clearStatus(el.activitySuggestionStatus);
+    if (!state.previewMode && (!state.user || !state.supabase)) {
+      setStatus(el.activitySuggestionStatus, "Sign in first or use Preview mode.", "err");
+      return;
+    }
+    if (!isApprovedMember()) {
+      setStatus(el.activitySuggestionStatus, "Approved member access is required.", "err");
+      return;
+    }
+
+    const title = String(el.activitySuggestionTitleInput.value || "").trim();
+    const details = String(el.activitySuggestionDetailsInput.value || "").trim();
+    if (title.length < 3) {
+      setStatus(el.activitySuggestionStatus, "Add a slightly longer activity title.", "err");
+      return;
+    }
+
+    el.suggestActivityBtn.disabled = true;
+    const label = el.suggestActivityBtn.textContent;
+    el.suggestActivityBtn.textContent = "Sending...";
+    try {
+      const response = await rpc("ops_suggest_activity", {
+        p_title: title,
+        p_details: details || null
+      }, 25000);
+      if (response.error) {
+        setStatus(el.activitySuggestionStatus, errorText(response.error, "Suggestion failed"), "err");
+        return;
+      }
+      await loadAllData();
+      renderAll();
+      setBackendStatus("Activity idea saved for the team to vote on.", "ok");
+      if (el.activitySuggestionDialog.open) el.activitySuggestionDialog.close();
+    } finally {
+      el.suggestActivityBtn.disabled = false;
+      el.suggestActivityBtn.textContent = label || "Send Suggestion";
+    }
+  }
+
+  async function onToggleActivitySuggestionVote(suggestionId) {
+    if (!suggestionId) return;
+    if (!state.previewMode && (!state.user || !state.supabase)) {
+      setBackendStatus("Sign in first.", "err");
+      return;
+    }
+    if (!isApprovedMember()) {
+      setBackendStatus("Approved member access is required.", "err");
+      return;
+    }
+    const response = await rpc("ops_toggle_activity_suggestion_vote", { p_suggestion_id: suggestionId }, 25000);
+    if (response.error) {
+      setBackendStatus(errorText(response.error, "Vote failed"), "err");
+      return;
+    }
+    await loadAllData();
+    renderAll();
+    setBackendStatus(response.data ? "Vote added." : "Vote removed.", "ok");
+  }
+
+  async function onToggleSessionActivityClaim(activityId, mode) {
+    if (!activityId) return;
+    if (!state.previewMode && (!state.user || !state.supabase)) {
+      setBackendStatus("Sign in first.", "err");
+      return;
+    }
+    if (!myVolunteerId()) {
+      setBackendStatus("Claim a volunteer profile first.", "err");
+      return;
+    }
+    const activity = sessionActivityById(activityId);
+    if (!activity) {
+      setBackendStatus("Activity not found.", "err");
+      return;
+    }
+    const rpcName = String(mode || "") === "release" ? "ops_unclaim_session_activity" : "ops_claim_session_activity";
+    const response = await rpc(rpcName, { p_activity_id: activityId }, 25000);
+    if (response.error) {
+      setBackendStatus(errorText(response.error, "Activity update failed"), "err");
+      return;
+    }
+    await loadAllData();
+    renderAll();
+    if (rpcName === "ops_claim_session_activity") setBackendStatus("Activity claimed. You are marked in for that session.", "ok");
+    else setBackendStatus("Activity released.", "ok");
+  }
+
+  function onAddSuggestedActivityToDraft(suggestionId) {
+    if (!el.sessionActivitiesInput) return;
+    const suggestion = state.activitySuggestions.find((row) => String(row.id) === String(suggestionId));
+    if (!suggestion) return;
+    const title = String(suggestion.title || "").trim();
+    if (!title) return;
+    const existing = parseActivityTitles(el.sessionActivitiesInput.value);
+    if (existing.some((value) => value.toLowerCase() === title.toLowerCase())) {
+      setBackendStatus("That activity is already in the session draft.", "ok");
+      return;
+    }
+    existing.push(title);
+    el.sessionActivitiesInput.value = existing.join("\n");
+    setBackendStatus("Activity added to the session draft.", "ok");
   }
 
   function openPulseDialog(sessionId) {
@@ -2430,6 +2590,166 @@
     renderAll();
   }
 
+  function parseActivityTitles(raw) {
+    const seen = new Set();
+    return String(raw || "")
+      .split(/\r?\n/)
+      .map((value) => String(value || "").trim())
+      .filter(Boolean)
+      .filter((value) => {
+        const key = value.toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .slice(0, 24);
+  }
+
+  function defaultSessionActivityLines() {
+    const suggested = topActivitySuggestions(3).map((row) => String(row.suggestion.title || "").trim()).filter(Boolean);
+    if (suggested.length) return suggested.join("\n");
+    return [
+      "Set up boards",
+      "Welcome new players",
+      "Support pairings"
+    ].join("\n");
+  }
+
+  function renderSessionDialogSuggestionButtons() {
+    if (!el.sessionSuggestedActivities) return;
+    const suggestions = topActivitySuggestions(6);
+    if (!suggestions.length) {
+      el.sessionSuggestedActivities.innerHTML = '<button type="button" class="mini ghost" data-action="open-activity-suggestion-dialog">Suggest a new activity</button>';
+      return;
+    }
+    el.sessionSuggestedActivities.innerHTML = suggestions.map((entry) =>
+      '<button type="button" class="mini ghost" data-action="add-suggested-activity" data-suggestion-id="' + esc(entry.suggestion.id) + '">' +
+      esc(entry.suggestion.title || "Suggested activity") +
+      ' (' + entry.votes + ')' +
+      '</button>'
+    ).join("") + '<button type="button" class="mini ghost" data-action="open-activity-suggestion-dialog">Suggest a new activity</button>';
+  }
+
+  function topActivitySuggestions(limit) {
+    return state.activitySuggestions
+      .map((suggestion) => ({
+        suggestion,
+        votes: activitySuggestionVoteCount(suggestion.id)
+      }))
+      .sort((a, b) => {
+        if (b.votes !== a.votes) return b.votes - a.votes;
+        return new Date(b.suggestion.created_at || 0) - new Date(a.suggestion.created_at || 0);
+      })
+      .slice(0, Math.max(1, Number(limit || 6)));
+  }
+
+  function activitySuggestionVoteCount(suggestionId) {
+    return state.activitySuggestionVotes.filter((row) => String(row.suggestion_id) === String(suggestionId)).length;
+  }
+
+  function hasVotedActivitySuggestion(suggestionId, voterUserId) {
+    return state.activitySuggestionVotes.some((row) =>
+      String(row.suggestion_id) === String(suggestionId) &&
+      String(row.voter_user_id || "") === String(voterUserId || "")
+    );
+  }
+
+  function sessionActivitiesForSession(sessionId) {
+    return state.sessionActivities
+      .filter((row) => String(row.session_id) === String(sessionId))
+      .sort((a, b) => {
+        const orderDiff = Number(a.sort_order || 0) - Number(b.sort_order || 0);
+        if (orderDiff !== 0) return orderDiff;
+        return new Date(a.created_at || 0) - new Date(b.created_at || 0);
+      });
+  }
+
+  function sessionActivityById(activityId) {
+    return state.sessionActivities.find((row) => String(row.id) === String(activityId)) || null;
+  }
+
+  function sessionActivityClaimedCount(sessionId) {
+    return sessionActivitiesForSession(sessionId).filter((row) => row.claimed_by_volunteer_id).length;
+  }
+
+  function renderSessionActivitiesHtml(sessionId, options) {
+    const opts = options || {};
+    const variant = opts.variant === "vx" ? "vx" : "default";
+    const actorVolunteerId = opts.actorVolunteerId ? String(opts.actorVolunteerId) : "";
+    const showClaimActions = Boolean(opts.showClaimActions && actorVolunteerId);
+    const activities = sessionActivitiesForSession(sessionId);
+    const cardClass = variant === "vx" ? "vx-row" : "row";
+    const topClass = variant === "vx" ? "vx-top" : "row-top";
+    const metaClass = variant === "vx" ? "vx-sub" : "muted";
+    const actionsClass = variant === "vx" ? "vx-actions" : "inline-actions";
+    const emptyText = opts.emptyText || "No activities set for this session yet.";
+    if (!activities.length) return '<div class="empty">' + esc(emptyText) + '</div>';
+
+    return activities.map((activity) => {
+      const claimedById = activity.claimed_by_volunteer_id ? String(activity.claimed_by_volunteer_id) : "";
+      const claimedByName = claimedById ? (volunteerNameById(claimedById) || "Volunteer") : "";
+      const claimedByMe = actorVolunteerId && claimedById === actorVolunteerId;
+      const statusBadge = claimedById
+        ? (claimedByMe ? (variant === "vx" ? '<span class="vx-tag">You</span>' : '<span class="okpill">You</span>') : (variant === "vx" ? '<span class="vx-tag">' + esc(claimedByName) + '</span>' : '<span class="pill">' + esc(claimedByName) + '</span>'))
+        : (variant === "vx" ? '<span class="vx-tag">Open</span>' : '<span class="warnpill">Open</span>');
+      const actionsHtml = showClaimActions
+        ? (!claimedById
+          ? '<div class="' + actionsClass + '"><button type="button" class="mini ghost" data-action="toggle-session-activity-claim" data-activity-id="' + esc(activity.id) + '" data-mode="claim">Claim activity</button></div>'
+          : (claimedByMe
+            ? '<div class="' + actionsClass + '"><button type="button" class="mini ghost" data-action="toggle-session-activity-claim" data-activity-id="' + esc(activity.id) + '" data-mode="release">Release</button></div>'
+            : ""))
+        : "";
+      const bodyLine = String(activity.details || "").trim()
+        || (claimedById ? ("Claimed by " + claimedByName + ".") : "Nobody has claimed this yet.");
+      return [
+        '<article class="' + cardClass + '">',
+        '<div class="' + topClass + '"><p class="headline">' + esc(activity.title || "Volunteer activity") + '</p>' + statusBadge + '</div>',
+        '<p class="' + metaClass + '">' + esc(bodyLine) + '</p>',
+        actionsHtml,
+        '</article>'
+      ].join("");
+    }).join("");
+  }
+
+  function renderActivitySuggestionsHtml(options) {
+    const opts = options || {};
+    const variant = opts.variant === "vx" ? "vx" : "default";
+    const limit = Math.max(1, Number(opts.limit || 5));
+    const showUseButton = Boolean(opts.showUseButton);
+    const actorUserId = state.user ? String(state.user.id) : "preview-user";
+    const canVote = (state.previewMode || Boolean(state.user)) && isApprovedMember();
+    const rows = topActivitySuggestions(limit);
+    const cardClass = variant === "vx" ? "vx-row" : "row";
+    const topClass = variant === "vx" ? "vx-top" : "row-top";
+    const metaClass = variant === "vx" ? "vx-sub" : "muted";
+    const actionsClass = variant === "vx" ? "vx-actions" : "inline-actions";
+    if (!rows.length) {
+      const cta = canVote ? '<button type="button" class="mini ghost" data-action="open-activity-suggestion-dialog">Suggest the first one</button>' : '';
+      return '<div class="empty">No activity suggestions yet.' + (cta ? '<div class="inline-actions">' + cta + '</div>' : '') + '</div>';
+    }
+
+    return rows.map((entry) => {
+      const suggestion = entry.suggestion;
+      const votes = entry.votes;
+      const voted = hasVotedActivitySuggestion(suggestion.id, actorUserId);
+      const detail = String(suggestion.details || "").trim();
+      const voteLine = votes + " vote" + (votes === 1 ? "" : "s");
+      const voteButton = canVote
+        ? '<button type="button" class="mini' + (voted ? "" : " ghost") + '" data-action="toggle-activity-suggestion-vote" data-suggestion-id="' + esc(suggestion.id) + '">' + (voted ? "Voted" : "Vote") + '</button>'
+        : "";
+      const useButton = showUseButton
+        ? '<button type="button" class="mini ghost" data-action="add-suggested-activity" data-suggestion-id="' + esc(suggestion.id) + '">Add to session</button>'
+        : "";
+      return [
+        '<article class="' + cardClass + '">',
+        '<div class="' + topClass + '"><p class="headline">' + esc(suggestion.title || "Activity idea") + '</p>' + (variant === "vx" ? '<span class="vx-tag">' + esc(voteLine) + '</span>' : '<span class="pill">' + esc(voteLine) + '</span>') + '</div>',
+        detail ? '<p class="' + metaClass + '">' + esc(trimText(detail, 150)) + '</p>' : '',
+        '<div class="' + actionsClass + '">' + voteButton + useButton + '</div>',
+        '</article>'
+      ].join("");
+    }).join("");
+  }
+
   async function copySessionNudge(sessionId, stageLabelRaw) {
     const session = sessionById(sessionId);
     if (!session) return;
@@ -2520,7 +2840,12 @@
         if (parsed && Array.isArray(parsed.volunteers) && Array.isArray(parsed.sessions) && Array.isArray(parsed.assignments) &&
             Array.isArray(parsed.commitments) && Array.isArray(parsed.attendance) && Array.isArray(parsed.feedback) &&
             Array.isArray(parsed.sessionPulses) && Array.isArray(parsed.supportRequests)) {
-          seed = parsed;
+          seed = {
+            ...parsed,
+            sessionActivities: Array.isArray(parsed.sessionActivities) ? parsed.sessionActivities : [],
+            activitySuggestions: Array.isArray(parsed.activitySuggestions) ? parsed.activitySuggestions : [],
+            activitySuggestionVotes: Array.isArray(parsed.activitySuggestionVotes) ? parsed.activitySuggestionVotes : []
+          };
         }
       } catch (_error) {}
     }
@@ -2529,11 +2854,14 @@
     state.volunteers = seed.volunteers || [];
     state.sessions = seed.sessions || [];
     state.assignments = seed.assignments || [];
+    state.sessionActivities = seed.sessionActivities || [];
     state.commitments = seed.commitments || [];
     state.attendance = seed.attendance || [];
     state.feedback = seed.feedback || [];
     state.sessionPulses = seed.sessionPulses || [];
     state.supportRequests = seed.supportRequests || [];
+    state.activitySuggestions = seed.activitySuggestions || [];
+    state.activitySuggestionVotes = seed.activitySuggestionVotes || [];
     state.metricsRows = computeDerivedMetricsRows();
     state.metricsByVolunteer = {};
     state.metricsRows.forEach((row) => { state.metricsByVolunteer[String(row.volunteer_id)] = row; });
@@ -2569,11 +2897,14 @@
       volunteers: state.volunteers,
       sessions: state.sessions,
       assignments: state.assignments,
+      sessionActivities: state.sessionActivities,
       commitments: state.commitments,
       attendance: state.attendance,
       feedback: state.feedback,
       sessionPulses: state.sessionPulses,
       supportRequests: state.supportRequests,
+      activitySuggestions: state.activitySuggestions,
+      activitySuggestionVotes: state.activitySuggestionVotes,
       selectedVolunteerId: state.selectedVolunteerId,
       profileVolunteerId: state.profile ? state.profile.volunteer_id : null
     }));
@@ -2601,6 +2932,20 @@
         assignments.push({ session_id: session.id, volunteer_id: volunteer.id });
       });
     });
+
+    const sessionActivities = [
+      { id: "pa_1", session_id: "ps_past_1", title: "Set up boards", details: "", sort_order: 0, claimed_by_volunteer_id: "pv_alex", claimed_at: new Date(now - (7.2 * 86400000)).toISOString(), created_by_user_id: "preview-admin", created_at: new Date(now - (9 * 86400000)).toISOString(), updated_at: new Date(now - (7.2 * 86400000)).toISOString() },
+      { id: "pa_2", session_id: "ps_past_1", title: "Welcome first-time players", details: "", sort_order: 1, claimed_by_volunteer_id: "pv_maya", claimed_at: new Date(now - (7.2 * 86400000)).toISOString(), created_by_user_id: "preview-admin", created_at: new Date(now - (9 * 86400000)).toISOString(), updated_at: new Date(now - (7.2 * 86400000)).toISOString() },
+      { id: "pa_3", session_id: "ps_past_2", title: "Run beginner table", details: "", sort_order: 0, claimed_by_volunteer_id: "pv_maya", claimed_at: new Date(now - (14.2 * 86400000)).toISOString(), created_by_user_id: "preview-admin", created_at: new Date(now - (16 * 86400000)).toISOString(), updated_at: new Date(now - (14.2 * 86400000)).toISOString() },
+      { id: "pa_4", session_id: "ps_past_2", title: "Support pairings", details: "", sort_order: 1, claimed_by_volunteer_id: "pv_liam", claimed_at: new Date(now - (14.2 * 86400000)).toISOString(), created_by_user_id: "preview-admin", created_at: new Date(now - (16 * 86400000)).toISOString(), updated_at: new Date(now - (14.2 * 86400000)).toISOString() },
+      { id: "pa_5", session_id: "ps_up_1", title: "Warm-up puzzles", details: "", sort_order: 0, claimed_by_volunteer_id: "pv_alex", claimed_at: new Date(now - (2 * 3600000)).toISOString(), created_by_user_id: "preview-admin", created_at: new Date(now - (20 * 3600000)).toISOString(), updated_at: new Date(now - (2 * 3600000)).toISOString() },
+      { id: "pa_6", session_id: "ps_up_1", title: "New player welcome desk", details: "", sort_order: 1, claimed_by_volunteer_id: null, claimed_at: null, created_by_user_id: "preview-admin", created_at: new Date(now - (20 * 3600000)).toISOString(), updated_at: new Date(now - (20 * 3600000)).toISOString() },
+      { id: "pa_7", session_id: "ps_up_2", title: "Pairing support", details: "", sort_order: 0, claimed_by_volunteer_id: "pv_liam", claimed_at: new Date(now - (90 * 60000)).toISOString(), created_by_user_id: "preview-admin", created_at: new Date(now - (20 * 3600000)).toISOString(), updated_at: new Date(now - (90 * 60000)).toISOString() },
+      { id: "pa_8", session_id: "ps_up_2", title: "Beginner onboarding", details: "", sort_order: 1, claimed_by_volunteer_id: null, claimed_at: null, created_by_user_id: "preview-admin", created_at: new Date(now - (20 * 3600000)).toISOString(), updated_at: new Date(now - (20 * 3600000)).toISOString() },
+      { id: "pa_9", session_id: "ps_up_2", title: "Results table", details: "", sort_order: 2, claimed_by_volunteer_id: null, claimed_at: null, created_by_user_id: "preview-admin", created_at: new Date(now - (20 * 3600000)).toISOString(), updated_at: new Date(now - (20 * 3600000)).toISOString() },
+      { id: "pa_10", session_id: "ps_up_3", title: "Clock setup", details: "", sort_order: 0, claimed_by_volunteer_id: null, claimed_at: null, created_by_user_id: "preview-admin", created_at: new Date(now - (20 * 3600000)).toISOString(), updated_at: new Date(now - (20 * 3600000)).toISOString() },
+      { id: "pa_11", session_id: "ps_up_3", title: "Coaching station prep", details: "", sort_order: 1, claimed_by_volunteer_id: null, claimed_at: null, created_by_user_id: "preview-admin", created_at: new Date(now - (20 * 3600000)).toISOString(), updated_at: new Date(now - (20 * 3600000)).toISOString() }
+    ];
 
     const commitments = [
       { session_id: "ps_up_1", volunteer_id: "pv_alex", status: "committed", note: "Planned leave 18:20", plan_leave_at: new Date(now + (23.5 * 3600000)).toISOString(), last_check_in_at: null, updated_at: new Date(now - 3600000).toISOString() },
@@ -2633,15 +2978,33 @@
       { id: "sr_2", volunteer_id: "pv_alex", session_id: null, request_type: "wellbeing", urgency: "normal", details: "Would like one lighter week next month.", status: "resolved", resolution_note: "Adjusted rota for next two sessions.", created_by_user_id: "preview-user", resolved_by_user_id: "preview-user", created_at: new Date(now - (10 * 86400000)).toISOString(), resolved_at: new Date(now - (9 * 86400000)).toISOString() }
     ];
 
+    const activitySuggestions = [
+      { id: "as_1", title: "Photo check-in table", details: "A volunteer could help new members find the right room and register quickly.", suggested_by_user_id: "preview-r1", created_at: new Date(now - (5 * 86400000)).toISOString(), updated_at: new Date(now - (5 * 86400000)).toISOString() },
+      { id: "as_2", title: "Puzzle corner host", details: "Keeps early arrivals engaged while pairings are still being set.", suggested_by_user_id: "preview-user", created_at: new Date(now - (3 * 86400000)).toISOString(), updated_at: new Date(now - (3 * 86400000)).toISOString() },
+      { id: "as_3", title: "Parent update runner", details: "Helps junior sessions by giving quick updates at pickup time.", suggested_by_user_id: "preview-r2", created_at: new Date(now - (2 * 86400000)).toISOString(), updated_at: new Date(now - (2 * 86400000)).toISOString() }
+    ];
+
+    const activitySuggestionVotes = [
+      { suggestion_id: "as_1", voter_user_id: "preview-r2", created_at: new Date(now - (4.9 * 86400000)).toISOString() },
+      { suggestion_id: "as_1", voter_user_id: "preview-user", created_at: new Date(now - (4.8 * 86400000)).toISOString() },
+      { suggestion_id: "as_2", voter_user_id: "preview-user", created_at: new Date(now - (2.7 * 86400000)).toISOString() },
+      { suggestion_id: "as_2", voter_user_id: "preview-r1", created_at: new Date(now - (2.6 * 86400000)).toISOString() },
+      { suggestion_id: "as_2", voter_user_id: "preview-r3", created_at: new Date(now - (2.5 * 86400000)).toISOString() },
+      { suggestion_id: "as_3", voter_user_id: "preview-r1", created_at: new Date(now - (1.7 * 86400000)).toISOString() }
+    ];
+
     return {
       volunteers,
       sessions,
       assignments,
+      sessionActivities,
       commitments,
       attendance,
       feedback,
       sessionPulses,
       supportRequests,
+      activitySuggestions,
+      activitySuggestionVotes,
       selectedVolunteerId: "pv_alex",
       profileVolunteerId: "pv_alex"
     };
@@ -2653,6 +3016,31 @@
 
   function buildPreviewId(prefix) {
     return prefix + "_" + Math.random().toString(36).slice(2, 10) + "_" + Date.now().toString(36);
+  }
+
+  function previewCreateSessionActivities(sessionId, titles, actorUserId, nowIso) {
+    const clean = Array.isArray(titles)
+      ? titles.map((title) => String(title || "").trim()).filter(Boolean).slice(0, 24)
+      : [];
+    const items = clean.length ? clean : ["General volunteer support"];
+    let nextOrder = state.sessionActivities
+      .filter((row) => String(row.session_id) === String(sessionId))
+      .reduce((max, row) => Math.max(max, Number(row.sort_order || 0)), -1) + 1;
+    items.forEach((title, index) => {
+      state.sessionActivities.push({
+        id: buildPreviewId("pa"),
+        session_id: sessionId,
+        title,
+        details: "",
+        sort_order: nextOrder + index,
+        claimed_by_volunteer_id: null,
+        claimed_at: null,
+        created_by_user_id: actorUserId,
+        created_at: nowIso,
+        updated_at: nowIso
+      });
+    });
+    return items.length;
   }
 
   function previewUpsertCommitment(row) {
@@ -2740,6 +3128,14 @@
         return { data: id, error: null };
       }
 
+      if (name === "ops_add_session_activities") {
+        const sessionId = String(params.p_session_id || "");
+        if (!sessionById(sessionId)) return { data: null, error: new Error("Session not found") };
+        const inserted = previewCreateSessionActivities(sessionId, params.p_titles, actorUserId, nowIso);
+        savePreviewData();
+        return { data: inserted, error: null };
+      }
+
       if (name === "ops_claim_volunteer") {
         const volunteer = state.volunteers.find((row) => String(row.id) === String(params.p_volunteer_id));
         if (!volunteer) return { data: null, error: new Error("Volunteer not found") };
@@ -2759,6 +3155,49 @@
         } else {
           state.profile.volunteer_id = volunteer.id;
         }
+        savePreviewData();
+        return { data: true, error: null };
+      }
+
+      if (name === "ops_claim_session_activity") {
+        const activity = state.sessionActivities.find((row) => String(row.id) === String(params.p_activity_id));
+        const volunteerId = myVolunteerId() || state.selectedVolunteerId || (state.volunteers[0] ? String(state.volunteers[0].id) : null);
+        if (!activity) return { data: null, error: new Error("Activity not found") };
+        if (!volunteerId) return { data: null, error: new Error("Claim volunteer profile first") };
+        if (activity.claimed_by_volunteer_id && String(activity.claimed_by_volunteer_id) !== String(volunteerId)) {
+          return { data: null, error: new Error("Activity already claimed") };
+        }
+        activity.claimed_by_volunteer_id = volunteerId;
+        activity.claimed_at = nowIso;
+        activity.updated_at = nowIso;
+        if (!state.assignments.some((row) => String(row.session_id) === String(activity.session_id) && String(row.volunteer_id) === String(volunteerId))) {
+          state.assignments.push({ session_id: activity.session_id, volunteer_id: volunteerId });
+        }
+        const session = sessionById(activity.session_id);
+        const existing = commitmentFor(volunteerId, activity.session_id);
+        previewUpsertCommitment({
+          session_id: activity.session_id,
+          volunteer_id: volunteerId,
+          status: "committed",
+          note: existing && String(existing.status || "") === "committed" && existing.note ? existing.note : ("Claimed activity: " + String(activity.title || "Volunteer activity")),
+          plan_leave_at: existing && existing.plan_leave_at ? existing.plan_leave_at : (session ? combineSessionDateAndClock(session.starts_at, defaultLeaveTime(session.starts_at)) : null),
+          last_check_in_at: existing ? existing.last_check_in_at : null,
+          updated_at: nowIso
+        });
+        savePreviewData();
+        return { data: true, error: null };
+      }
+
+      if (name === "ops_unclaim_session_activity") {
+        const activity = state.sessionActivities.find((row) => String(row.id) === String(params.p_activity_id));
+        const volunteerId = myVolunteerId() || state.selectedVolunteerId || (state.volunteers[0] ? String(state.volunteers[0].id) : null);
+        if (!activity) return { data: null, error: new Error("Activity not found") };
+        if (activity.claimed_by_volunteer_id && String(activity.claimed_by_volunteer_id) !== String(volunteerId) && !(state.profile && state.profile.role === "admin")) {
+          return { data: null, error: new Error("Only the claimant can release this activity") };
+        }
+        activity.claimed_by_volunteer_id = null;
+        activity.claimed_at = null;
+        activity.updated_at = nowIso;
         savePreviewData();
         return { data: true, error: null };
       }
@@ -2920,6 +3359,53 @@
         return { data: true, error: null };
       }
 
+      if (name === "ops_suggest_activity") {
+        const title = String(params.p_title || "").trim();
+        const details = String(params.p_details || "").trim();
+        if (title.length < 3) return { data: null, error: new Error("Activity title is required") };
+        const existing = state.activitySuggestions.find((row) => String(row.title || "").trim().toLowerCase() === title.toLowerCase());
+        if (existing) {
+          if (details) {
+            existing.details = details;
+            existing.updated_at = nowIso;
+          }
+          savePreviewData();
+          return { data: existing.id, error: null };
+        }
+        const id = buildPreviewId("as");
+        state.activitySuggestions.unshift({
+          id,
+          title,
+          details,
+          suggested_by_user_id: actorUserId,
+          created_at: nowIso,
+          updated_at: nowIso
+        });
+        savePreviewData();
+        return { data: id, error: null };
+      }
+
+      if (name === "ops_toggle_activity_suggestion_vote") {
+        const suggestionId = String(params.p_suggestion_id || "");
+        if (!state.activitySuggestions.some((row) => String(row.id) === suggestionId)) return { data: null, error: new Error("Suggestion not found") };
+        const voteIndex = state.activitySuggestionVotes.findIndex((row) =>
+          String(row.suggestion_id) === suggestionId &&
+          String(row.voter_user_id) === actorUserId
+        );
+        if (voteIndex >= 0) {
+          state.activitySuggestionVotes.splice(voteIndex, 1);
+          savePreviewData();
+          return { data: false, error: null };
+        }
+        state.activitySuggestionVotes.push({
+          suggestion_id: suggestionId,
+          voter_user_id: actorUserId,
+          created_at: nowIso
+        });
+        savePreviewData();
+        return { data: true, error: null };
+      }
+
       if (name === "ops_submit_report") {
         const volunteerId = String(params.p_volunteer_id || "");
         if (!state.volunteers.some((row) => String(row.id) === volunteerId)) return { data: null, error: new Error("Volunteer not found") };
@@ -3062,6 +3548,7 @@
 
   function sessionCoverageRow(session) {
     const volunteerIds = assignedVolunteerIds(session.id);
+    const activities = sessionActivitiesForSession(session.id);
     const assigned = volunteerIds.length;
     const required = Math.max(1, Number(session.required_volunteers || 2));
     let committed = 0;
@@ -3085,7 +3572,9 @@
       committed,
       responded,
       gap: Math.max(0, required - committed),
-      pendingIds
+      pendingIds,
+      activityCount: activities.length,
+      claimedActivityCount: activities.filter((activity) => activity.claimed_by_volunteer_id).length
     };
   }
 
@@ -3299,6 +3788,36 @@
     return (required * 10) + 4;
   }
 
+  function buildVolunteerMission(volunteerId, actorUserId) {
+    const upcoming = upcomingSessionsForVolunteer(volunteerId);
+    const checkInNow = upcoming.find((session) => {
+      const commitment = commitmentFor(volunteerId, session.id);
+      return commitment && String(commitment.status || "") === "committed" && !commitment.last_check_in_at && withinCheckInWindow(session.starts_at);
+    }) || null;
+    if (checkInNow) return { kind: "check_in", badge: "Now", session: checkInNow };
+
+    const firstPending = upcoming.find((session) => !commitmentFor(volunteerId, session.id)) || null;
+    if (firstPending) return { kind: "confirm", badge: "Pending", session: firstPending };
+
+    const pulsePending = pastSessionsForVolunteer(volunteerId).find((session) => !pulseFor(volunteerId, session.id, actorUserId)) || null;
+    if (pulsePending) return { kind: "pulse", badge: "1 min", session: pulsePending };
+
+    const openShift = upcomingSessions().find((session) => !assignedVolunteerIds(session.id).includes(String(volunteerId))) || null;
+    if (openShift) return { kind: "take_shift", badge: "Open", session: openShift };
+
+    const nextAssigned = upcoming[0] || null;
+    if (nextAssigned) return { kind: "ready", badge: "Ready", session: nextAssigned };
+
+    return { kind: "idle", badge: "Clear", session: null };
+  }
+
+  function trimText(value, maxLength) {
+    const text = String(value || "").trim();
+    const limit = Math.max(20, Number(maxLength || 140));
+    if (text.length <= limit) return text;
+    return text.slice(0, limit - 3).trimEnd() + "...";
+  }
+
   function feedbackForVolunteer(volunteerId) {
     return state.feedback
       .filter((row) => String(row.volunteer_id) === String(volunteerId))
@@ -3418,6 +3937,16 @@
 
   function setBackendStatus(text, type) {
     setStatus(el.backendStatus, text, type);
+    if (backendStatusClearTimer) {
+      clearTimeout(backendStatusClearTimer);
+      backendStatusClearTimer = null;
+    }
+    if (type === "ok" && text) {
+      backendStatusClearTimer = setTimeout(() => {
+        if (!el.backendStatus) return;
+        if (el.backendStatus.classList.contains("ok")) clearStatus(el.backendStatus);
+      }, 2600);
+    }
   }
 
   function setStatus(node, text, type) {
