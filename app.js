@@ -30,7 +30,14 @@
       dot: "#3C3489",
       lat: 52.0363588,
       lng: -0.7722635,
-      aliases: ["learn chess", "unity place", "beginners"]
+      aliases: ["learn chess", "unity place", "beginners"],
+      recurrence: "last_friday",
+      startHour: 18,
+      startMinute: 0,
+      roleBrief: "Welcome beginners, set up teaching boards, and support coaching tables.",
+      arrivalNote: "Arrive 20 minutes early at Unity Place",
+      backupPlan: "If delayed, message the session coordinator immediately",
+      activityTitles: ["Set up teaching boards", "Welcome beginners", "Support coaching tables"]
     },
     bletchley: {
       key: "bletchley",
@@ -45,7 +52,14 @@
       dot: "#0F6E56",
       lat: 51.9950372,
       lng: -0.738573,
-      aliases: ["bletchley", "south central iot"]
+      aliases: ["bletchley", "south central iot"],
+      recurrence: "first_wednesday",
+      startHour: 18,
+      startMinute: 0,
+      roleBrief: "Welcome players, set up boards, and keep casual pairings moving.",
+      arrivalNote: "Arrive 20 minutes early at Bletchley",
+      backupPlan: "If delayed, message the session coordinator immediately",
+      activityTitles: ["Set up boards", "Welcome players", "Support pairings"]
     },
     badminton: {
       key: "badminton",
@@ -60,7 +74,14 @@
       dot: "#993C1D",
       lat: 52.0378731,
       lng: -0.7848841,
-      aliases: ["badminton", "national badminton", "mk8"]
+      aliases: ["badminton", "national badminton", "mk8"],
+      recurrence: "second_thursday",
+      startHour: 18,
+      startMinute: 0,
+      roleBrief: "Welcome players, set up boards, and support pairings through the session.",
+      arrivalNote: "Arrive 20 minutes early at the Badminton Centre",
+      backupPlan: "If delayed, message the session coordinator immediately",
+      activityTitles: ["Set up boards", "Welcome players", "Support pairings"]
     },
     sunday: {
       key: "sunday",
@@ -75,7 +96,15 @@
       dot: "#B45309",
       lat: 52.0517737,
       lng: -0.7209626,
-      aliases: ["adults", "willen", "sunday"]
+      aliases: ["adults", "willen", "sunday"],
+      recurrence: "all_sundays_from_start",
+      startHour: 10,
+      startMinute: 0,
+      startDate: "2026-04-19",
+      roleBrief: "Welcome adult players, set up boards, and support relaxed social play.",
+      arrivalNote: "Arrive 15 minutes early at Willen Lake",
+      backupPlan: "If delayed, message the session coordinator immediately",
+      activityTitles: ["Set up boards", "Welcome adult players", "Support social play"]
     }
   };
 
@@ -103,6 +132,7 @@
     loading: false,
     syncInFlight: false,
     syncRequested: false,
+    scheduleSeedInFlight: false,
     monthlyGoal: 2,
     volunteerPurpose: "community",
     sessionBrowserView: "calendar",
@@ -130,6 +160,7 @@
       await ensureAccountProvisioned();
       await loadProfile();
       await loadAllData();
+      await ensureClubScheduleSeeded();
       attachAuthSubscription();
     } catch (error) {
       setBackendStatus(errorText(error, "App init failed"), "err");
@@ -302,6 +333,7 @@
       await ensureAccountProvisioned();
       await loadProfile();
       await loadAllData();
+      await ensureClubScheduleSeeded();
     } catch (error) {
       const text = errorText(error, "Sync failed");
       if (isAuthLockError(text)) setBackendStatus("Sync delayed. Close duplicate tabs, then refresh.", "warn");
@@ -722,22 +754,15 @@
     }
 
     if (!sessions.length) {
-      destroySessionMap();
-      const actions = isAdmin()
-        ? '<div class="inline-actions"><button type="button" class="mini" data-action="open-session-dialog">Add your first session</button></div>'
-        : "";
-      el.sessionExplorer.innerHTML = '<div class="empty">No live sessions yet.' + actions + '</div>';
-      return;
-    }
-
-    if (!state.selectedSessionId || !sessions.some((session) => String(session.id) === String(state.selectedSessionId))) {
+      state.selectedSessionId = null;
+    } else if (!state.selectedSessionId || !sessions.some((session) => String(session.id) === String(state.selectedSessionId))) {
       const fallback = upcomingSessions()[0] || sessions[0];
       state.selectedSessionId = String(fallback.id);
       state.sessionBrowserYear = new Date(fallback.starts_at).getFullYear();
       state.sessionBrowserMonth = new Date(fallback.starts_at).getMonth();
     }
 
-    const selected = sessionById(state.selectedSessionId) || sessions[0];
+    const selected = state.selectedSessionId ? (sessionById(state.selectedSessionId) || sessions[0] || null) : null;
     const browserHtml = state.sessionBrowserView === "map"
       ? renderSessionMapShellHtml()
       : renderSessionCalendarHtml(sessions);
@@ -832,7 +857,7 @@
             '</button>'
           ].join("");
         }).join("") + '</div>'
-        : '<div class="calendar-empty">No sessions</div>';
+        : '<div class="calendar-empty"></div>';
 
       cells.push(
         '<article class="calendar-cell' + (otherMonth ? ' other-month' : '') + (today ? ' today' : '') + '">' +
@@ -881,7 +906,10 @@
 
   function renderSelectedSessionDetail(session) {
     if (!session) {
-      return '<div class="empty">Select a session to see activities, roster, and profile history.</div>';
+      const action = isAdmin()
+        ? '<div class="inline-actions"><button type="button" class="mini" data-action="open-session-dialog">Add your first session</button></div>'
+        : "";
+      return '<div class="empty">The calendar and map stay visible here even before sessions are added. Add a real session to start assigning volunteers and claiming activities.' + action + '</div>';
     }
 
     const actorVolunteerId = myVolunteerId();
@@ -1190,6 +1218,205 @@
     setTimeout(() => {
       if (state.sessionMapInstance) state.sessionMapInstance.invalidateSize();
     }, 0);
+  }
+
+  async function ensureClubScheduleSeeded() {
+    if (!state.supabase || !isAdmin() || state.scheduleSeedInFlight) return;
+    state.scheduleSeedInFlight = true;
+    try {
+      const expected = buildRecurringClubSessions();
+      if (!expected.length) return;
+
+      const existingBySignature = new Map();
+      state.sessions.forEach((session) => {
+        existingBySignature.set(sessionSignature(session.title, session.starts_at), session);
+      });
+
+      let createdCount = 0;
+      for (const entry of expected) {
+        const signature = sessionSignature(entry.title, entry.startsAt);
+        if (existingBySignature.has(signature)) continue;
+        const createdId = await createClubScheduleSession(entry);
+        if (!createdId) continue;
+        createdCount += 1;
+        existingBySignature.set(signature, {
+          id: createdId,
+          title: entry.title,
+          starts_at: entry.startsAt.toISOString()
+        });
+      }
+
+      if (createdCount) {
+        await loadAllData();
+        if (!state.selectedSessionId && state.sessions.length) {
+          state.selectedSessionId = String(state.sessions[0].id);
+        }
+        setBackendStatus("Club schedule synced from your calendar.", "ok");
+      }
+
+      let activitiesAdded = 0;
+      for (const entry of expected) {
+        const signature = sessionSignature(entry.title, entry.startsAt);
+        const session = state.sessions.find((row) => sessionSignature(row.title, row.starts_at) === signature);
+        if (!session) continue;
+        if (sessionActivitiesForSession(session.id).length) continue;
+        const addResponse = await rpc("mkchess_volunteer_hub_add_session_activities", {
+          p_session_id: session.id,
+          p_titles: entry.activityTitles
+        }, 25000);
+        if (!addResponse.error) activitiesAdded += 1;
+      }
+
+      if (activitiesAdded) {
+        await loadAllData();
+        if (!createdCount) setBackendStatus("Club session activities synced.", "ok");
+      }
+    } finally {
+      state.scheduleSeedInFlight = false;
+    }
+  }
+
+  function buildRecurringClubSessions() {
+    const now = new Date();
+    const rangeStart = new Date(now.getFullYear(), now.getMonth() - 2, 1, 0, 0, 0, 0);
+    const rangeEnd = new Date(now.getFullYear(), now.getMonth() + 10, 0, 23, 59, 59, 999);
+    const sessions = [];
+    const seen = new Set();
+
+    for (let cursor = new Date(rangeStart.getFullYear(), rangeStart.getMonth(), 1); cursor <= rangeEnd; cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1)) {
+      const year = cursor.getFullYear();
+      const month = cursor.getMonth();
+      Object.values(SESSION_VENUES).forEach((venue) => {
+        recurringDatesForVenue(venue, year, month, rangeStart, rangeEnd).forEach((startsAt) => {
+          const signature = sessionSignature(venue.titleSuggestion, startsAt);
+          if (seen.has(signature)) return;
+          seen.add(signature);
+          sessions.push({
+            title: venue.titleSuggestion,
+            venueKey: venue.key,
+            startsAt,
+            requiredVolunteers: 2,
+            roleBrief: venue.roleBrief,
+            arrivalNote: venue.arrivalNote,
+            backupPlan: venue.backupPlan,
+            activityTitles: venue.activityTitles.slice()
+          });
+        });
+      });
+    }
+
+    return sessions.sort((a, b) => a.startsAt - b.startsAt);
+  }
+
+  function recurringDatesForVenue(venue, year, month, rangeStart, rangeEnd) {
+    const dates = [];
+    if (venue.recurrence === "last_friday") {
+      const day = lastWeekdayOfMonth(year, month, 5);
+      dates.push(makeLocalSessionDate(year, month, day, venue.startHour, venue.startMinute));
+    } else if (venue.recurrence === "first_wednesday") {
+      const day = nthWeekdayOfMonth(year, month, 3, 1);
+      dates.push(makeLocalSessionDate(year, month, day, venue.startHour, venue.startMinute));
+    } else if (venue.recurrence === "second_thursday") {
+      const day = nthWeekdayOfMonth(year, month, 4, 2);
+      dates.push(makeLocalSessionDate(year, month, day, venue.startHour, venue.startMinute));
+    } else if (venue.recurrence === "all_sundays_from_start") {
+      const [startYear, startMonth, startDay] = String(venue.startDate || "2026-04-19").split("-").map(Number);
+      const startDate = new Date(startYear, startMonth - 1, startDay, 0, 0, 0, 0);
+      allSundaysInMonth(year, month).forEach((day) => {
+        const startsAt = makeLocalSessionDate(year, month, day, venue.startHour, venue.startMinute);
+        if (startsAt >= startDate) dates.push(startsAt);
+      });
+    }
+
+    return dates.filter((date) => date >= rangeStart && date <= rangeEnd);
+  }
+
+  function lastWeekdayOfMonth(year, month, weekday) {
+    const date = new Date(year, month + 1, 0);
+    while (date.getDay() !== weekday) date.setDate(date.getDate() - 1);
+    return date.getDate();
+  }
+
+  function nthWeekdayOfMonth(year, month, weekday, nth) {
+    const date = new Date(year, month, 1);
+    let seen = 0;
+    while (date.getMonth() === month) {
+      if (date.getDay() === weekday) {
+        seen += 1;
+        if (seen === nth) return date.getDate();
+      }
+      date.setDate(date.getDate() + 1);
+    }
+    return 1;
+  }
+
+  function allSundaysInMonth(year, month) {
+    const days = [];
+    const date = new Date(year, month, 1);
+    while (date.getDay() !== 0) date.setDate(date.getDate() + 1);
+    while (date.getMonth() === month) {
+      days.push(date.getDate());
+      date.setDate(date.getDate() + 7);
+    }
+    return days;
+  }
+
+  function makeLocalSessionDate(year, month, day, hour, minute) {
+    return new Date(year, month, day, Number(hour || 0), Number(minute || 0), 0, 0);
+  }
+
+  function sessionSignature(title, startsAt) {
+    const date = startsAt instanceof Date ? startsAt : new Date(startsAt);
+    if (!isFinite(date.getTime())) return String(title || "").trim().toLowerCase();
+    return String(title || "").trim().toLowerCase() + "|" + date.toISOString().slice(0, 16);
+  }
+
+  async function createClubScheduleSession(entry) {
+    const baseParams = {
+      p_title: entry.title,
+      p_starts_at: entry.startsAt.toISOString(),
+      p_required_volunteers: entry.requiredVolunteers,
+      p_assign_all: false,
+      p_role_brief: entry.roleBrief,
+      p_arrival_note: entry.arrivalNote,
+      p_backup_plan: entry.backupPlan
+    };
+
+    let response = await rpc("mkchess_volunteer_hub_create_session", {
+      ...baseParams,
+      p_venue_key: entry.venueKey
+    }, 60000);
+
+    if (response.error) {
+      const message = errorText(response.error, "Create session failed");
+      if (/no function matches|function .* does not exist|unexpected/i.test(message)) {
+        response = await rpc("mkchess_volunteer_hub_create_session", baseParams, 60000);
+      }
+    }
+
+    if (response.error) {
+      const message = errorText(response.error, "Create session failed");
+      if (/timed out/i.test(message)) {
+        await loadAllData();
+        const existing = state.sessions.find((session) => sessionSignature(session.title, session.starts_at) === sessionSignature(entry.title, entry.startsAt));
+        if (existing) return existing.id;
+      }
+      setBackendStatus("Club schedule sync failed: " + message, "err");
+      return null;
+    }
+
+    const sessionId = response.data;
+    if (!sessionId) return null;
+
+    const activitiesResponse = await rpc("mkchess_volunteer_hub_add_session_activities", {
+      p_session_id: sessionId,
+      p_titles: entry.activityTitles
+    }, 25000);
+    if (activitiesResponse.error) {
+      setBackendStatus("Session created, but activity import failed: " + errorText(activitiesResponse.error, "Unknown error"), "warn");
+    }
+
+    return sessionId;
   }
 
   function renderVolunteerList() {
