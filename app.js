@@ -450,6 +450,11 @@
     renderAll();
 
     try {
+      if (!state.user) {
+        await loadPublicFacingData();
+        return;
+      }
+
       const sessionsPromise = state.supabase.from("mkchess_volunteer_hub_sessions")
         .select("*")
         .order("starts_at", { ascending: true });
@@ -591,22 +596,119 @@
     }
   }
 
+  async function loadPublicFacingData() {
+    const [
+      volunteersResponse,
+      sessionsResponse,
+      assignmentsResponse,
+      sessionActivitiesResponse,
+      commitmentsResponse,
+      attendanceResponse,
+      feedbackResponse,
+      activitySuggestionsResponse,
+      activitySuggestionVotesResponse,
+      metricsResponse
+    ] = await Promise.all([
+      state.supabase.from("mkchess_volunteer_hub_volunteers")
+        .select("id,owner_user_id,display_name,tagline,bio,active,created_at")
+        .eq("active", true)
+        .order("display_name", { ascending: true }),
+      state.supabase.from("mkchess_volunteer_hub_sessions")
+        .select("*")
+        .order("starts_at", { ascending: true }),
+      state.supabase.from("mkchess_volunteer_hub_session_assignments")
+        .select("session_id,volunteer_id"),
+      state.supabase.from("mkchess_volunteer_hub_session_activities")
+        .select("id,session_id,title,details,sort_order,claimed_by_volunteer_id,claimed_at,created_by_user_id,created_at,updated_at")
+        .order("session_id", { ascending: true })
+        .order("sort_order", { ascending: true })
+        .order("created_at", { ascending: true }),
+      state.supabase.from("mkchess_volunteer_hub_commitments")
+        .select("session_id,volunteer_id,status,note,plan_leave_at,last_check_in_at,updated_at"),
+      state.supabase.from("mkchess_volunteer_hub_attendance")
+        .select("session_id,volunteer_id,outcome,note,marked_at"),
+      state.supabase.from("mkchess_volunteer_hub_feedback")
+        .select("id,session_id,volunteer_id,reviewer_user_id,rating,feedback_type,note,created_at")
+        .order("created_at", { ascending: false })
+        .limit(900),
+      state.supabase.from("mkchess_volunteer_hub_activity_suggestions")
+        .select("id,title,details,suggested_by_user_id,created_at,updated_at")
+        .order("created_at", { ascending: false })
+        .limit(500),
+      state.supabase.from("mkchess_volunteer_hub_activity_suggestion_votes")
+        .select("suggestion_id,voter_user_id,created_at")
+        .limit(5000),
+      state.supabase.from("mkchess_volunteer_hub_volunteer_metrics")
+        .select("*")
+    ]);
+
+    const errors = [
+      volunteersResponse.error,
+      sessionsResponse.error,
+      assignmentsResponse.error,
+      sessionActivitiesResponse.error,
+      commitmentsResponse.error,
+      attendanceResponse.error,
+      feedbackResponse.error,
+      activitySuggestionsResponse.error,
+      activitySuggestionVotesResponse.error,
+      metricsResponse.error
+    ].filter(Boolean);
+
+    if (errors.length) {
+      const firstMessage = errorText(errors[0], "Data load failed");
+      if (looksLikeMissingSetup(firstMessage)) {
+        setBackendStatus("Run supabase/all_in_one_setup.sql in Supabase SQL Editor.", "err");
+      } else if (isFetchFailure(firstMessage)) {
+        setBackendStatus(unreachableBackendMessage(), "err");
+      } else {
+        setBackendStatus("Public data issue: " + firstMessage, "err");
+      }
+    }
+
+    state.volunteers = volunteersResponse.error ? [] : (volunteersResponse.data || []);
+    state.sessions = sessionsResponse.error ? [] : normalizeSessionRows(sessionsResponse.data || []);
+    state.assignments = assignmentsResponse.error ? [] : (assignmentsResponse.data || []);
+    state.sessionActivities = sessionActivitiesResponse.error ? [] : (sessionActivitiesResponse.data || []);
+    state.commitments = commitmentsResponse.error ? [] : (commitmentsResponse.data || []);
+    state.attendance = attendanceResponse.error ? [] : (attendanceResponse.data || []);
+    state.feedback = feedbackResponse.error ? [] : (feedbackResponse.data || []);
+    state.sessionPulses = [];
+    state.supportRequests = [];
+    state.activitySuggestions = activitySuggestionsResponse.error ? [] : (activitySuggestionsResponse.data || []);
+    state.activitySuggestionVotes = activitySuggestionVotesResponse.error ? [] : (activitySuggestionVotesResponse.data || []);
+    state.metricsRows = metricsResponse.error ? [] : (metricsResponse.data || []);
+    const derivedRows = computeDerivedMetricsRows();
+    if (!state.metricsRows.length) {
+      state.metricsRows = derivedRows;
+    }
+    state.metricsByVolunteer = {};
+    state.metricsRows.forEach((row) => {
+      state.metricsByVolunteer[String(row.volunteer_id)] = row;
+    });
+    state.selectedVolunteerId = null;
+  }
+
   function renderAll() {
     renderHeader();
     renderLayout();
     renderCommandBoard();
     renderSessionExplorer();
-    renderVolunteerList();
-    renderVolunteerDetail();
-    renderStudio();
+    if (el.directorySplit && el.directorySplit.style.display !== "none") {
+      renderVolunteerList();
+      renderVolunteerDetail();
+    }
+    if (el.studioPanel && el.studioPanel.style.display !== "none") {
+      renderStudio();
+    }
   }
 
   function renderLayout() {
     if (el.directorySplit) {
-      el.directorySplit.style.display = "grid";
+      el.directorySplit.style.display = "none";
     }
     if (el.studioPanel) {
-      el.studioPanel.style.display = "grid";
+      el.studioPanel.style.display = "none";
     }
   }
 
@@ -1000,7 +1102,6 @@
             '<article class="session-roster-item">',
             '<div class="session-roster-top"><div class="session-roster-main"><p class="session-roster-name">' + esc(volunteer ? volunteer.display_name : "Volunteer") + '</p><p class="session-roster-summary">' + esc(claimedLine) + '</p></div>' + badge + '</div>',
             '<p class="soft-note">Reliability ' + Math.round(Number(metric.reliability_score || 0)) + ' • attendance ' + Number(metric.attendance_rate_pct || 0) + '% • ' + countPositiveAttendance(volunteerId) + ' past sessions completed</p>',
-            '<div class="inline-actions"><button type="button" class="mini ghost" data-action="select-volunteer" data-volunteer-id="' + esc(volunteerId) + '">View profile</button></div>',
             '</article>'
           ].join("")
         };
@@ -1023,7 +1124,6 @@
         '<article class="session-history-item">',
         '<div class="session-history-top"><p class="session-roster-name">' + esc(volunteer ? volunteer.display_name : "Volunteer") + '</p><span class="pill">' + esc(milestone.currentLabel) + '</span></div>',
         '<p class="soft-note">' + esc(pastCount + " past sessions • " + feedbackCount + " feedback notes • streak " + streak) + '</p>',
-        '<div class="inline-actions"><button type="button" class="mini ghost" data-action="select-volunteer" data-volunteer-id="' + esc(volunteerId) + '">Open full history</button></div>',
         '</article>'
       ].join("");
     });
