@@ -2,8 +2,8 @@
   "use strict";
 
   const STORAGE = {
-    monthlyGoal: "mk_ops_monthly_goal_v1",
-    volunteerPurpose: "mk_ops_volunteer_purpose_v1"
+    monthlyGoal: "mk_chess_volunteer_hub_monthly_goal_v1",
+    volunteerPurpose: "mk_chess_volunteer_hub_volunteer_purpose_v1"
   };
 
   // Set your live Supabase project details here before deploying the app.
@@ -128,6 +128,8 @@
 
     if (!savedGoal) safeSet(STORAGE.monthlyGoal, "2");
     if (!savedPurpose) safeSet(STORAGE.volunteerPurpose, "community");
+    safeRemove("mk_ops_monthly_goal_v1");
+    safeRemove("mk_ops_volunteer_purpose_v1");
     safeRemove("mk_ops_url");
     safeRemove("mk_ops_key");
     safeRemove("mk_ops_domain");
@@ -159,7 +161,7 @@
           autoRefreshToken: true,
           detectSessionInUrl: true,
           flowType: "pkce",
-          storageKey: "mk_volunteer_ops_auth_v3"
+          storageKey: "mk_chess_volunteer_hub_auth_v1"
         }
       });
       setBackendStatus("Backend connected.", "ok");
@@ -239,7 +241,7 @@
   async function ensureAccountProvisioned() {
     if (!state.user || !state.supabase) return;
     const suggestedName = String(state.user.email || "member").split("@")[0];
-    const response = await rpc("ops_bootstrap_admin_setup", { p_display_name: suggestedName }, 20000);
+    const response = await rpc("mkchess_volunteer_hub_bootstrap_admin_setup", { p_display_name: suggestedName }, 20000);
     if (response.error && looksLikeMissingSetup(response.error.message || response.error)) {
       setBackendStatus("Run supabase/all_in_one_setup.sql in Supabase SQL Editor.", "err");
     }
@@ -254,7 +256,7 @@
     let response = null;
     try {
       response = await state.supabase
-        .from("ops_profiles")
+        .from("mkchess_volunteer_hub_profiles")
         .select("user_id,email,display_name,role,status,volunteer_id,created_at")
         .eq("user_id", state.user.id)
         .maybeSingle();
@@ -351,44 +353,44 @@
         activitySuggestionVotesResponse,
         metricsResponse
       ] = await Promise.all([
-        state.supabase.from("ops_volunteers")
+        state.supabase.from("mkchess_volunteer_hub_volunteers")
           .select("id,owner_user_id,display_name,tagline,bio,active,created_at")
           .eq("active", true)
           .order("display_name", { ascending: true }),
-        state.supabase.from("ops_sessions")
+        state.supabase.from("mkchess_volunteer_hub_sessions")
           .select("id,title,starts_at,required_volunteers,status,role_brief,arrival_note,backup_plan,created_at")
           .order("starts_at", { ascending: true }),
-        state.supabase.from("ops_session_assignments")
+        state.supabase.from("mkchess_volunteer_hub_session_assignments")
           .select("session_id,volunteer_id"),
-        state.supabase.from("ops_session_activities")
+        state.supabase.from("mkchess_volunteer_hub_session_activities")
           .select("id,session_id,title,details,sort_order,claimed_by_volunteer_id,claimed_at,created_by_user_id,created_at,updated_at")
           .order("session_id", { ascending: true })
           .order("sort_order", { ascending: true })
           .order("created_at", { ascending: true }),
-        state.supabase.from("ops_commitments")
+        state.supabase.from("mkchess_volunteer_hub_commitments")
           .select("session_id,volunteer_id,status,note,plan_leave_at,last_check_in_at,updated_at"),
-        state.supabase.from("ops_attendance")
+        state.supabase.from("mkchess_volunteer_hub_attendance")
           .select("session_id,volunteer_id,outcome,note,marked_at"),
-        state.supabase.from("ops_feedback")
+        state.supabase.from("mkchess_volunteer_hub_feedback")
           .select("id,session_id,volunteer_id,reviewer_user_id,rating,feedback_type,note,created_at")
           .order("created_at", { ascending: false })
           .limit(900),
-        state.supabase.from("ops_session_pulses")
+        state.supabase.from("mkchess_volunteer_hub_session_pulses")
           .select("id,session_id,volunteer_id,clarity_rating,support_rating,stress_rating,note,created_by_user_id,created_at")
           .order("created_at", { ascending: false })
           .limit(1200),
-        state.supabase.from("ops_support_requests")
+        state.supabase.from("mkchess_volunteer_hub_support_requests")
           .select("id,volunteer_id,session_id,request_type,urgency,details,status,resolution_note,created_by_user_id,resolved_by_user_id,created_at,resolved_at")
           .order("created_at", { ascending: false })
           .limit(1200),
-        state.supabase.from("ops_activity_suggestions")
+        state.supabase.from("mkchess_volunteer_hub_activity_suggestions")
           .select("id,title,details,suggested_by_user_id,created_at,updated_at")
           .order("created_at", { ascending: false })
           .limit(500),
-        state.supabase.from("ops_activity_suggestion_votes")
+        state.supabase.from("mkchess_volunteer_hub_activity_suggestion_votes")
           .select("suggestion_id,voter_user_id,created_at")
           .limit(5000),
-        state.supabase.from("ops_volunteer_metrics")
+        state.supabase.from("mkchess_volunteer_hub_volunteer_metrics")
           .select("*")
       ]);
 
@@ -1163,7 +1165,7 @@
     el.startSetupBtn.textContent = "Setting up...";
     try {
       const preferred = String(state.user.email || "club admin").split("@")[0];
-      const response = await rpc("ops_bootstrap_admin_setup", { p_display_name: preferred }, 20000);
+      const response = await rpc("mkchess_volunteer_hub_bootstrap_admin_setup", { p_display_name: preferred }, 20000);
       if (response.error) {
         const message = errorText(response.error, "Setup failed");
         if (looksLikeMissingSetup(message)) setBackendStatus("Run supabase/all_in_one_setup.sql in Supabase SQL Editor.", "err");
@@ -1205,7 +1207,7 @@
     const label = el.createVolunteerBtn.textContent;
     el.createVolunteerBtn.textContent = "Creating...";
     try {
-      const response = await rpc("ops_create_volunteer", {
+      const response = await rpc("mkchess_volunteer_hub_create_volunteer", {
         p_display_name: name,
         p_tagline: tagline || null,
         p_bio: bio || null
@@ -1296,7 +1298,7 @@
     const label = el.createSessionBtn.textContent;
     el.createSessionBtn.textContent = "Creating...";
     try {
-      const response = await rpc("ops_create_session", {
+      const response = await rpc("mkchess_volunteer_hub_create_session", {
         p_title: title,
         p_starts_at: startsAt.toISOString(),
         p_required_volunteers: required,
@@ -1315,7 +1317,7 @@
             return isFinite(starts) && Math.abs(starts - startsAt.getTime()) <= 60000;
           });
           if (created) {
-            const activitiesResponse = await rpc("ops_add_session_activities", {
+            const activitiesResponse = await rpc("mkchess_volunteer_hub_add_session_activities", {
               p_session_id: created.id,
               p_titles: activityTitles
             }, 25000);
@@ -1336,7 +1338,7 @@
         return;
       }
       if (response.data) {
-        const activitiesResponse = await rpc("ops_add_session_activities", {
+        const activitiesResponse = await rpc("mkchess_volunteer_hub_add_session_activities", {
           p_session_id: response.data,
           p_titles: activityTitles
         }, 25000);
@@ -1403,7 +1405,7 @@
     const label = el.submitFeedbackBtn.textContent;
     el.submitFeedbackBtn.textContent = "Submitting...";
     try {
-      const response = await rpc("ops_submit_feedback", {
+      const response = await rpc("mkchess_volunteer_hub_submit_feedback", {
         p_session_id: sessionId,
         p_volunteer_id: volunteerId,
         p_rating: rating,
@@ -1454,7 +1456,7 @@
     const label = el.submitReportBtn.textContent;
     el.submitReportBtn.textContent = "Submitting...";
     try {
-      const response = await rpc("ops_submit_report", {
+      const response = await rpc("mkchess_volunteer_hub_submit_report", {
         p_session_id: sessionIdRaw || null,
         p_volunteer_id: volunteerId,
         p_reason: reason,
@@ -1498,7 +1500,7 @@
     const label = el.saveVolunteerProfileBtn.textContent;
     el.saveVolunteerProfileBtn.textContent = "Saving...";
     try {
-      const response = await rpc("ops_update_volunteer_profile", {
+      const response = await rpc("mkchess_volunteer_hub_update_volunteer_profile", {
         p_volunteer_id: volunteerId,
         p_display_name: name,
         p_tagline: tagline || null,
@@ -1552,7 +1554,7 @@
     const label = el.suggestActivityBtn.textContent;
     el.suggestActivityBtn.textContent = "Sending...";
     try {
-      const response = await rpc("ops_suggest_activity", {
+      const response = await rpc("mkchess_volunteer_hub_suggest_activity", {
         p_title: title,
         p_details: details || null
       }, 25000);
@@ -1580,7 +1582,7 @@
       setBackendStatus("Approved member access is required.", "err");
       return;
     }
-    const response = await rpc("ops_toggle_activity_suggestion_vote", { p_suggestion_id: suggestionId }, 25000);
+    const response = await rpc("mkchess_volunteer_hub_toggle_activity_suggestion_vote", { p_suggestion_id: suggestionId }, 25000);
     if (response.error) {
       setBackendStatus(errorText(response.error, "Vote failed"), "err");
       return;
@@ -1605,7 +1607,7 @@
       setBackendStatus("Activity not found.", "err");
       return;
     }
-    const rpcName = String(mode || "") === "release" ? "ops_unclaim_session_activity" : "ops_claim_session_activity";
+    const rpcName = String(mode || "") === "release" ? "mkchess_volunteer_hub_unclaim_session_activity" : "mkchess_volunteer_hub_claim_session_activity";
     const response = await rpc(rpcName, { p_activity_id: activityId }, 25000);
     if (response.error) {
       setBackendStatus(errorText(response.error, "Activity update failed"), "err");
@@ -1613,7 +1615,7 @@
     }
     await loadAllData();
     renderAll();
-    if (rpcName === "ops_claim_session_activity") setBackendStatus("Activity claimed. You are marked in for that session.", "ok");
+    if (rpcName === "mkchess_volunteer_hub_claim_session_activity") setBackendStatus("Activity claimed. You are marked in for that session.", "ok");
     else setBackendStatus("Activity released.", "ok");
   }
 
@@ -1715,7 +1717,7 @@
     const label = el.submitPulseBtn.textContent;
     el.submitPulseBtn.textContent = "Submitting...";
     try {
-      const response = await rpc("ops_submit_session_pulse", {
+      const response = await rpc("mkchess_volunteer_hub_submit_session_pulse", {
         p_session_id: sessionId,
         p_clarity_rating: clarity,
         p_support_rating: support,
@@ -1787,7 +1789,7 @@
     const label = el.submitSupportBtn.textContent;
     el.submitSupportBtn.textContent = "Sending...";
     try {
-      const response = await rpc("ops_submit_support_request", {
+      const response = await rpc("mkchess_volunteer_hub_submit_support_request", {
         p_session_id: sessionIdRaw || null,
         p_request_type: requestType,
         p_urgency: urgency || "normal",
@@ -1819,7 +1821,7 @@
     }
     const note = window.prompt("Optional resolution note:", String(request.resolution_note || ""));
     if (note === null) return;
-    const response = await rpc("ops_resolve_support_request", {
+    const response = await rpc("mkchess_volunteer_hub_resolve_support_request", {
       p_request_id: supportId,
       p_status: "resolved",
       p_resolution_note: String(note || "").trim() || null
@@ -1884,7 +1886,7 @@
       const outcome = String((row.querySelector(".att-outcome") || {}).value || "").trim();
       const note = String((row.querySelector(".att-note") || {}).value || "").trim();
       if (!outcome) return;
-      calls.push(rpc("ops_mark_attendance", {
+      calls.push(rpc("mkchess_volunteer_hub_mark_attendance", {
         p_session_id: state.attendanceSessionId,
         p_volunteer_id: volunteerId,
         p_outcome: outcome,
@@ -1913,7 +1915,7 @@
 
   async function onClaimVolunteer(volunteerId) {
     if (!state.user || !state.supabase) { setBackendStatus("Sign in first.", "err"); return; }
-    const response = await rpc("ops_claim_volunteer", { p_volunteer_id: volunteerId }, 25000);
+    const response = await rpc("mkchess_volunteer_hub_claim_volunteer", { p_volunteer_id: volunteerId }, 25000);
     if (response.error) { setBackendStatus(errorText(response.error, "Claim failed"), "err"); return; }
     await refreshSession();
     await loadAllData();
@@ -1939,7 +1941,7 @@
       note = "Marked unavailable";
     }
 
-    const response = await rpc("ops_set_commitment", {
+    const response = await rpc("mkchess_volunteer_hub_set_commitment", {
       p_session_id: sessionId,
       p_status: status,
       p_note: note,
@@ -1959,7 +1961,7 @@
 
   async function onCheckInSession(sessionId) {
     if (!state.user || !state.supabase) { setBackendStatus("Sign in first.", "err"); return; }
-    const response = await rpc("ops_check_in_session", { p_session_id: sessionId, p_note: "On my way" }, 25000);
+    const response = await rpc("mkchess_volunteer_hub_check_in_session", { p_session_id: sessionId, p_note: "On my way" }, 25000);
     if (response.error) { setBackendStatus(errorText(response.error, "Check-in failed"), "err"); return; }
     await loadAllData();
     renderAll();
@@ -2765,13 +2767,13 @@
 
   function looksLikeMissingSetup(message) {
     const text = String(message || "").toLowerCase();
-    if (!/ops_/.test(text) && !/relation .* does not exist|schema cache|undefined function|function .* does not exist|no function matches/.test(text)) return false;
+    if (!/mkchess_volunteer_hub_/.test(text) && !/relation .* does not exist|schema cache|undefined function|function .* does not exist|no function matches/.test(text)) return false;
     return /does not exist|schema cache|undefined function|not found|no function matches/.test(text);
   }
 
   function isAuthLockError(message) {
     const text = String(message || "");
-    return /lock:mk_volunteer_ops_auth_v3/i.test(text) ||
+    return /lock:mk_chess_volunteer_hub_auth_v1/i.test(text) ||
       /navigatorlockacquiretimeouterror/i.test(text) ||
       /another request stole it/i.test(text);
   }
@@ -2845,3 +2847,4 @@
       .replace(/'/g, "&#39;");
   }
 })();
+
