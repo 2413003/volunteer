@@ -2,16 +2,15 @@
   "use strict";
 
   const STORAGE = {
-    url: "mk_ops_url",
-    key: "mk_ops_key",
-    domain: "mk_ops_domain",
     monthlyGoal: "mk_ops_monthly_goal_v1",
     volunteerPurpose: "mk_ops_volunteer_purpose_v1"
   };
 
-  const DEFAULT_SUPABASE = {
-    url: "https://pfgvnbhvihleugpijjvr.supabase.co",
-    anonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBmZ3ZuYmh2aWhsZXVncGlqanZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1MTU2ODcsImV4cCI6MjA4OTA5MTY4N30.xF-lTjR3z2tcjMjIv0am3cLYOBs3gHD3p7yq3FbDqcs"
+  // Set your live Supabase project details here before deploying the app.
+  const APP_CONFIG = {
+    supabaseUrl: "https://pfgvnbhvihleugpijjvr.supabase.co",
+    supabaseAnonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBmZ3ZuYmh2aWhsZXVncGlqanZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1MTU2ODcsImV4cCI6MjA4OTA5MTY4N30.xF-lTjR3z2tcjMjIv0am3cLYOBs3gHD3p7yq3FbDqcs",
+    allowedEmailDomain: ""
   };
 
   const CHECK_IN_WINDOW_HOURS = 6;
@@ -69,9 +68,8 @@
 
   function cacheEls() {
     [
-      "emailInput", "sendLinkBtn", "signOutBtn", "startSetupBtn", "addVolunteerBtn", "addSessionBtn", "openSettingsBtn",
+      "emailInput", "sendLinkBtn", "signOutBtn", "startSetupBtn", "addVolunteerBtn", "addSessionBtn",
       "authStatus", "backendStatus", "commandBoard", "searchInput", "volunteerList", "volunteerDetail", "studioPanel", "directorySplit",
-      "settingsDialog", "supaUrlInput", "supaKeyInput", "allowedDomainInput", "connectBtn",
       "volunteerDialog", "volunteerForm", "volunteerNameInput", "volunteerTaglineInput", "volunteerBioInput", "volunteerStatus", "createVolunteerBtn",
       "sessionDialog", "sessionForm", "sessionTitleInput", "sessionStartsInput", "sessionRequiredInput", "sessionRoleBriefInput", "sessionActivitiesInput", "sessionSuggestedActivities", "sessionArrivalNoteInput", "sessionBackupPlanInput", "sessionAssignAllInput", "sessionStatus", "createSessionBtn",
       "feedbackDialog", "feedbackForm", "feedbackVolunteerIdInput", "feedbackSessionSelect", "feedbackRatingInput", "feedbackTypeSelect", "feedbackNoteInput", "feedbackStatus", "submitFeedbackBtn",
@@ -92,8 +90,6 @@
     el.startSetupBtn.addEventListener("click", onStartSetup);
     el.addVolunteerBtn.addEventListener("click", openVolunteerDialog);
     el.addSessionBtn.addEventListener("click", openSessionDialog);
-    el.openSettingsBtn.addEventListener("click", () => openDialog(el.settingsDialog));
-    el.connectBtn.addEventListener("click", onConnectClick);
     el.searchInput.addEventListener("input", renderVolunteerList);
 
     el.commandBoard.addEventListener("click", onActionClick);
@@ -123,55 +119,30 @@
   }
 
   function restoreSettings() {
-    const savedUrl = safeGet(STORAGE.url);
-    const savedKey = safeGet(STORAGE.key);
-    const savedDomain = safeGet(STORAGE.domain);
     const savedGoal = safeGet(STORAGE.monthlyGoal);
     const savedPurpose = safeGet(STORAGE.volunteerPurpose);
-
-    el.supaUrlInput.value = savedUrl || DEFAULT_SUPABASE.url;
-    el.supaKeyInput.value = savedKey || DEFAULT_SUPABASE.anonKey;
-    el.allowedDomainInput.value = savedDomain || "";
     state.monthlyGoal = [1, 2, 4].includes(Number(savedGoal)) ? Number(savedGoal) : 2;
     state.volunteerPurpose = ["community", "coaching", "skills", "social"].includes(String(savedPurpose || ""))
       ? String(savedPurpose)
       : "community";
 
-    if (!savedUrl) safeSet(STORAGE.url, DEFAULT_SUPABASE.url);
-    if (!savedKey) safeSet(STORAGE.key, DEFAULT_SUPABASE.anonKey);
     if (!savedGoal) safeSet(STORAGE.monthlyGoal, "2");
     if (!savedPurpose) safeSet(STORAGE.volunteerPurpose, "community");
+    safeRemove("mk_ops_url");
+    safeRemove("mk_ops_key");
+    safeRemove("mk_ops_domain");
     safeRemove("mk_ops_preview_mode_v2");
     safeRemove("mk_ops_preview_data_v2");
     safeRemove("mk_ops_simple_view_v3");
   }
 
-  async function onConnectClick() {
-    safeSet(STORAGE.url, String(el.supaUrlInput.value || "").trim());
-    safeSet(STORAGE.key, String(el.supaKeyInput.value || "").trim());
-    safeSet(STORAGE.domain, normalizeDomain(el.allowedDomainInput.value));
-    await reconnectAndReload();
-    if (el.settingsDialog.open) el.settingsDialog.close();
-  }
-
-  async function reconnectAndReload() {
-    detachAuthSubscription();
-    await connectSupabase();
-    await refreshSession();
-    await ensureAccountProvisioned();
-    await loadProfile();
-    await loadAllData();
-    attachAuthSubscription();
-    renderAll();
-  }
-
   async function connectSupabase() {
-    const url = String(safeGet(STORAGE.url) || "").trim();
-    const key = String(safeGet(STORAGE.key) || "").trim();
+    const url = String(APP_CONFIG.supabaseUrl || "").trim();
+    const key = String(APP_CONFIG.supabaseAnonKey || "").trim();
 
     if (!url || !key) {
       state.supabase = null;
-      setBackendStatus("Set Supabase URL and anon key in Settings.", "err");
+      setBackendStatus(missingBackendMessage(), "err");
       return;
     }
 
@@ -318,6 +289,8 @@
       }
       if (looksLikeMissingSetup(response.error.message || response.error)) {
         setBackendStatus("Run supabase/all_in_one_setup.sql in Supabase SQL Editor.", "err");
+      } else if (isFetchFailure(message)) {
+        setBackendStatus(unreachableBackendMessage(), "err");
       } else {
         setBackendStatus("Profile could not load right now. Refresh to retry.", "warn");
       }
@@ -438,6 +411,8 @@
         const firstMessage = errorText(errors[0], "Data load failed");
         if (looksLikeMissingSetup(firstMessage)) {
           setBackendStatus("Run supabase/all_in_one_setup.sql in Supabase SQL Editor.", "err");
+        } else if (isFetchFailure(firstMessage)) {
+          setBackendStatus(unreachableBackendMessage(), "err");
         } else {
           setBackendStatus("Data load issue: " + firstMessage, "err");
         }
@@ -492,6 +467,8 @@
       const text = errorText(error, "Data load failed");
       if (isAuthLockError(text)) {
         setBackendStatus("Sync delayed. Close duplicate tabs, then refresh.", "warn");
+      } else if (isFetchFailure(text)) {
+        setBackendStatus(unreachableBackendMessage(), "err");
       } else {
         setBackendStatus("Data load issue: " + text, "err");
       }
@@ -628,7 +605,7 @@
 
     const emptyActions = isAdmin()
       ? '<div class="inline-actions"><button type="button" class="mini" data-action="open-volunteer-dialog">Add volunteer</button><button type="button" class="mini ghost" data-action="open-session-dialog">Add session</button></div>'
-      : '<div class="inline-actions"><button type="button" class="mini ghost" data-action="open-settings">Open settings</button></div>';
+      : '<p class="muted">Sign in after the backend is configured in code.</p>';
 
     el.commandBoard.innerHTML = [
       '<section class="metric-grid">',
@@ -900,7 +877,7 @@
       const claimHelp = state.selectedVolunteerId
         ? '<div class="inline-actions"><button type="button" class="ghost" data-action="claim-volunteer" data-volunteer-id="' + esc(state.selectedVolunteerId) + '">Claim selected profile</button></div>'
         : '<p class="muted">Ask the coordinator to add your volunteer profile, then claim it here.</p>';
-      el.studioPanel.innerHTML = '<div class="empty">No linked volunteer profile yet.' + claimHelp + '<div class="inline-actions"><button type="button" class="mini ghost" data-action="open-settings">Settings</button></div></div>';
+      el.studioPanel.innerHTML = '<div class="empty">No linked volunteer profile yet.' + claimHelp + '</div>';
       return;
     }
 
@@ -1099,7 +1076,6 @@
 
     if (action === "open-volunteer-dialog") { openVolunteerDialog(); return; }
     if (action === "open-session-dialog") { openSessionDialog(); return; }
-    if (action === "open-settings") { openDialog(el.settingsDialog); return; }
     if (action === "open-feedback") { openFeedbackDialog(target.getAttribute("data-volunteer-id")); return; }
     if (action === "open-report") { openReportDialog(target.getAttribute("data-volunteer-id")); return; }
     if (action === "open-edit-volunteer") { openEditVolunteerDialog(target.getAttribute("data-volunteer-id")); return; }
@@ -1134,7 +1110,7 @@
 
   async function onSendLink() {
     if (!state.supabase) {
-      setStatus(el.authStatus, "Connect backend first.", "err");
+      setStatus(el.authStatus, missingBackendMessage(), "err");
       return;
     }
     const email = String(el.emailInput.value || "").trim().toLowerCase();
@@ -1142,7 +1118,7 @@
       setStatus(el.authStatus, "Enter a valid email.", "err");
       return;
     }
-    const allowedDomain = normalizeDomain(safeGet(STORAGE.domain) || "");
+    const allowedDomain = normalizeDomain(APP_CONFIG.allowedEmailDomain || "");
     if (allowedDomain && !email.endsWith("@" + allowedDomain)) {
       setStatus(el.authStatus, "Email must end with @" + allowedDomain, "err");
       return;
@@ -2761,6 +2737,18 @@
 
   function normalizeDomain(value) {
     return String(value || "").trim().toLowerCase().replace(/^@/, "");
+  }
+
+  function isFetchFailure(message) {
+    return /failed to fetch/i.test(String(message || ""));
+  }
+
+  function missingBackendMessage() {
+    return "Set APP_CONFIG.supabaseUrl and APP_CONFIG.supabaseAnonKey in app.js.";
+  }
+
+  function unreachableBackendMessage() {
+    return "Could not reach Supabase. Check APP_CONFIG.supabaseUrl, APP_CONFIG.supabaseAnonKey, and that the project is online.";
   }
 
   function safeSet(key, value) {
