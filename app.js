@@ -15,6 +15,69 @@
 
   const CHECK_IN_WINDOW_HOURS = 6;
   const CHECK_IN_GRACE_MINUTES = 30;
+  const LEAFLET_VERSION = "1.9.4";
+  const SESSION_VENUES = {
+    learn: {
+      key: "learn",
+      titleSuggestion: "Learn Chess",
+      shortLabel: "Unity Place",
+      location: "Unity Place, MK9 1UP",
+      description: "Beginners coaching. Small groups and 1:1 teaching.",
+      url: "https://mkchess.co.uk/#unity-place",
+      imageUrl: "https://mkchess.co.uk/assets/images/image80.jpg?v=a0f4c5bf",
+      color: "#3C3489",
+      bg: "#EEEDFE",
+      dot: "#3C3489",
+      lat: 52.0363588,
+      lng: -0.7722635,
+      aliases: ["learn chess", "unity place", "beginners"]
+    },
+    bletchley: {
+      key: "bletchley",
+      titleSuggestion: "Play Chess Bletchley",
+      shortLabel: "Bletchley",
+      location: "South Central IOT, Bletchley MK3 6DR",
+      description: "Casual play for all ages and abilities.",
+      url: "https://mkchess.co.uk/#bletchley",
+      imageUrl: "https://mkchess.co.uk/assets/images/image78.jpg?v=a0f4c5bf",
+      color: "#0F6E56",
+      bg: "#E1F5EE",
+      dot: "#0F6E56",
+      lat: 51.9950372,
+      lng: -0.738573,
+      aliases: ["bletchley", "south central iot"]
+    },
+    badminton: {
+      key: "badminton",
+      titleSuggestion: "Play Chess Badminton Centre",
+      shortLabel: "Badminton Centre",
+      location: "National Badminton Centre, MK8 9LA",
+      description: "Casual play for all ages and abilities.",
+      url: "https://mkchess.co.uk/#nextevent",
+      imageUrl: "https://mkchess.co.uk/assets/images/image79.jpg?v=a0f4c5bf",
+      color: "#993C1D",
+      bg: "#FAECE7",
+      dot: "#993C1D",
+      lat: 52.0378731,
+      lng: -0.7848841,
+      aliases: ["badminton", "national badminton", "mk8"]
+    },
+    sunday: {
+      key: "sunday",
+      titleSuggestion: "Adults at Willen Lake",
+      shortLabel: "Willen Lake",
+      location: "Willen Lake Cafe, MK15 0DS",
+      description: "Relaxed adults session overlooking the lake.",
+      url: "https://mkchess.co.uk/#willen-lake",
+      imageUrl: "https://mkchess.co.uk/assets/images/image07.jpg?v=8bcf13e8",
+      color: "#92400E",
+      bg: "#FEF3E2",
+      dot: "#B45309",
+      lat: 52.0517737,
+      lng: -0.7209626,
+      aliases: ["adults", "willen", "sunday"]
+    }
+  };
 
   const state = {
     supabase: null,
@@ -35,16 +98,25 @@
     metricsRows: [],
     metricsByVolunteer: {},
     selectedVolunteerId: null,
+    selectedSessionId: null,
     attendanceSessionId: null,
     loading: false,
     syncInFlight: false,
     syncRequested: false,
     monthlyGoal: 2,
-    volunteerPurpose: "community"
+    volunteerPurpose: "community",
+    sessionBrowserView: "calendar",
+    sessionBrowserYear: new Date().getFullYear(),
+    sessionBrowserMonth: new Date().getMonth(),
+    sessionMapInstance: null,
+    sessionMapMarkers: [],
+    sessionMapReady: false,
+    sessionMapError: ""
   };
 
   const el = {};
   let backendStatusClearTimer = null;
+  let leafletLoadPromise = null;
   document.addEventListener("DOMContentLoaded", init);
 
   async function init() {
@@ -69,9 +141,9 @@
   function cacheEls() {
     [
       "emailInput", "sendLinkBtn", "signOutBtn", "startSetupBtn", "addVolunteerBtn", "addSessionBtn",
-      "authStatus", "backendStatus", "commandBoard", "searchInput", "volunteerList", "volunteerDetail", "studioPanel", "directorySplit",
+      "authStatus", "backendStatus", "commandBoard", "sessionExplorer", "searchInput", "volunteerList", "volunteerDetail", "studioPanel", "directorySplit",
       "volunteerDialog", "volunteerForm", "volunteerNameInput", "volunteerTaglineInput", "volunteerBioInput", "volunteerStatus", "createVolunteerBtn",
-      "sessionDialog", "sessionForm", "sessionTitleInput", "sessionStartsInput", "sessionRequiredInput", "sessionRoleBriefInput", "sessionActivitiesInput", "sessionSuggestedActivities", "sessionArrivalNoteInput", "sessionBackupPlanInput", "sessionAssignAllInput", "sessionStatus", "createSessionBtn",
+      "sessionDialog", "sessionForm", "sessionTitleInput", "sessionVenueKeyInput", "sessionVenueHint", "sessionStartsInput", "sessionRequiredInput", "sessionRoleBriefInput", "sessionActivitiesInput", "sessionSuggestedActivities", "sessionArrivalNoteInput", "sessionBackupPlanInput", "sessionAssignAllInput", "sessionStatus", "createSessionBtn",
       "feedbackDialog", "feedbackForm", "feedbackVolunteerIdInput", "feedbackSessionSelect", "feedbackRatingInput", "feedbackTypeSelect", "feedbackNoteInput", "feedbackStatus", "submitFeedbackBtn",
       "reportDialog", "reportForm", "reportVolunteerIdInput", "reportSessionSelect", "reportReasonSelect", "reportDetailsInput", "reportStatus", "submitReportBtn",
       "attendanceDialog", "attendanceTitle", "attendanceRows", "attendanceForm", "attendanceStatus", "saveAttendanceBtn",
@@ -93,6 +165,7 @@
     el.searchInput.addEventListener("input", renderVolunteerList);
 
     el.commandBoard.addEventListener("click", onActionClick);
+    el.sessionExplorer.addEventListener("click", onActionClick);
     el.volunteerDetail.addEventListener("click", onActionClick);
     el.studioPanel.addEventListener("click", onActionClick);
     el.volunteerList.addEventListener("click", onActionClick);
@@ -109,6 +182,12 @@
     el.pulseForm.addEventListener("submit", onSubmitPulse);
     el.supportForm.addEventListener("submit", onSubmitSupportRequest);
     if (el.pulseSessionSelect) el.pulseSessionSelect.addEventListener("change", onPulseSessionChanged);
+    if (el.sessionVenueKeyInput) el.sessionVenueKeyInput.addEventListener("change", onSessionVenuePresetChange);
+    window.addEventListener("resize", () => {
+      if (state.sessionMapInstance && typeof state.sessionMapInstance.invalidateSize === "function") {
+        state.sessionMapInstance.invalidateSize();
+      }
+    });
 
     document.addEventListener("click", (event) => {
       const close = event.target.closest("[data-close]");
@@ -358,7 +437,7 @@
           .eq("active", true)
           .order("display_name", { ascending: true }),
         state.supabase.from("mkchess_volunteer_hub_sessions")
-          .select("id,title,starts_at,required_volunteers,status,role_brief,arrival_note,backup_plan,created_at")
+          .select("id,title,starts_at,required_volunteers,status,venue_key,role_brief,arrival_note,backup_plan,created_by_user_id,created_at,updated_at")
           .order("starts_at", { ascending: true }),
         state.supabase.from("mkchess_volunteer_hub_session_assignments")
           .select("session_id,volunteer_id"),
@@ -483,6 +562,7 @@
     renderHeader();
     renderLayout();
     renderCommandBoard();
+    renderSessionExplorer();
     renderVolunteerList();
     renderVolunteerDetail();
     renderStudio();
@@ -626,6 +706,490 @@
       '<div class="card"><h3>Support Requests</h3><div class="rows">' + supportHtml + '</div></div>',
       '</section>'
     ].filter(Boolean).join('');
+  }
+
+  function renderSessionExplorer() {
+    renderSessionVenueOptions();
+    if (!el.sessionExplorer) return;
+    const sessions = state.sessions
+      .filter((session) => String(session.status || "scheduled") !== "cancelled")
+      .sort((a, b) => new Date(a.starts_at) - new Date(b.starts_at));
+
+    if (state.loading) {
+      destroySessionMap();
+      el.sessionExplorer.innerHTML = '<div class="empty">Loading sessions...</div>';
+      return;
+    }
+
+    if (!sessions.length) {
+      destroySessionMap();
+      const actions = isAdmin()
+        ? '<div class="inline-actions"><button type="button" class="mini" data-action="open-session-dialog">Add your first session</button></div>'
+        : "";
+      el.sessionExplorer.innerHTML = '<div class="empty">No live sessions yet.' + actions + '</div>';
+      return;
+    }
+
+    if (!state.selectedSessionId || !sessions.some((session) => String(session.id) === String(state.selectedSessionId))) {
+      const fallback = upcomingSessions()[0] || sessions[0];
+      state.selectedSessionId = String(fallback.id);
+      state.sessionBrowserYear = new Date(fallback.starts_at).getFullYear();
+      state.sessionBrowserMonth = new Date(fallback.starts_at).getMonth();
+    }
+
+    const selected = sessionById(state.selectedSessionId) || sessions[0];
+    const browserHtml = state.sessionBrowserView === "map"
+      ? renderSessionMapShellHtml()
+      : renderSessionCalendarHtml(sessions);
+
+    el.sessionExplorer.innerHTML = [
+      '<section class="session-explorer">',
+      '<div class="session-browser">',
+      '<div class="session-browser-head">',
+      '<div><h3>Session Explorer</h3><p class="session-browser-sub">Click a live session to see activities, ownership, and the volunteer profiles behind it.</p></div>',
+      '<div class="toggle-pills">',
+      '<button type="button" class="toggle-pill' + (state.sessionBrowserView === "calendar" ? ' active' : '') + '" data-action="set-session-browser-view" data-view="calendar">Calendar</button>',
+      '<button type="button" class="toggle-pill' + (state.sessionBrowserView === "map" ? ' active' : '') + '" data-action="set-session-browser-view" data-view="map">Map</button>',
+      '</div>',
+      '</div>',
+      browserHtml,
+      '</div>',
+      '<div class="session-detail">' + renderSelectedSessionDetail(selected) + '</div>',
+      '</section>'
+    ].join("");
+
+    if (state.sessionBrowserView === "map") queueSessionMapRender();
+    else destroySessionMap();
+  }
+
+  function renderSessionVenueOptions() {
+    if (!el.sessionVenueKeyInput) return;
+    const current = String(el.sessionVenueKeyInput.value || "");
+    const options = ['<option value="">Custom / no map preset</option>']
+      .concat(Object.values(SESSION_VENUES).map((venue) =>
+        '<option value="' + esc(venue.key) + '">' + esc(venue.titleSuggestion + " • " + venue.shortLabel) + '</option>'
+      ));
+    el.sessionVenueKeyInput.innerHTML = options.join("");
+    if (current && SESSION_VENUES[current]) el.sessionVenueKeyInput.value = current;
+    updateSessionVenueHint();
+  }
+
+  function onSessionVenuePresetChange() {
+    const preset = SESSION_VENUES[String(el.sessionVenueKeyInput && el.sessionVenueKeyInput.value || "")] || null;
+    updateSessionVenueHint();
+    if (!preset) return;
+
+    const knownTitles = Object.values(SESSION_VENUES).map((row) => row.titleSuggestion);
+    const currentTitle = String(el.sessionTitleInput && el.sessionTitleInput.value || "").trim();
+    if (!currentTitle || knownTitles.includes(currentTitle)) {
+      el.sessionTitleInput.value = preset.titleSuggestion;
+    }
+    if (!String(el.sessionArrivalNoteInput && el.sessionArrivalNoteInput.value || "").trim()) {
+      el.sessionArrivalNoteInput.value = "Arrive 20 minutes early at " + preset.shortLabel;
+    }
+  }
+
+  function updateSessionVenueHint() {
+    if (!el.sessionVenueHint) return;
+    const preset = SESSION_VENUES[String(el.sessionVenueKeyInput && el.sessionVenueKeyInput.value || "")] || null;
+    el.sessionVenueHint.textContent = preset
+      ? (preset.location + " • " + preset.description)
+      : "Choose one of the real club venues to place this session in the calendar and map explorer.";
+  }
+
+  function renderSessionCalendarHtml(sessions) {
+    const year = Number(state.sessionBrowserYear);
+    const month = Number(state.sessionBrowserMonth);
+    const firstOfMonth = new Date(year, month, 1);
+    const gridStart = new Date(year, month, 1 - ((firstOfMonth.getDay() + 6) % 7));
+    const monthLabel = firstOfMonth.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+    const dayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    const byDay = {};
+    sessions.forEach((session) => {
+      const key = localDateKey(session.starts_at);
+      if (!byDay[key]) byDay[key] = [];
+      byDay[key].push(session);
+    });
+
+    const cells = [];
+    for (let index = 0; index < 42; index += 1) {
+      const day = new Date(gridStart);
+      day.setDate(gridStart.getDate() + index);
+      const key = localDateKey(day);
+      const cellSessions = (byDay[key] || []).sort((a, b) => new Date(a.starts_at) - new Date(b.starts_at));
+      const otherMonth = day.getMonth() !== month;
+      const today = localDateKey(new Date()) === key;
+      const chipsHtml = cellSessions.length
+        ? '<div class="calendar-events">' + cellSessions.map((session) => {
+          const venue = sessionVenuePreset(session);
+          return [
+            '<button type="button" class="calendar-chip' + (String(session.id) === String(state.selectedSessionId) ? ' active' : '') + '"',
+            ' data-action="select-session" data-session-id="' + esc(session.id) + '" data-sync-month="0"',
+            venue ? ' style="--chip-bg:' + esc(venue.bg) + ';--chip-color:' + esc(venue.color) + ';"' : '',
+            '>',
+            '<span class="calendar-chip-title">' + esc(session.title || "Session") + '</span>',
+            '<span class="calendar-chip-meta">' + esc(formatTime(session.starts_at) + " • " + sessionVenueShortLabel(session)) + '</span>',
+            '</button>'
+          ].join("");
+        }).join("") + '</div>'
+        : '<div class="calendar-empty">No sessions</div>';
+
+      cells.push(
+        '<article class="calendar-cell' + (otherMonth ? ' other-month' : '') + (today ? ' today' : '') + '">' +
+        '<div class="calendar-date">' + day.getDate() + '</div>' +
+        chipsHtml +
+        '</article>'
+      );
+    }
+
+    return [
+      '<div class="calendar-shell">',
+      '<div class="session-calendar-head">',
+      '<button type="button" class="ghost mini" data-action="shift-session-month" data-month-delta="-1">Prev</button>',
+      '<button type="button" class="ghost mini" data-action="session-month-today">Today</button>',
+      '<div class="session-calendar-title">' + esc(monthLabel) + '</div>',
+      '<button type="button" class="ghost mini" data-action="shift-session-month" data-month-delta="1">Next</button>',
+      '</div>',
+      '<div class="calendar-heads">' + dayLabels.map((label) => '<div class="calendar-head">' + label + '</div>').join("") + '</div>',
+      '<div class="calendar-grid">' + cells.join("") + '</div>',
+      '</div>'
+    ].join("");
+  }
+
+  function renderSessionMapShellHtml() {
+    const visible = visibleSessionsForCurrentMonth().filter((session) => sessionVenueHasMap(session));
+    const legend = visible.length
+      ? '<div class="session-map-legend">' + visible.map((session) => {
+        const venue = sessionVenuePreset(session);
+        return '<span class="session-map-pill" style="border-color:' + esc(venue ? venue.color : "#d8d0c2") + ';color:' + esc(venue ? venue.color : "#5b5145") + ';">' + esc((session.title || "Session") + " • " + formatDate(session.starts_at)) + '</span>';
+      }).join("") + '</div>'
+      : '<p class="soft-note">No mapped sessions for this month yet. Use a venue preset when creating sessions to place them here.</p>';
+
+    return [
+      '<div class="session-map">',
+      '<div class="session-calendar-head">',
+      '<button type="button" class="ghost mini" data-action="shift-session-month" data-month-delta="-1">Prev</button>',
+      '<button type="button" class="ghost mini" data-action="session-month-today">Today</button>',
+      '<div class="session-calendar-title">' + esc(new Date(state.sessionBrowserYear, state.sessionBrowserMonth, 1).toLocaleDateString(undefined, { month: "long", year: "numeric" })) + '</div>',
+      '<button type="button" class="ghost mini" data-action="shift-session-month" data-month-delta="1">Next</button>',
+      '</div>',
+      '<div id="sessionMapCanvas" class="session-map-canvas"><div class="session-map-empty">Loading map...</div></div>',
+      legend,
+      '</div>'
+    ].join("");
+  }
+
+  function renderSelectedSessionDetail(session) {
+    if (!session) {
+      return '<div class="empty">Select a session to see activities, roster, and profile history.</div>';
+    }
+
+    const actorVolunteerId = myVolunteerId();
+    const venue = sessionVenuePreset(session);
+    const assignedIds = assignedVolunteerIds(session.id);
+    const row = sessionCoverageRow(session);
+    const activities = sessionActivitiesForSession(session.id);
+    const claimedCount = activities.filter((activity) => activity.claimed_by_volunteer_id).length;
+    const sessionStillOpen = new Date(session.starts_at).getTime() >= (Date.now() - 7200000);
+    const myCommitment = actorVolunteerId && assignedIds.includes(String(actorVolunteerId))
+      ? commitmentFor(actorVolunteerId, session.id)
+      : null;
+    const myStatus = myCommitment ? String(myCommitment.status || "") : "";
+    const canCheckIn = sessionStillOpen && myStatus === "committed" && withinCheckInWindow(session.starts_at);
+    const canTakeShift = sessionStillOpen && actorVolunteerId && !assignedIds.includes(String(actorVolunteerId));
+    const attendanceButton = isAdmin() && new Date(session.starts_at).getTime() <= Date.now() + 3600000
+      ? '<button type="button" class="mini ghost" data-action="open-attendance" data-session-id="' + esc(session.id) + '">Mark attendance</button>'
+      : "";
+    const takeShiftButton = canTakeShift
+      ? '<button type="button" class="mini ghost" data-action="take-open-shift" data-session-id="' + esc(session.id) + '">Take this shift</button>'
+      : "";
+    const commitmentButtons = sessionStillOpen && actorVolunteerId && assignedIds.includes(String(actorVolunteerId))
+      ? [
+        '<button type="button" class="mini' + (myStatus === "committed" ? "" : " ghost") + '" data-action="set-commitment" data-session-id="' + esc(session.id) + '" data-status="committed">I can make it</button>',
+        '<button type="button" class="mini' + (myStatus === "unavailable" ? "" : " ghost") + '" data-action="set-commitment" data-session-id="' + esc(session.id) + '" data-status="unavailable">Can\'t make it</button>',
+        canCheckIn ? '<button type="button" class="mini ghost" data-action="check-in-session" data-session-id="' + esc(session.id) + '">I\'m on my way</button>' : ""
+      ].join("")
+      : "";
+    const roleLine = [session.role_brief || "", session.arrival_note || "", session.backup_plan || ""].filter(Boolean);
+    const rosterHtml = renderSessionRosterHtml(session);
+    const historyHtml = renderSessionVolunteerHistoryHtml(session);
+    const activitiesHtml = renderSessionActivitiesHtml(session.id, {
+      actorVolunteerId,
+      showClaimActions: Boolean(actorVolunteerId),
+      emptyText: "No activities added yet."
+    });
+
+    return [
+      '<div class="session-detail-top">',
+      '<div class="session-detail-title-wrap">',
+      '<h3 class="session-detail-title">' + esc(session.title || "Session") + '</h3>',
+      '<div class="session-detail-meta"><span class="pill">' + esc(formatDateTime(session.starts_at)) + '</span>' + (venue ? '<span class="pill">' + esc(venue.shortLabel) + '</span>' : "") + '</div>',
+      '<p class="session-detail-sub">' + esc(venue ? venue.location : "No mapped venue preset yet.") + '</p>',
+      '</div>',
+      '<div class="inline-actions">' + takeShiftButton + commitmentButtons + attendanceButton + '</div>',
+      '</div>',
+      '<section class="summary-grid">' +
+      summaryCard("Coverage", row.committed + "/" + row.required, row.pendingIds.length ? (row.pendingIds.length + " still need to reply") : "Everyone has responded") +
+      summaryCard("Activities", activities.length ? (claimedCount + "/" + activities.length) : "0", activities.length ? (claimedCount === activities.length ? "All responsibilities claimed" : "Some activities still open") : "No activities added yet") +
+      summaryCard("Assigned", String(assignedIds.length), assignedIds.length ? "Volunteers linked to this session" : "No one assigned yet") +
+      summaryCard("Impact", String(sessionImpactEstimate(session)), "Estimated member touchpoints supported") +
+      '</section>',
+      '<section class="session-detail-panels">',
+      '<div class="session-venue-card"><h3>Session Brief</h3>' +
+      (venue && venue.url ? '<p class="soft-note"><a href="' + esc(venue.url) + '" target="_blank" rel="noreferrer">Venue page</a></p>' : '') +
+      roleLine.map((line) => '<p class="soft-note">' + esc(line) + '</p>').join("") +
+      (!roleLine.length ? '<p class="soft-note">Add role clarity, arrival notes, or a backup plan when you create the session.</p>' : '') +
+      '</div>',
+      '<div class="card"><h3>Activities</h3><div class="rows">' + activitiesHtml + '</div></div>',
+      '<div class="card"><h3>Volunteer Roster</h3><div class="session-roster">' + rosterHtml + '</div></div>',
+      '<div class="card"><h3>Past History</h3><div class="session-history-list">' + historyHtml + '</div></div>',
+      '</section>'
+    ].join("");
+  }
+
+  function renderSessionRosterHtml(session) {
+    const volunteerIds = assignedVolunteerIds(session.id);
+    if (!volunteerIds.length) return '<div class="empty">No volunteers assigned yet.</div>';
+    const activities = sessionActivitiesForSession(session.id);
+
+    return volunteerIds
+      .map((volunteerId) => {
+        const volunteer = state.volunteers.find((row) => String(row.id) === String(volunteerId));
+        const metric = metricFor(volunteerId);
+        const commitment = commitmentFor(volunteerId, session.id);
+        const status = commitment ? String(commitment.status || "") : "";
+        const badge = status === "committed"
+          ? '<span class="okpill">Committed</span>'
+          : status === "unavailable"
+            ? '<span class="warnpill">Unavailable</span>'
+            : '<span class="pill">No response</span>';
+        const claimed = activities.filter((activity) => String(activity.claimed_by_volunteer_id || "") === String(volunteerId));
+        const claimedLine = claimed.length ? ("Claiming: " + claimed.map((activity) => activity.title).join(", ")) : "No activities claimed yet";
+        return {
+          sortKey: status === "committed" ? 0 : status === "unavailable" ? 2 : 1,
+          html: [
+            '<article class="session-roster-item">',
+            '<div class="session-roster-top"><div class="session-roster-main"><p class="session-roster-name">' + esc(volunteer ? volunteer.display_name : "Volunteer") + '</p><p class="session-roster-summary">' + esc(claimedLine) + '</p></div>' + badge + '</div>',
+            '<p class="soft-note">Reliability ' + Math.round(Number(metric.reliability_score || 0)) + ' • attendance ' + Number(metric.attendance_rate_pct || 0) + '% • ' + countPositiveAttendance(volunteerId) + ' past sessions completed</p>',
+            '<div class="inline-actions"><button type="button" class="mini ghost" data-action="select-volunteer" data-volunteer-id="' + esc(volunteerId) + '">View profile</button></div>',
+            '</article>'
+          ].join("")
+        };
+      })
+      .sort((a, b) => a.sortKey - b.sortKey)
+      .map((row) => row.html)
+      .join("");
+  }
+
+  function renderSessionVolunteerHistoryHtml(session) {
+    const volunteerIds = assignedVolunteerIds(session.id);
+    if (!volunteerIds.length) return '<div class="empty">No volunteer history yet.</div>';
+    const rows = volunteerIds.map((volunteerId) => {
+      const volunteer = state.volunteers.find((row) => String(row.id) === String(volunteerId));
+      const pastCount = pastSessionsForVolunteer(volunteerId).length;
+      const feedbackCount = feedbackForVolunteer(volunteerId).length;
+      const streak = showUpStreak(volunteerId);
+      const milestone = volunteerMilestone(countPositiveAttendance(volunteerId));
+      return [
+        '<article class="session-history-item">',
+        '<div class="session-history-top"><p class="session-roster-name">' + esc(volunteer ? volunteer.display_name : "Volunteer") + '</p><span class="pill">' + esc(milestone.currentLabel) + '</span></div>',
+        '<p class="soft-note">' + esc(pastCount + " past sessions • " + feedbackCount + " feedback notes • streak " + streak) + '</p>',
+        '<div class="inline-actions"><button type="button" class="mini ghost" data-action="select-volunteer" data-volunteer-id="' + esc(volunteerId) + '">Open full history</button></div>',
+        '</article>'
+      ].join("");
+    });
+    return rows.join("");
+  }
+
+  function onSelectSession(sessionId, syncMonth) {
+    const session = sessionById(sessionId);
+    if (!session) return;
+    state.selectedSessionId = String(session.id);
+    if (syncMonth) {
+      state.sessionBrowserYear = new Date(session.starts_at).getFullYear();
+      state.sessionBrowserMonth = new Date(session.starts_at).getMonth();
+    }
+    renderSessionExplorer();
+  }
+
+  function onSetSessionBrowserView(view) {
+    const mode = String(view || "");
+    if (!["calendar", "map"].includes(mode)) return;
+    state.sessionBrowserView = mode;
+    renderSessionExplorer();
+  }
+
+  function onShiftSessionMonth(deltaRaw) {
+    const delta = Number(deltaRaw || 0);
+    if (!delta) return;
+    const next = new Date(state.sessionBrowserYear, state.sessionBrowserMonth + delta, 1);
+    state.sessionBrowserYear = next.getFullYear();
+    state.sessionBrowserMonth = next.getMonth();
+    renderSessionExplorer();
+  }
+
+  function onJumpSessionMonthToday() {
+    const now = new Date();
+    state.sessionBrowserYear = now.getFullYear();
+    state.sessionBrowserMonth = now.getMonth();
+    renderSessionExplorer();
+  }
+
+  function visibleSessionsForCurrentMonth() {
+    return state.sessions
+      .filter((session) => String(session.status || "scheduled") !== "cancelled")
+      .filter((session) => {
+        const date = new Date(session.starts_at);
+        return date.getFullYear() === Number(state.sessionBrowserYear) && date.getMonth() === Number(state.sessionBrowserMonth);
+      })
+      .sort((a, b) => new Date(a.starts_at) - new Date(b.starts_at));
+  }
+
+  function localDateKey(value) {
+    const date = value instanceof Date ? value : new Date(value);
+    if (!isFinite(date.getTime())) return "";
+    return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, "0"), String(date.getDate()).padStart(2, "0")].join("-");
+  }
+
+  function sessionVenuePreset(session) {
+    if (!session) return null;
+    const direct = String(session.venue_key || "").trim().toLowerCase();
+    if (direct && SESSION_VENUES[direct]) return SESSION_VENUES[direct];
+    const title = String(session.title || "").trim().toLowerCase();
+    for (const venue of Object.values(SESSION_VENUES)) {
+      if (venue.aliases.some((alias) => title.includes(alias))) return venue;
+    }
+    return null;
+  }
+
+  function sessionVenueShortLabel(session) {
+    const venue = sessionVenuePreset(session);
+    return venue ? venue.shortLabel : "Venue TBD";
+  }
+
+  function sessionVenueHasMap(session) {
+    const venue = sessionVenuePreset(session);
+    return Boolean(venue && isFinite(Number(venue.lat)) && isFinite(Number(venue.lng)));
+  }
+
+  async function queueSessionMapRender() {
+    const container = document.getElementById("sessionMapCanvas");
+    if (!container) return;
+
+    const sessions = visibleSessionsForCurrentMonth().filter((session) => sessionVenueHasMap(session));
+    if (!sessions.length) {
+      destroySessionMap();
+      container.innerHTML = '<div class="session-map-empty">No mapped sessions for this month yet.</div>';
+      return;
+    }
+
+    try {
+      await loadLeafletAssets();
+      if (!document.getElementById("sessionMapCanvas")) return;
+      renderSessionMap(document.getElementById("sessionMapCanvas"), sessions);
+    } catch (error) {
+      destroySessionMap();
+      const target = document.getElementById("sessionMapCanvas");
+      if (target) target.innerHTML = '<div class="session-map-empty">' + esc(errorText(error, "Map could not load.")) + '</div>';
+    }
+  }
+
+  function destroySessionMap() {
+    if (state.sessionMapInstance && typeof state.sessionMapInstance.remove === "function") {
+      try { state.sessionMapInstance.remove(); } catch (_error) {}
+    }
+    state.sessionMapInstance = null;
+    state.sessionMapMarkers = [];
+  }
+
+  async function loadLeafletAssets() {
+    if (window.L) return;
+    if (leafletLoadPromise) return leafletLoadPromise;
+
+    leafletLoadPromise = new Promise((resolve, reject) => {
+      const existingCss = document.querySelector('link[data-leaflet="1"]');
+      if (!existingCss) {
+        const css = document.createElement("link");
+        css.rel = "stylesheet";
+        css.href = "https://unpkg.com/leaflet@" + LEAFLET_VERSION + "/dist/leaflet.css";
+        css.setAttribute("data-leaflet", "1");
+        document.head.appendChild(css);
+      }
+
+      const existingScript = document.querySelector('script[data-leaflet="1"]');
+      if (existingScript) {
+        if (window.L) {
+          resolve();
+          return;
+        }
+        existingScript.addEventListener("load", () => resolve(), { once: true });
+        existingScript.addEventListener("error", () => reject(new Error("Map library failed to load.")), { once: true });
+        return;
+      }
+
+      const script = document.createElement("script");
+      script.src = "https://unpkg.com/leaflet@" + LEAFLET_VERSION + "/dist/leaflet.js";
+      script.async = true;
+      script.setAttribute("data-leaflet", "1");
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error("Map library failed to load."));
+      document.head.appendChild(script);
+    });
+
+    return leafletLoadPromise;
+  }
+
+  function renderSessionMap(container, sessions) {
+    destroySessionMap();
+    container.innerHTML = "";
+    const map = window.L.map(container, {
+      zoomControl: true,
+      scrollWheelZoom: false
+    });
+    state.sessionMapInstance = map;
+    window.L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
+      subdomains: "abcd",
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap &copy; CARTO'
+    }).addTo(map);
+
+    const venueOffsets = {};
+    const markers = sessions.map((session) => {
+      const venue = sessionVenuePreset(session);
+      const isActive = String(session.id) === String(state.selectedSessionId);
+      const offsetIndex = Number(venueOffsets[venue.key] || 0);
+      venueOffsets[venue.key] = offsetIndex + 1;
+      const angle = offsetIndex * (Math.PI / 3);
+      const offsetRadius = offsetIndex === 0 ? 0 : 0.0012;
+      const markerLat = Number(venue.lat) + (Math.sin(angle) * offsetRadius);
+      const markerLng = Number(venue.lng) + (Math.cos(angle) * offsetRadius);
+      const icon = window.L.divIcon({
+        className: "session-map-marker-wrap",
+        html: '<div class="session-map-marker' + (isActive ? ' is-active' : '') + '" style="--marker-color:' + esc(venue.color) + ';"><picture><source srcset="logo.svg" type="image/svg+xml"><img src="logo.png" alt="MK Chess" loading="lazy"></picture></div>',
+        iconSize: [56, 62],
+        iconAnchor: [28, 56],
+        popupAnchor: [0, -16]
+      });
+      const marker = window.L.marker([markerLat, markerLng], { icon }).addTo(map);
+      marker.bindPopup([
+        '<div class="session-map-popup-media"><img src="' + esc(venue.imageUrl) + '" alt="' + esc(session.title || "Session") + '" loading="lazy" /></div>',
+        '<div class="session-map-popup-body">',
+        '<div class="session-map-popup-title">' + esc(session.title || "Session") + '</div>',
+        '<div class="session-map-popup-row">' + esc(formatDateTime(session.starts_at)) + '</div>',
+        '<div class="session-map-popup-row">' + esc(venue.location) + '</div>',
+        '<div class="session-map-popup-row">' + esc(session.role_brief || venue.description) + '</div>',
+        '<a href="#" class="session-map-popup-link" data-action="select-session" data-session-id="' + esc(session.id) + '" data-sync-month="0">View session</a>',
+        '</div>'
+      ].join(""));
+      return marker;
+    });
+
+    state.sessionMapMarkers = markers;
+    const group = window.L.featureGroup(markers);
+    map.fitBounds(group.getBounds(), { padding: [34, 34], maxZoom: 13 });
+    setTimeout(() => {
+      if (state.sessionMapInstance) state.sessionMapInstance.invalidateSize();
+    }, 0);
   }
 
   function renderVolunteerList() {
@@ -846,6 +1410,34 @@
         ].join('');
       }).join('')
       : '<div class="empty">No feedback yet.</div>';
+    const pastHistoryRows = pastSessionsForVolunteer(volunteer.id).slice(0, 8);
+    const pastHistoryHtml = pastHistoryRows.length
+      ? pastHistoryRows.map((session) => {
+        const attendanceRow = attendanceFor(volunteer.id, session.id);
+        const outcome = attendanceRow ? String(attendanceRow.outcome || "") : "";
+        const badge = outcome === "showed_up"
+          ? '<span class="okpill">Showed up</span>'
+          : outcome === "late"
+            ? '<span class="pill">Late</span>'
+            : outcome === "excused"
+              ? '<span class="pill">Excused</span>'
+              : outcome === "no_show"
+                ? '<span class="warnpill">No show</span>'
+                : '<span class="pill">Awaiting mark</span>';
+        const claimed = sessionActivitiesForSession(session.id)
+          .filter((activity) => String(activity.claimed_by_volunteer_id || "") === String(volunteer.id))
+          .map((activity) => activity.title);
+        const claimedLine = claimed.length ? ("Claimed: " + claimed.join(", ")) : "No claimed activities recorded.";
+        return [
+          '<article class="session-history-item">',
+          '<div class="session-history-top"><p class="session-roster-name">' + esc(session.title || "Session") + '</p>' + badge + '</div>',
+          '<p class="soft-note">' + esc(formatDateTime(session.starts_at)) + '</p>',
+          '<p class="soft-note">' + esc(claimedLine) + '</p>',
+          '<div class="inline-actions"><button type="button" class="mini ghost" data-action="select-session" data-session-id="' + esc(session.id) + '" data-sync-month="1">Open session</button></div>',
+          '</article>'
+        ].join("");
+      }).join("")
+      : '<div class="empty">No past session history yet.</div>';
 
     el.volunteerDetail.innerHTML = [
       '<section class="hero">',
@@ -860,7 +1452,8 @@
       '<section class="grid2">',
       '<div class="card"><h3>Upcoming Commitments</h3><div class="rows">' + upcomingHtml + '</div></div>',
       '<div class="card"><h3>Recent Feedback</h3><div class="reviews">' + feedbackHtml + '</div></div>',
-      '</section>'
+      '</section>',
+      '<section class="card"><h3>Past Session History</h3><div class="session-history-list">' + pastHistoryHtml + '</div></section>',
     ].join('');
   }
 
@@ -1076,6 +1669,19 @@
     if (!target) return;
     const action = String(target.getAttribute("data-action") || "");
 
+    if (action === "select-session") { event.preventDefault(); onSelectSession(target.getAttribute("data-session-id"), String(target.getAttribute("data-sync-month") || "") === "1"); return; }
+    if (action === "set-session-browser-view") { onSetSessionBrowserView(target.getAttribute("data-view")); return; }
+    if (action === "shift-session-month") { onShiftSessionMonth(target.getAttribute("data-month-delta")); return; }
+    if (action === "session-month-today") { onJumpSessionMonthToday(); return; }
+    if (action === "select-volunteer") {
+      state.selectedVolunteerId = String(target.getAttribute("data-volunteer-id") || "");
+      renderVolunteerList();
+      renderVolunteerDetail();
+      if (el.directorySplit && typeof el.directorySplit.scrollIntoView === "function") {
+        el.directorySplit.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+      return;
+    }
     if (action === "open-volunteer-dialog") { openVolunteerDialog(); return; }
     if (action === "open-session-dialog") { openSessionDialog(); return; }
     if (action === "open-feedback") { openFeedbackDialog(target.getAttribute("data-volunteer-id")); return; }
@@ -1250,17 +1856,21 @@
       setBackendStatus("Admin role required.", "err");
       return;
     }
+    renderSessionVenueOptions();
     el.sessionForm.reset();
     clearStatus(el.sessionStatus);
     const soon = new Date(Date.now() + 86400000);
     soon.setMinutes(0, 0, 0);
+    if (el.sessionVenueKeyInput) el.sessionVenueKeyInput.value = "learn";
     el.sessionStartsInput.value = toDatetimeLocal(soon);
     el.sessionRequiredInput.value = "2";
     el.sessionRoleBriefInput.value = "Welcome attendees, set boards, and support pairings";
     el.sessionActivitiesInput.value = defaultSessionActivityLines();
-    el.sessionArrivalNoteInput.value = "Arrive 20 minutes before start";
+    el.sessionTitleInput.value = SESSION_VENUES.learn.titleSuggestion;
+    el.sessionArrivalNoteInput.value = "Arrive 20 minutes early at " + SESSION_VENUES.learn.shortLabel;
     el.sessionBackupPlanInput.value = "If delayed, message coordinator immediately";
     el.sessionAssignAllInput.value = "0";
+    updateSessionVenueHint();
     renderSessionDialogSuggestionButtons();
     openDialog(el.sessionDialog);
   }
@@ -1269,6 +1879,7 @@
     event.preventDefault();
     clearStatus(el.sessionStatus);
     const title = String(el.sessionTitleInput.value || "").trim();
+    const venueKey = String(el.sessionVenueKeyInput.value || "").trim().toLowerCase();
     const startsRaw = String(el.sessionStartsInput.value || "").trim();
     const required = Math.max(1, Math.min(20, Number(el.sessionRequiredInput.value || 2)));
     const roleBrief = String(el.sessionRoleBriefInput.value || "").trim();
@@ -1303,6 +1914,7 @@
         p_starts_at: startsAt.toISOString(),
         p_required_volunteers: required,
         p_assign_all: assignAll,
+        p_venue_key: venueKey || null,
         p_role_brief: roleBrief,
         p_arrival_note: arrivalNote || null,
         p_backup_plan: backupPlan || null
@@ -1317,6 +1929,9 @@
             return isFinite(starts) && Math.abs(starts - startsAt.getTime()) <= 60000;
           });
           if (created) {
+            state.selectedSessionId = String(created.id);
+            state.sessionBrowserYear = new Date(created.starts_at).getFullYear();
+            state.sessionBrowserMonth = new Date(created.starts_at).getMonth();
             const activitiesResponse = await rpc("mkchess_volunteer_hub_add_session_activities", {
               p_session_id: created.id,
               p_titles: activityTitles
@@ -1350,6 +1965,14 @@
         }
       }
       await loadAllData();
+      if (response.data) {
+        state.selectedSessionId = String(response.data);
+        const createdSession = sessionById(response.data);
+        if (createdSession) {
+          state.sessionBrowserYear = new Date(createdSession.starts_at).getFullYear();
+          state.sessionBrowserMonth = new Date(createdSession.starts_at).getMonth();
+        }
+      }
       renderAll();
       setBackendStatus("Session created.", "ok");
       if (el.sessionDialog.open) el.sessionDialog.close();
@@ -2318,7 +2941,7 @@
   function pastSessionsForVolunteer(volunteerId) {
     const now = Date.now();
     return state.sessions
-      .filter((session) => new Date(session.starts_at).getTime() <= now)
+      .filter((session) => new Date(session.starts_at).getTime() <= now && String(session.status || "scheduled") !== "cancelled")
       .filter((session) => assignedVolunteerIds(session.id).includes(String(volunteerId)))
       .sort((a, b) => new Date(b.starts_at) - new Date(a.starts_at));
   }
