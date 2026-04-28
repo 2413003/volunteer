@@ -450,6 +450,9 @@
     renderAll();
 
     try {
+      const sessionsPromise = state.supabase.from("mkchess_volunteer_hub_sessions")
+        .select("*")
+        .order("starts_at", { ascending: true });
       const [
         volunteersResponse,
         sessionsResponse,
@@ -468,9 +471,7 @@
           .select("id,owner_user_id,display_name,tagline,bio,active,created_at")
           .eq("active", true)
           .order("display_name", { ascending: true }),
-        state.supabase.from("mkchess_volunteer_hub_sessions")
-          .select("id,title,starts_at,required_volunteers,status,venue_key,role_brief,arrival_note,backup_plan,created_by_user_id,created_at,updated_at")
-          .order("starts_at", { ascending: true }),
+        sessionsPromise,
         state.supabase.from("mkchess_volunteer_hub_session_assignments")
           .select("session_id,volunteer_id"),
         state.supabase.from("mkchess_volunteer_hub_session_activities")
@@ -532,7 +533,7 @@
       }
 
       state.volunteers = volunteersResponse.error ? [] : (volunteersResponse.data || []);
-      state.sessions = sessionsResponse.error ? [] : (sessionsResponse.data || []);
+      state.sessions = sessionsResponse.error ? [] : normalizeSessionRows(sessionsResponse.data || []);
       state.assignments = assignmentsResponse.error ? [] : (assignmentsResponse.data || []);
       state.sessionActivities = sessionActivitiesResponse.error ? [] : (sessionActivitiesResponse.data || []);
       state.commitments = commitmentsResponse.error ? [] : (commitmentsResponse.data || []);
@@ -1382,17 +1383,10 @@
       p_backup_plan: entry.backupPlan
     };
 
-    let response = await rpc("mkchess_volunteer_hub_create_session", {
+    let response = await callCreateSessionRpc({
       ...baseParams,
       p_venue_key: entry.venueKey
     }, 60000);
-
-    if (response.error) {
-      const message = errorText(response.error, "Create session failed");
-      if (/no function matches|function .* does not exist|unexpected/i.test(message)) {
-        response = await rpc("mkchess_volunteer_hub_create_session", baseParams, 60000);
-      }
-    }
 
     if (response.error) {
       const message = errorText(response.error, "Create session failed");
@@ -1417,6 +1411,21 @@
     }
 
     return sessionId;
+  }
+
+  async function callCreateSessionRpc(params, timeoutMs) {
+    const payload = { ...(params || {}) };
+    let response = await rpc("mkchess_volunteer_hub_create_session", payload, timeoutMs);
+    if (!response.error) return response;
+
+    const message = errorText(response.error, "Create session failed");
+    if (!/no function matches|function .* does not exist|unexpected|named parameter|venue_key/i.test(message)) {
+      return response;
+    }
+
+    const fallbackPayload = { ...payload };
+    delete fallbackPayload.p_venue_key;
+    return rpc("mkchess_volunteer_hub_create_session", fallbackPayload, timeoutMs);
   }
 
   function renderVolunteerList() {
@@ -2136,7 +2145,7 @@
     const label = el.createSessionBtn.textContent;
     el.createSessionBtn.textContent = "Creating...";
     try {
-      const response = await rpc("mkchess_volunteer_hub_create_session", {
+      const response = await callCreateSessionRpc({
         p_title: title,
         p_starts_at: startsAt.toISOString(),
         p_required_volunteers: required,
@@ -2917,6 +2926,17 @@
         if (orderDiff !== 0) return orderDiff;
         return new Date(a.created_at || 0) - new Date(b.created_at || 0);
       });
+  }
+
+  function normalizeSessionRows(rows) {
+    return rows.map((row) => ({
+      ...row,
+      venue_key: String(row && row.venue_key || "").trim().toLowerCase(),
+      role_brief: String(row && row.role_brief || ""),
+      arrival_note: String(row && row.arrival_note || ""),
+      backup_plan: String(row && row.backup_plan || ""),
+      status: String(row && row.status || "scheduled")
+    }));
   }
 
   function sessionActivityById(activityId) {
