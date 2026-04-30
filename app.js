@@ -152,7 +152,8 @@
     sessionMapMarkers: [],
     sessionMapReady: false,
     sessionMapError: "",
-    volunteerDialogMode: "admin"
+    volunteerDialogMode: "admin",
+    loginOpen: false
   };
 
   const el = {};
@@ -182,7 +183,7 @@
 
   function cacheEls() {
     [
-      "emailInput", "sendLinkBtn", "signOutBtn", "startSetupBtn", "addVolunteerBtn", "addSessionBtn",
+      "loginBtn", "emailInput", "sendLinkBtn", "signOutBtn", "startSetupBtn", "addVolunteerBtn", "addSessionBtn",
       "authStatus", "backendStatus", "commandBoard", "sessionExplorer", "searchInput", "volunteerList", "volunteerDetail", "studioPanel", "directorySplit",
       "volunteerDialog", "volunteerDialogTitle", "volunteerForm", "volunteerNameInput", "volunteerTaglineInput", "volunteerBioInput", "volunteerStatus", "createVolunteerBtn",
       "sessionDialog", "sessionForm", "sessionTitleInput", "sessionVenueKeyInput", "sessionVenueHint", "sessionStartsInput", "sessionRequiredInput", "sessionRoleBriefInput", "sessionActivitiesInput", "sessionSuggestedActivities", "sessionArrivalNoteInput", "sessionBackupPlanInput", "sessionAssignAllInput", "sessionStatus", "createSessionBtn",
@@ -199,6 +200,7 @@
   }
 
   function bindEvents() {
+    el.loginBtn.addEventListener("click", onOpenLogin);
     el.sendLinkBtn.addEventListener("click", onSendLink);
     el.signOutBtn.addEventListener("click", onSignOut);
     el.startSetupBtn.addEventListener("click", onStartSetup);
@@ -727,21 +729,24 @@
     const signedIn = Boolean(state.user);
     const admin = isAdmin();
     const needsVolunteerProfile = signedIn && !myVolunteerId();
+    const showLoginForm = !signedIn && state.loginOpen;
 
-    el.sendLinkBtn.style.display = signedIn ? "none" : "";
+    el.loginBtn.style.display = signedIn ? "none" : (showLoginForm ? "none" : "");
+    el.sendLinkBtn.style.display = showLoginForm ? "" : "none";
     el.signOutBtn.style.display = signedIn ? "" : "none";
-    el.emailInput.style.display = "";
+    el.emailInput.style.display = showLoginForm || signedIn ? "" : "none";
     el.emailInput.disabled = signedIn;
     el.startSetupBtn.style.display = (signedIn && !admin) ? "" : "none";
     el.addVolunteerBtn.style.display = (admin || needsVolunteerProfile) ? "" : "none";
     el.addVolunteerBtn.textContent = admin ? "Add volunteer" : "Create profile";
     el.addSessionBtn.style.display = admin ? "" : "none";
 
-    el.emailInput.placeholder = "member@yourdomain.com";
+    el.emailInput.placeholder = "enter email";
     if (signedIn) el.emailInput.value = state.user.email || "";
     else el.emailInput.value = "";
 
     if (!signedIn) {
+      if (!showLoginForm) el.emailInput.value = "";
       clearStatus(el.authStatus);
       return;
     }
@@ -764,55 +769,11 @@
       return;
     }
 
-    const upcoming = upcomingSessions().slice(0, 8);
-    const coverageRows = upcoming.map(sessionCoverageRow);
-    const reminderRows = buildReminderQueue(coverageRows);
-    const requiredTotal = coverageRows.reduce((sum, row) => sum + row.required, 0);
-    const committedTotal = coverageRows.reduce((sum, row) => sum + row.committed, 0);
-    const assignedTotal = coverageRows.reduce((sum, row) => sum + row.assigned, 0);
-    const claimedActivities = coverageRows.reduce((sum, row) => sum + row.claimedActivityCount, 0);
-    const totalActivities = coverageRows.reduce((sum, row) => sum + row.activityCount, 0);
-    const coveragePct = requiredTotal ? Math.round((committedTotal / requiredTotal) * 100) : 0;
     const openSupportRequests = state.supportRequests
       .filter((row) => String(row.status || "open") === "open")
       .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
     const canSuggestActivity = Boolean(state.user) && isApprovedMember();
     const activityIdeasHtml = renderActivitySuggestionsHtml({ variant: "default", limit: 5 });
-
-    const coverageHtml = coverageRows.length
-      ? coverageRows.map((row) => {
-        const badge = row.gap > 0 ? '<span class="warnpill">Need ' + row.gap + '</span>' : '<span class="okpill">Covered</span>';
-        const canMark = isAdmin() && new Date(row.starts_at).getTime() <= Date.now() + 3600000;
-        const nudgeButton = row.pendingIds.length
-          ? '<button type="button" class="mini ghost" data-action="nudge-session" data-session-id="' + esc(row.id) + '" data-stage="Reminder">Nudge pending</button>'
-          : '';
-        const attendanceButton = canMark
-          ? '<button type="button" class="mini ghost" data-action="open-attendance" data-session-id="' + esc(row.id) + '">Mark attendance</button>'
-          : '';
-        return [
-          '<article class="row">',
-          '<div class="row-top"><p class="headline">' + esc(row.title) + '</p>' + badge + '</div>',
-          '<p class="muted">' + esc(formatDateTime(row.starts_at)) + '</p>',
-          '<p class="muted">' + row.committed + '/' + row.required + ' committed • ' + row.claimedActivityCount + '/' + row.activityCount + ' activities claimed</p>',
-          '<div class="inline-actions">' + nudgeButton + attendanceButton + '</div>',
-          '</article>'
-        ].join('');
-      }).join('')
-      : '<div class="empty">No upcoming sessions yet.</div>';
-
-    const remindersHtml = reminderRows.length
-      ? reminderRows.map((row) => {
-        const names = row.pendingIds.map((id) => volunteerNameById(id)).filter(Boolean).join(', ');
-        return [
-          '<article class="row">',
-          '<div class="row-top"><p class="headline">' + esc(row.title) + '</p><span class="pill">' + esc(row.stageLabel) + '</span></div>',
-          '<p class="muted">' + esc(formatDateTime(row.starts_at)) + '</p>',
-          '<p class="muted">Waiting on: ' + esc(names || 'none') + '</p>',
-          '<div class="inline-actions"><button type="button" class="mini ghost" data-action="nudge-session" data-session-id="' + esc(row.id) + '" data-stage="' + esc(row.stageLabel) + '">Copy reminder</button></div>',
-          '</article>'
-        ].join('');
-      }).join('')
-      : '<div class="empty">No reminders are due right now.</div>';
 
     const supportHtml = openSupportRequests.length
       ? openSupportRequests.slice(0, 5).map((row) => {
@@ -833,14 +794,8 @@
       : '<div class="empty">No open support requests.</div>';
 
     el.commandBoard.innerHTML = [
-      '<section class="grid2">',
-      '<div class="card"><h3>Upcoming Sessions</h3><div class="rows">' + coverageHtml + '</div></div>',
-      '<div class="card"><h3>Activity Ideas</h3><div class="rows">' + activityIdeasHtml + '</div>' + (canSuggestActivity ? '<div class="inline-actions"><button type="button" class="mini ghost" data-action="open-activity-suggestion-dialog">Suggest activity</button></div>' : '') + '</div>',
-      '</section>',
-      '<section class="grid2">',
-      '<div class="card"><h3>Pending Confirmations</h3><div class="rows">' + remindersHtml + '</div></div>',
-      '<div class="card"><h3>Support Requests</h3><div class="rows">' + supportHtml + '</div></div>',
-      '</section>'
+      '<section class="card"><h3>Activity Ideas</h3><div class="rows">' + activityIdeasHtml + '</div>' + (canSuggestActivity ? '<div class="inline-actions"><button type="button" class="mini ghost" data-action="open-activity-suggestion-dialog">Suggest activity</button></div>' : '') + '</section>',
+      '<section class="card"><h3>Support Requests</h3><div class="rows">' + supportHtml + '</div></section>'
     ].filter(Boolean).join('');
   }
 
@@ -1045,6 +1000,7 @@
     const activitiesHtml = renderSessionActivitiesHtml(session.id, {
       actorVolunteerId,
       showClaimActions: Boolean(actorVolunteerId),
+      allowSignedOutClaimActions: true,
       emptyText: "No activities added yet."
     });
 
@@ -2091,8 +2047,15 @@
     }
     state.user = null;
     state.profile = null;
+    state.loginOpen = false;
     await loadAllData();
     renderAll();
+  }
+
+  function onOpenLogin() {
+    state.loginOpen = true;
+    renderHeader();
+    if (el.emailInput && typeof el.emailInput.focus === "function") el.emailInput.focus();
   }
 
   async function onStartSetup() {
@@ -2592,8 +2555,13 @@
 
   async function onToggleSessionActivityClaim(activityId, mode) {
     if (!activityId) return;
-    if (!state.user || !state.supabase) {
-      setBackendStatus("Sign in first.", "err");
+    if (!state.supabase) {
+      setBackendStatus(missingBackendMessage(), "err");
+      return;
+    }
+    if (!state.user) {
+      onOpenLogin();
+      setBackendStatus("Log in to claim this activity.", "warn");
       return;
     }
     if (!myVolunteerId()) {
@@ -3098,6 +3066,100 @@
     });
   }
 
+  function activityHelpFor(activity) {
+    const title = String(activity && activity.title || "Volunteer activity").trim();
+    const details = String(activity && activity.details || "").trim();
+    const key = title.toLowerCase();
+    const fallbackSummary = details || "Check what needs doing, take the first small step, and tell the session lead when it is done.";
+    const base = {
+      summary: fallbackSummary,
+      steps: ["Check the note", "Do the task", "Tell the lead"],
+      faqs: [
+        { q: "Unsure?", a: "Ask the session lead before claiming." },
+        { q: "Done early?", a: "Check whether another open activity needs help." }
+      ]
+    };
+
+    if (key.includes("move equipment")) {
+      return {
+        summary: details || "From reception to play area",
+        steps: ["Check in at reception", "Move kit to play area", "Place it neatly"],
+        faqs: [
+          { q: "What kit?", a: "Boards, pieces, clocks, signs, and any session box." },
+          { q: "Too heavy?", a: "Ask another volunteer and split the load." }
+        ]
+      };
+    }
+    if (key.includes("welcome")) {
+      return {
+        summary: details || "Help arrivals feel expected and point them to the right place.",
+        steps: ["Stand near entrance", "Greet arrivals", "Guide to a table"],
+        faqs: [
+          { q: "New player?", a: "Ask their experience level and introduce them to the lead." },
+          { q: "Parent question?", a: "Point them to the organiser for anything formal." }
+        ]
+      };
+    }
+    if (key.includes("pairing")) {
+      return {
+        summary: details || "Help people find suitable games without leaving anyone waiting.",
+        steps: ["Spot waiting players", "Match similar levels", "Check games started"],
+        faqs: [
+          { q: "Odd number?", a: "Tell the session lead so nobody is left out." },
+          { q: "Big skill gap?", a: "Make it casual or ask for a better match." }
+        ]
+      };
+    }
+    if (key.includes("coaching") || key.includes("teaching")) {
+      return {
+        summary: details || "Keep coaching tables calm, supplied, and moving.",
+        steps: ["Prepare boards", "Support questions", "Reset for next group"],
+        faqs: [
+          { q: "Need a lesson plan?", a: "Use the lead coach's activity for that table." },
+          { q: "Player stuck?", a: "Give one hint, then let them try." }
+        ]
+      };
+    }
+    if (key.includes("social")) {
+      return {
+        summary: details || "Keep the session friendly, relaxed, and easy to join.",
+        steps: ["Check tables", "Invite joiners", "Keep flow relaxed"],
+        faqs: [
+          { q: "Quiet player?", a: "Offer a low-pressure game or puzzle." },
+          { q: "Dispute?", a: "Pause the game and ask the lead to help." }
+        ]
+      };
+    }
+
+    return base;
+  }
+
+  function renderActivityHelpHtml(activity) {
+    const help = activityHelpFor(activity);
+    const steps = help.steps.slice(0, 4).map((step, index) => [
+      '<li>',
+      '<span class="activity-step-num">' + (index + 1) + '</span>',
+      '<span>' + esc(step) + '</span>',
+      '</li>'
+    ].join("")).join("");
+    const faqs = help.faqs.slice(0, 3).map((item) => [
+      '<div class="activity-faq-row">',
+      '<dt>' + esc(item.q) + '</dt>',
+      '<dd>' + esc(item.a) + '</dd>',
+      '</div>'
+    ].join("")).join("");
+
+    return [
+      '<div class="activity-help">',
+      '<p class="activity-help-summary">' + esc(help.summary) + '</p>',
+      '<div class="activity-help-grid">',
+      '<div><p class="activity-help-label">How</p><ol class="activity-steps">' + steps + '</ol></div>',
+      '<div><p class="activity-help-label">FAQ</p><dl class="activity-faq">' + faqs + '</dl></div>',
+      '</div>',
+      '</div>'
+    ].join("");
+  }
+
   function sessionActivityById(activityId) {
     return state.sessionActivities.find((row) => String(row.id) === String(activityId)) || null;
   }
@@ -3135,7 +3197,7 @@
 
   function renderSessionClaimAccessHtml(actorVolunteerId) {
     if (!state.user) {
-      return '<div class="rows"><article class="row"><div class="row-top"><p class="headline">Want to help?</p><span class="pill">Sign in</span></div><p class="muted">Sign in to claim an activity for this session and have it added to your volunteer history.</p></article></div>';
+      return "";
     }
 
     if (actorVolunteerId) {
@@ -3191,6 +3253,7 @@
     const opts = options || {};
     const actorVolunteerId = opts.actorVolunteerId ? String(opts.actorVolunteerId) : "";
     const showClaimActions = Boolean(opts.showClaimActions && actorVolunteerId);
+    const showSignedOutClaimActions = Boolean(opts.allowSignedOutClaimActions && !state.user);
     const activities = sessionActivitiesForSession(sessionId);
     const emptyText = opts.emptyText || "No activities set for this session yet.";
     if (!activities.length) return '<div class="empty">' + esc(emptyText) + '</div>';
@@ -3202,19 +3265,20 @@
       const statusBadge = claimedById
         ? (claimedByMe ? '<span class="okpill">You</span>' : '<span class="pill">' + esc(claimedByName) + '</span>')
         : '<span class="warnpill">Open</span>';
-      const actionsHtml = showClaimActions
+      const actionsHtml = (showClaimActions || showSignedOutClaimActions)
         ? (!claimedById
           ? '<div class="inline-actions"><button type="button" class="mini ghost" data-action="toggle-session-activity-claim" data-activity-id="' + esc(activity.id) + '" data-mode="claim">Claim activity</button></div>'
-          : (claimedByMe
+          : (showClaimActions && claimedByMe
             ? '<div class="inline-actions"><button type="button" class="mini ghost" data-action="toggle-session-activity-claim" data-activity-id="' + esc(activity.id) + '" data-mode="release">Release</button></div>'
             : ""))
         : "";
       const bodyLine = String(activity.details || "").trim()
         || (claimedById ? ("Claimed by " + claimedByName + ".") : "Nobody has claimed this yet.");
       return [
-        '<article class="row">',
+        '<article class="row activity-row" tabindex="0">',
         '<div class="row-top"><p class="headline">' + esc(activity.title || "Volunteer activity") + '</p>' + statusBadge + '</div>',
         '<p class="muted">' + esc(bodyLine) + '</p>',
+        renderActivityHelpHtml(activity),
         actionsHtml,
         '</article>'
       ].join("");
