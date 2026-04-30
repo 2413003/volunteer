@@ -16,6 +16,16 @@
   const CHECK_IN_WINDOW_HOURS = 6;
   const CHECK_IN_GRACE_MINUTES = 30;
   const LEAFLET_VERSION = "1.9.4";
+  const SESSION_ACTIVITY_PRESETS = {
+    "set up boards": {
+      title: "Move equipment",
+      details: "From reception to play area"
+    },
+    "move equipment": {
+      title: "Move equipment",
+      details: "From reception to play area"
+    }
+  };
   const SESSION_VENUES = {
     learn: {
       key: "learn",
@@ -56,10 +66,10 @@
       recurrence: "first_wednesday",
       startHour: 18,
       startMinute: 0,
-      roleBrief: "Welcome players, set up boards, and keep casual pairings moving.",
+      roleBrief: "Move equipment, welcome players, and keep casual pairings moving.",
       arrivalNote: "Arrive 20 minutes early at Bletchley",
       backupPlan: "If delayed, message the session coordinator immediately",
-      activityTitles: ["Set up boards", "Welcome players", "Support pairings"]
+      activityTitles: ["Move equipment", "Welcome players", "Support pairings"]
     },
     badminton: {
       key: "badminton",
@@ -78,10 +88,10 @@
       recurrence: "second_thursday",
       startHour: 18,
       startMinute: 0,
-      roleBrief: "Welcome players, set up boards, and support pairings through the session.",
+      roleBrief: "Move equipment, welcome players, and support pairings through the session.",
       arrivalNote: "Arrive 20 minutes early at the Badminton Centre",
       backupPlan: "If delayed, message the session coordinator immediately",
-      activityTitles: ["Set up boards", "Welcome players", "Support pairings"]
+      activityTitles: ["Move equipment", "Welcome players", "Support pairings"]
     },
     sunday: {
       key: "sunday",
@@ -101,10 +111,10 @@
       startHour: 10,
       startMinute: 0,
       startDate: "2026-04-19",
-      roleBrief: "Welcome adult players, set up boards, and support relaxed social play.",
+      roleBrief: "Move equipment, welcome adult players, and support relaxed social play.",
       arrivalNote: "Arrive 15 minutes early at Willen Lake",
       backupPlan: "If delayed, message the session coordinator immediately",
-      activityTitles: ["Set up boards", "Welcome adult players", "Support social play"]
+      activityTitles: ["Move equipment", "Welcome adult players", "Support social play"]
     }
   };
 
@@ -541,7 +551,7 @@
       state.volunteers = volunteersResponse.error ? [] : (volunteersResponse.data || []);
       state.sessions = sessionsResponse.error ? [] : normalizeSessionRows(sessionsResponse.data || []);
       state.assignments = assignmentsResponse.error ? [] : (assignmentsResponse.data || []);
-      state.sessionActivities = sessionActivitiesResponse.error ? [] : (sessionActivitiesResponse.data || []);
+      state.sessionActivities = sessionActivitiesResponse.error ? [] : normalizeSessionActivityRows(sessionActivitiesResponse.data || []);
       state.commitments = commitmentsResponse.error ? [] : (commitmentsResponse.data || []);
       state.attendance = attendanceResponse.error ? [] : (attendanceResponse.data || []);
       state.feedback = feedbackResponse.error ? [] : (feedbackResponse.data || []);
@@ -670,7 +680,7 @@
     state.volunteers = volunteersResponse.error ? [] : (volunteersResponse.data || []);
     state.sessions = sessionsResponse.error ? [] : normalizeSessionRows(sessionsResponse.data || []);
     state.assignments = assignmentsResponse.error ? [] : (assignmentsResponse.data || []);
-    state.sessionActivities = sessionActivitiesResponse.error ? [] : (sessionActivitiesResponse.data || []);
+    state.sessionActivities = sessionActivitiesResponse.error ? [] : normalizeSessionActivityRows(sessionActivitiesResponse.data || []);
     state.commitments = commitmentsResponse.error ? [] : (commitmentsResponse.data || []);
     state.attendance = attendanceResponse.error ? [] : (attendanceResponse.data || []);
     state.feedback = feedbackResponse.error ? [] : (feedbackResponse.data || []);
@@ -920,7 +930,10 @@
     const year = Number(state.sessionBrowserYear);
     const month = Number(state.sessionBrowserMonth);
     const firstOfMonth = new Date(year, month, 1);
-    const gridStart = new Date(year, month, 1 - ((firstOfMonth.getDay() + 6) % 7));
+    const firstDay = firstOfMonth.getDay();
+    const offset = firstDay === 0 ? 6 : firstDay - 1;
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const totalCells = Math.ceil((offset + daysInMonth) / 7) * 7;
     const monthLabel = firstOfMonth.toLocaleDateString(undefined, { month: "long", year: "numeric" });
     const dayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
     const byDay = {};
@@ -931,30 +944,23 @@
     });
 
     const cells = [];
-    for (let index = 0; index < 42; index += 1) {
-      const day = new Date(gridStart);
-      day.setDate(gridStart.getDate() + index);
+    for (let index = 0; index < totalCells; index += 1) {
+      const day = new Date(year, month, index - offset + 1);
       const key = localDateKey(day);
       const cellSessions = (byDay[key] || []).sort((a, b) => new Date(a.starts_at) - new Date(b.starts_at));
       const otherMonth = day.getMonth() !== month;
       const today = localDateKey(new Date()) === key;
-      const chipsHtml = cellSessions.length
-        ? '<div class="calendar-events">' + cellSessions.map((session) => {
-          const venue = sessionVenuePreset(session);
-          return [
-            '<button type="button" class="calendar-chip' + (String(session.id) === String(state.selectedSessionId) ? ' active' : '') + '"',
-            ' data-action="select-session" data-session-id="' + esc(session.id) + '" data-sync-month="0"',
-            venue ? ' style="--chip-bg:' + esc(venue.bg) + ';--chip-color:' + esc(venue.color) + ';"' : '',
-            '>',
-            '<span class="calendar-chip-title">' + esc(session.title || "Session") + '</span>',
-            '<span class="calendar-chip-meta">' + esc(formatTime(session.starts_at) + " • " + sessionVenueShortLabel(session)) + '</span>',
-            '</button>'
-          ].join("");
-        }).join("") + '</div>'
-        : '<div class="calendar-empty"></div>';
+      const lastRow = index >= totalCells - 7;
+      const chipsHtml = cellSessions.map((session) => [
+        '<button type="button" class="calendar-chip' + (String(session.id) === String(state.selectedSessionId) ? ' active' : '') + '"',
+        ' data-action="select-session" data-session-id="' + esc(session.id) + '" data-sync-month="0"',
+        '>',
+        esc(session.title || "Session"),
+        '</button>'
+      ].join("")).join("");
 
       cells.push(
-        '<article class="calendar-cell' + (otherMonth ? ' other-month' : '') + (today ? ' today' : '') + '">' +
+        '<article class="calendar-cell' + (otherMonth ? ' other-month' : '') + (today ? ' today' : '') + (lastRow ? ' last-row' : '') + '">' +
         '<div class="calendar-date">' + day.getDate() + '</div>' +
         chipsHtml +
         '</article>'
@@ -2233,7 +2239,7 @@
     if (el.sessionVenueKeyInput) el.sessionVenueKeyInput.value = "learn";
     el.sessionStartsInput.value = toDatetimeLocal(soon);
     el.sessionRequiredInput.value = "2";
-    el.sessionRoleBriefInput.value = "Welcome attendees, set boards, and support pairings";
+    el.sessionRoleBriefInput.value = "Move equipment, welcome attendees, and support pairings";
     el.sessionActivitiesInput.value = defaultSessionActivityLines();
     el.sessionTitleInput.value = SESSION_VENUES.learn.titleSuggestion;
     el.sessionArrivalNoteInput.value = "Arrive 20 minutes early at " + SESSION_VENUES.learn.shortLabel;
@@ -3006,7 +3012,7 @@
     const suggested = topActivitySuggestions(3).map((row) => String(row.suggestion.title || "").trim()).filter(Boolean);
     if (suggested.length) return suggested.join("\n");
     return [
-      "Set up boards",
+      "Move equipment",
       "Welcome new players",
       "Support pairings"
     ].join("\n");
@@ -3070,6 +3076,26 @@
       backup_plan: String(row && row.backup_plan || ""),
       status: String(row && row.status || "scheduled")
     }));
+  }
+
+  function normalizeSessionActivityRows(rows) {
+    return rows.map((row) => {
+      const title = String(row && row.title || "").trim();
+      const details = String(row && row.details || "").trim();
+      const preset = SESSION_ACTIVITY_PRESETS[title.toLowerCase()] || null;
+      if (!preset) {
+        return {
+          ...row,
+          title,
+          details
+        };
+      }
+      return {
+        ...row,
+        title: preset.title,
+        details: details || preset.details
+      };
+    });
   }
 
   function sessionActivityById(activityId) {
