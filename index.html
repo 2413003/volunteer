@@ -14,22 +14,88 @@
 </style>
 <style>
 #commandBoard{background:#faf8f2}
+.brand{display:flex;align-items:center}
+.brand-logo{display:block;width:auto;height:42px;max-width:42vw;object-fit:contain;padding:0 13px}
+.skeleton{position:relative;display:block;overflow:hidden;background:#e7e2d8;border-radius:999px}
+.skeleton::after{content:"";position:absolute;inset:0;transform:translateX(-100%);background:linear-gradient(90deg,transparent,rgba(255,255,255,.62),transparent);animation:skeleton-shimmer 1.35s ease-in-out infinite}
+@keyframes skeleton-shimmer{100%{transform:translateX(100%)}}
+.skel-line{width:var(--w,100%);height:12px}
+.skel-button{width:var(--w,76px);height:34px;border-radius:11px}
+.skeleton-board{display:grid;gap:10px;grid-template-columns:1fr 1fr}
+.skel-card{border:1px solid #e4dece;border-radius:13px;background:#fffdf8;padding:12px;display:grid;gap:10px}
+.skel-row{border:1px solid #e4dece;border-radius:11px;background:#fcfaf4;padding:9px;display:grid;gap:8px}
+.skel-title-stack{display:grid;gap:8px}
+.skel-calendar-head{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;padding:4px 0}
+.skel-calendar-head .skel-line{justify-self:center}
+.skel-calendar-grid{display:grid;grid-template-columns:repeat(7,1fr);border:1px solid #e0e0e0;border-radius:12px;overflow:hidden}
+.skel-calendar-cell{min-height:76px;border-right:1px solid #e0e0e0;border-bottom:1px solid #e0e0e0;background:#fff;position:relative;padding:8px}
+.skel-calendar-cell:nth-child(7n){border-right:none}
+.skel-calendar-cell:nth-last-child(-n+7){border-bottom:none}
+.skel-chip{height:18px;width:72%;border-radius:5px;position:absolute;left:8px;right:8px;bottom:8px}
+.skeleton-list{display:grid;gap:7px}
+.skel-vol{border:1px solid var(--line);border-radius:12px;padding:9px;display:grid;grid-template-columns:auto 1fr;align-items:center;gap:8px;background:#fff}
+.skel-avatar{width:41px;height:41px;border-radius:12px}
+.skel-avatar.big{width:58px;height:58px;border-radius:15px}
+.skeleton-studio{display:grid;gap:10px}
+.skeleton-map{position:relative;overflow:hidden;background:#e7e2d8}
+.skel-map-block{position:absolute;inset:0;border-radius:0;background:#e7e2d8}
+.skel-map-pin{position:absolute;left:50%;top:50%;width:52px;height:52px;border-radius:999px;transform:translate(-50%,-50%)}
 .summary-grid{display:grid;gap:10px;grid-template-columns:repeat(3,minmax(0,1fr))}
 .summary-card{border:1px solid #e3ddcf;border-radius:12px;background:#fcfaf5;padding:11px;display:grid;gap:4px}
 .summary-label{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#72695d;font-weight:700}
 .summary-value{font-size:22px;font-weight:800;letter-spacing:-.02em;line-height:1.05;color:#1f1d18}
 .summary-note{margin:0;font-size:12px;line-height:1.4;color:#6d665d}
 .section-note{margin:0;font-size:13px;line-height:1.45;color:#6d665d}
-.session-explorer{display:grid;gap:12px;grid-template-columns:minmax(0,1.2fr) minmax(320px,.9fr)}
+.session-explorer{display:grid;gap:12px;grid-template-columns:minmax(0,1.2fr) minmax(320px,.9fr);position:relative}
+.session-explorer-full{grid-template-columns:1fr}
+.session-explorer-full .calendar-grid{grid-auto-rows:minmax(128px,1fr)}
+.session-explorer-full .session-map-canvas{height:min(72vh,720px)}
+.session-explorer-full .skel-calendar-cell{min-height:128px}
 .session-browser,.session-detail{border:1px solid #e4dece;border-radius:16px;background:#fffdf8;padding:12px;display:grid;gap:10px;min-height:0}
+.session-detail-layer{position:absolute;inset:0;z-index:20;display:grid;place-items:center;padding:clamp(12px,3vw,34px);pointer-events:none}
+.session-detail-scrim{position:absolute;inset:0;border:none;border-radius:16px;background:rgba(31,29,24,.38);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);padding:0;pointer-events:auto}
+.session-detail-overlay{position:relative;z-index:1;width:min(1040px,calc(100% - 16px));max-height:min(84vh,900px);overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable;border-radius:26px;border-color:rgba(255,255,255,.78);background:rgba(255,253,248,.94);box-shadow:0 32px 90px rgba(24,19,12,.32);padding:0;gap:0;pointer-events:auto}
+.session-detail-close{position:sticky;top:12px;justify-self:end;z-index:5;width:38px;min-width:38px;height:38px;padding:0;border-radius:999px;margin:12px 12px -50px 0}
+.close-icon{position:absolute;left:50%;top:50%;width:18px;height:18px;display:block;transform:translate(-50%,-50%);pointer-events:none}
+.close-icon path{fill:none;stroke:currentColor;stroke-width:3;stroke-linecap:round}
 .session-browser{align-content:start;grid-auto-rows:max-content}
 .session-browser-head,.session-detail-top{display:flex;justify-content:space-between;align-items:flex-start;align-content:flex-start;gap:10px;flex-wrap:wrap}
 .session-browser-head h3,.session-detail-top h3{margin:0;font-size:22px;letter-spacing:-.03em}
 .session-browser-sub,.session-detail-sub{margin:0;font-size:13px;line-height:1.45;color:#6d665d}
+.session-detail-overlay .session-detail-top{position:sticky;top:0;z-index:3;padding:18px 20px 14px;background:linear-gradient(180deg,rgba(255,253,248,.98),rgba(255,253,248,.9));backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid rgba(228,222,206,.78)}
+.session-detail-overlay .session-detail-title{font-size:clamp(24px,3vw,34px)}
+.session-detail-actions{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 20px 4px}
+.session-detail-secondary-actions{margin-left:auto}
+.session-detail-secondary-actions .mini{opacity:.78}
+.session-detail-secondary-actions .mini:hover{opacity:1}
+.session-detail-footer-actions{justify-content:flex-end;padding:0 20px 20px}
+.session-detail-footer-actions .mini{opacity:.72}
+.session-detail-footer-actions .mini:hover{opacity:1}
+.session-detail-overlay>.summary-grid{padding:4px 20px 18px;grid-template-columns:repeat(4,minmax(0,1fr))}
+.session-detail-overlay .summary-card{background:rgba(255,255,255,.58);border-color:#e8e1d2;border-radius:16px;padding:10px}
+.session-detail-overlay .summary-value{font-size:19px}
+.session-detail-overlay .summary-note{font-size:11px}
+.session-detail-overlay .session-detail-panels{padding:10px 20px 12px;grid-template-columns:minmax(0,1.15fr) minmax(260px,.85fr);align-items:start}
+.session-detail-overlay .session-venue-card,.session-detail-overlay .card{background:rgba(255,255,255,.8);border-color:#e8e1d2;border-radius:18px;padding:14px}
+.session-detail-overlay .card h3,.session-detail-overlay .session-venue-card h3{font-size:16px;letter-spacing:-.02em}
+.session-detail-overlay .session-detail-panels.has-roster .session-activities-card{grid-row:span 2}
+.session-detail-overlay .row,.session-detail-overlay .session-roster-item,.session-detail-overlay .session-history-item{background:#fff;border-color:#ece4d7;border-radius:15px}
+.session-detail-overlay .warnpill{background:#fff2ef;border-color:#ead0ca;color:#874235}
+.session-detail-overlay .session-activities-card .row{padding:12px;border-radius:17px;gap:8px}
+.session-detail-overlay .session-activities-card .headline{font-size:16px}
+.session-detail-overlay .session-activities-card .inline-actions{margin-top:2px}
+.session-brief-card{align-content:start}
+.session-venue-link{width:max-content;text-decoration:none;border:1px solid #9fc8b8;border-radius:10px;background:#fff;color:#1e5c47;padding:7px 11px;font-size:12px;font-weight:700}
+.session-venue-link:hover{background:#f4faf7}
+.session-brief-row{border:1px solid #eee5d7;border-radius:13px;background:#fffdf8;padding:9px;display:grid;gap:4px}
+.session-brief-label{font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#7a7062}
 .session-browser-toolbar{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
 .toggle-pills{display:inline-flex;gap:4px;border:1px solid #ddd4c6;border-radius:999px;background:#f7f3ea;padding:4px}
 .toggle-pill{border:none;background:transparent;color:#665d50;border-radius:999px;padding:8px 12px;font-size:12px;font-weight:700;cursor:pointer}
 .toggle-pill.active{background:#fff;color:#175440;box-shadow:0 2px 8px rgba(23,84,64,.12)}
+.icon-btn{position:relative;width:42px;min-width:42px;height:33px;padding:0;display:inline-grid;place-items:center}
+.nav-icon{position:absolute;left:50%;top:50%;width:24px;height:24px;display:block;overflow:visible;transform:translate(-50%,-50%);pointer-events:none}
+.nav-icon path{fill:none;stroke:currentColor;stroke-width:4;stroke-linecap:round;stroke-linejoin:round}
 .session-calendar-head{display:grid;grid-template-columns:auto auto 1fr auto;align-items:center;gap:8px}
 .session-calendar-title{font-size:18px;font-weight:700;letter-spacing:-.02em}
 .calendar-shell{display:grid;gap:8px;align-content:start}
@@ -97,28 +163,29 @@
 .leaflet-popup-close-button{top:10px!important;right:10px!important;width:24px!important;height:24px!important;border-radius:999px!important;background:rgba(255,255,255,.92)!important;border:1px solid rgba(17,24,39,.12)!important}
 .leaflet-control-zoom{border:none!important;box-shadow:none!important}
 .leaflet-control-zoom a{width:38px!important;height:38px!important;line-height:38px!important;border:none!important;border-radius:12px!important;margin-top:8px!important;background:rgba(255,255,255,.96)!important;box-shadow:0 8px 18px rgba(15,23,42,.16)!important;color:#111827!important}
-@media(max-width:1080px){.summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:1080px){.summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.session-detail-overlay>.summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.session-detail-overlay .session-detail-panels{grid-template-columns:1fr}}
 @media(max-width:1080px){.session-explorer{grid-template-columns:1fr}.session-map-canvas{height:380px}}
-@media(max-width:700px){.summary-grid{grid-template-columns:1fr}.session-browser-head h3,.session-detail-top h3{font-size:18px}.session-calendar-head{grid-template-columns:auto auto 1fr}.calendar-chip{font-size:11px;white-space:normal;overflow:visible;text-overflow:clip;line-height:1.3;padding:2px 4px}.session-map-canvas{height:320px}.activity-help-grid{grid-template-columns:1fr}}
+@media(max-width:700px){.summary-grid,.skeleton-board{grid-template-columns:1fr}.session-browser-head h3,.session-detail-top h3{font-size:18px}.session-calendar-head{grid-template-columns:auto auto 1fr}.calendar-chip{font-size:11px;white-space:normal;overflow:visible;text-overflow:clip;line-height:1.3;padding:2px 4px}.session-map-canvas{height:320px}.session-explorer-full .session-map-canvas{height:460px}.session-explorer-full .calendar-grid{grid-auto-rows:minmax(92px,1fr)}.session-detail-layer{padding:8px}.session-detail-overlay{width:100%;max-height:88vh;border-radius:22px}.session-detail-overlay>.summary-grid,.session-detail-overlay .session-detail-panels{grid-template-columns:1fr}.session-detail-overlay .session-detail-top{padding:15px}.session-detail-actions{padding:10px 15px 4px}.activity-help-grid{grid-template-columns:1fr}.skel-calendar-cell,.session-explorer-full .skel-calendar-cell{min-height:92px}}
+@media(prefers-reduced-motion:reduce){.skeleton::after{animation:none}}
 </style>
 </head>
 <body>
 <main class="app">
 <header class="top">
 <div class="top-row">
-<div class="brand"><small>MK Chess Club</small><h1>Volunteer Hub</h1></div>
+<div class="brand"><img class="brand-logo" src="logo.svg" alt="MK Chess Club" /></div>
 <div class="auth"><button id="loginBtn" type="button">Login</button><input id="emailInput" type="email" placeholder="enter email" style="display:none;" /><button id="sendLinkBtn" type="button" style="display:none;">Send Link</button><button id="signOutBtn" type="button" class="ghost" style="display:none;">Sign Out</button></div>
 <div class="actions"><button id="startSetupBtn" type="button" class="ghost mini" style="display:none;">Start setup</button><button id="addVolunteerBtn" type="button" class="mini" style="display:none;">Add volunteer</button><button id="addSessionBtn" type="button" class="mini ghost" style="display:none;">Add session</button></div>
 </div>
 <div class="status-row"><p id="authStatus" class="status"></p><p id="backendStatus" class="status"></p></div>
 </header>
-<section id="sessionExplorer" class="panel"><div class="empty">Loading sessions...</div></section>
-<section id="commandBoard" class="panel"><div class="empty">Loading overview...</div></section>
-<section id="directorySplit" class="split">
-<aside class="panel"><input id="searchInput" class="search" type="text" placeholder="Search volunteers" /><div id="volunteerList" class="vol-list"><div class="empty">Loading volunteers...</div></div></aside>
+<section id="sessionExplorer" class="panel"><section class="session-explorer skeleton-session session-explorer-full" aria-busy="true" aria-hidden="true"><div class="session-browser"><div class="session-browser-head"><div class="skel-title-stack"><span class="skeleton skel-line" style="--w:190px;"></span><span class="skeleton skel-line" style="--w:310px;"></span></div><div class="toggle-pills"><span class="skeleton skel-button" style="--w:82px;"></span><span class="skeleton skel-button" style="--w:62px;"></span></div></div><div class="session-browser-toolbar"><span class="skeleton skel-button" style="--w:64px;"></span><span class="skeleton skel-button" style="--w:76px;"></span><span class="skeleton skel-line" style="--w:130px;"></span><span class="skeleton skel-button" style="--w:64px;"></span></div><div class="skel-calendar-grid"><div class="skel-calendar-cell"></div><div class="skel-calendar-cell"></div><div class="skel-calendar-cell"></div><div class="skel-calendar-cell"><span class="skeleton skel-chip"></span></div><div class="skel-calendar-cell"></div><div class="skel-calendar-cell"></div><div class="skel-calendar-cell"></div><div class="skel-calendar-cell"></div><div class="skel-calendar-cell"></div><div class="skel-calendar-cell"></div><div class="skel-calendar-cell"></div><div class="skel-calendar-cell"><span class="skeleton skel-chip"></span></div><div class="skel-calendar-cell"></div><div class="skel-calendar-cell"></div></div></div></section></section>
+<section id="commandBoard" class="panel"><section class="skeleton-board" aria-busy="true" aria-hidden="true"><div class="skel-card"><span class="skeleton skel-line" style="--w:34%;"></span><article class="skel-row"><div class="row-top"><span class="skeleton skel-line" style="--w:48%;"></span><span class="skeleton skel-button" style="--w:54px;"></span></div><span class="skeleton skel-line" style="--w:78%;"></span></article></div><div class="skel-card"><span class="skeleton skel-line" style="--w:38%;"></span><article class="skel-row"><div class="row-top"><span class="skeleton skel-line" style="--w:48%;"></span><span class="skeleton skel-button" style="--w:54px;"></span></div><span class="skeleton skel-line" style="--w:78%;"></span></article></div></section></section>
+<section id="directorySplit" class="split" style="display:none;">
+<aside class="panel"><input id="searchInput" class="search" type="text" placeholder="Search volunteers" /><div id="volunteerList" class="vol-list"><div class="skeleton-list" aria-busy="true" aria-hidden="true"><article class="skel-vol"><span class="skeleton skel-avatar"></span><span><span class="skeleton skel-line" style="--w:130px;"></span><span class="skeleton skel-line" style="--w:190px;"></span></span></article><article class="skel-vol"><span class="skeleton skel-avatar"></span><span><span class="skeleton skel-line" style="--w:120px;"></span><span class="skeleton skel-line" style="--w:170px;"></span></span></article></div></div></aside>
 <section id="volunteerDetail" class="panel"><div class="empty">Select a volunteer</div></section>
 </section>
-<section id="studioPanel" class="panel"><div class="empty">Sign in to open your volunteer studio.</div></section>
+<section id="studioPanel" class="panel" style="display:none;"><div class="empty">Sign in to open your volunteer studio.</div></section>
 </main>
 <dialog id="volunteerDialog"><div class="dbody"><div class="dhead"><h3 id="volunteerDialogTitle">Add Volunteer</h3><button type="button" class="ghost mini" data-close="volunteerDialog">Close</button></div><form id="volunteerForm" class="stack"><div class="field"><label for="volunteerNameInput">Name</label><input id="volunteerNameInput" type="text" maxlength="80" required /></div><div class="field"><label for="volunteerTaglineInput">Tagline</label><input id="volunteerTaglineInput" type="text" maxlength="120" /></div><div class="field"><label for="volunteerBioInput">Bio</label><textarea id="volunteerBioInput" maxlength="900"></textarea></div><p id="volunteerStatus" class="status"></p><button id="createVolunteerBtn" type="submit">Create Volunteer</button></form></div></dialog>
 <dialog id="sessionDialog"><div class="dbody"><div class="dhead"><h3>Add Session</h3><button type="button" class="ghost mini" data-close="sessionDialog">Close</button></div><form id="sessionForm" class="stack"><div class="field"><label for="sessionTitleInput">Session title</label><input id="sessionTitleInput" type="text" maxlength="120" required /></div><div class="field"><label for="sessionVenueKeyInput">Venue preset</label><select id="sessionVenueKeyInput"><option value="">Custom / no map preset</option></select><p id="sessionVenueHint" class="muted">Choose one of the real club venues to place this session in the calendar and map explorer.</p></div><div class="two"><div class="field"><label for="sessionStartsInput">Start date & time</label><input id="sessionStartsInput" type="datetime-local" required /></div><div class="field"><label for="sessionRequiredInput">Required volunteers</label><input id="sessionRequiredInput" type="number" min="1" max="20" value="2" required /></div></div><div class="field"><label for="sessionRoleBriefInput">Role clarity (what volunteers do)</label><input id="sessionRoleBriefInput" type="text" maxlength="160" placeholder="Move equipment + welcome new players" required /></div><div class="field"><label for="sessionActivitiesInput">Volunteer activities (one per line)</label><textarea id="sessionActivitiesInput" maxlength="1500" placeholder="Move equipment&#10;Welcome new players&#10;Support pairings"></textarea><p class="muted">Volunteers can claim one or more activities for this session.</p><div id="sessionSuggestedActivities" class="inline-actions"></div></div><div class="field"><label for="sessionArrivalNoteInput">Arrival expectation</label><input id="sessionArrivalNoteInput" type="text" maxlength="160" placeholder="Arrive 20 mins before start" /></div><div class="field"><label for="sessionBackupPlanInput">Backup plan / coordinator contact</label><input id="sessionBackupPlanInput" type="text" maxlength="220" placeholder="If delayed, message coordinator in WhatsApp group" /></div><div class="field"><label for="sessionAssignAllInput">Auto-assign all volunteers</label><select id="sessionAssignAllInput"><option value="0" selected>No (volunteers opt in)</option><option value="1">Yes (assign everyone)</option></select></div><p id="sessionStatus" class="status"></p><button id="createSessionBtn" type="submit">Create Session</button></form></div></dialog>
@@ -128,9 +195,9 @@
 <dialog id="editVolunteerDialog"><div class="dbody"><div class="dhead"><h3>Edit Profile</h3><button type="button" class="ghost mini" data-close="editVolunteerDialog">Close</button></div><form id="editVolunteerForm" class="stack"><input id="editVolunteerIdInput" type="hidden" /><div class="field"><label for="editVolunteerNameInput">Name</label><input id="editVolunteerNameInput" type="text" maxlength="80" required /></div><div class="field"><label for="editVolunteerTaglineInput">Tagline</label><input id="editVolunteerTaglineInput" type="text" maxlength="120" /></div><div class="field"><label for="editVolunteerBioInput">Bio</label><textarea id="editVolunteerBioInput" maxlength="900"></textarea></div><p id="editVolunteerStatus" class="status"></p><button id="saveVolunteerProfileBtn" type="submit">Save Changes</button></form></div></dialog>
 <dialog id="activitySuggestionDialog"><div class="dbody"><div class="dhead"><h3>Suggest Activity</h3><button type="button" class="ghost mini" data-close="activitySuggestionDialog">Close</button></div><form id="activitySuggestionForm" class="stack"><div class="field"><label for="activitySuggestionTitleInput">Activity title</label><input id="activitySuggestionTitleInput" type="text" maxlength="160" required /></div><div class="field"><label for="activitySuggestionDetailsInput">Why would this help? (optional)</label><textarea id="activitySuggestionDetailsInput" maxlength="900"></textarea></div><p id="activitySuggestionStatus" class="status"></p><button id="suggestActivityBtn" type="submit">Send Suggestion</button></form></div></dialog>
 <dialog id="pulseDialog"><div class="dbody"><div class="dhead"><h3>Session Pulse</h3><button type="button" class="ghost mini" data-close="pulseDialog">Close</button></div><form id="pulseForm" class="stack"><div class="field"><label for="pulseSessionSelect">Session</label><select id="pulseSessionSelect" required></select></div><div class="two"><div class="field"><label for="pulseClarityInput">Role clarity (1-5)</label><select id="pulseClarityInput" required><option value="">Select</option><option value="5">5 - Very clear</option><option value="4">4</option><option value="3">3</option><option value="2">2</option><option value="1">1 - Unclear</option></select></div><div class="field"><label for="pulseSupportInput">Support felt (1-5)</label><select id="pulseSupportInput" required><option value="">Select</option><option value="5">5 - Strong support</option><option value="4">4</option><option value="3">3</option><option value="2">2</option><option value="1">1 - No support</option></select></div></div><div class="field"><label for="pulseStressInput">Stress load (1-5)</label><select id="pulseStressInput" required><option value="">Select</option><option value="1">1 - Very low</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5 - Very high</option></select></div><div class="field"><label for="pulseNoteInput">Anything we should improve next session?</label><textarea id="pulseNoteInput" maxlength="900"></textarea></div><p id="pulseStatus" class="status"></p><button id="submitPulseBtn" type="submit">Submit Pulse</button></form></div></dialog>
-<dialog id="supportDialog"><div class="dbody"><div class="dhead"><h3>Request Support</h3><button type="button" class="ghost mini" data-close="supportDialog">Close</button></div><form id="supportForm" class="stack"><div class="field"><label for="supportSessionSelect">Related session (optional)</label><select id="supportSessionSelect"></select></div><div class="two"><div class="field"><label for="supportTypeSelect">Request type</label><select id="supportTypeSelect" required><option value="">Select</option><option value="scheduling">Scheduling</option><option value="role_clarity">Role clarity</option><option value="resources">Resources / materials</option><option value="wellbeing">Wellbeing / overload</option><option value="conflict">Conflict / behaviour</option><option value="other">Other</option></select></div><div class="field"><label for="supportUrgencySelect">Urgency</label><select id="supportUrgencySelect" required><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option></select></div></div><div class="field"><label for="supportDetailsInput">What support do you need?</label><textarea id="supportDetailsInput" maxlength="1000" required></textarea></div><p id="supportStatus" class="status"></p><button id="submitSupportBtn" type="submit">Send Request</button></form></div></dialog>
+<dialog id="supportDialog"><div class="dbody"><div class="dhead"><h3 id="supportDialogTitle">Request Support</h3><button type="button" class="ghost mini" data-close="supportDialog">Close</button></div><form id="supportForm" class="stack"><div class="field"><label for="supportSessionSelect">Related session (optional)</label><select id="supportSessionSelect"></select></div><div class="two"><div class="field"><label for="supportTypeSelect">Request type</label><select id="supportTypeSelect" required><option value="">Select</option><option value="scheduling">Scheduling</option><option value="role_clarity">Role clarity</option><option value="resources">Resources / materials</option><option value="wellbeing">Wellbeing / overload</option><option value="conflict">Conflict / behaviour</option><option value="other">Other</option></select></div><div class="field"><label for="supportUrgencySelect">Urgency</label><select id="supportUrgencySelect" required><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option></select></div></div><div class="field"><label for="supportDetailsInput">What issue or support do you need?</label><textarea id="supportDetailsInput" maxlength="1000" required></textarea></div><p id="supportStatus" class="status"></p><button id="submitSupportBtn" type="submit">Send Request</button></form></div></dialog>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=20260430-1355"></script>
+<script src="app.js?v=20260501-1300"></script>
 </body>
 </html>
 

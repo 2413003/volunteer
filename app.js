@@ -139,7 +139,8 @@
     selectedVolunteerId: null,
     selectedSessionId: null,
     attendanceSessionId: null,
-    loading: false,
+    loading: true,
+    booting: true,
     syncInFlight: false,
     syncRequested: false,
     scheduleSeedInFlight: false,
@@ -172,13 +173,17 @@
       await ensureAccountProvisioned();
       await loadProfile();
       await loadAllData();
-      await ensureClubScheduleSeeded();
+      state.booting = false;
+      renderAll();
+      runAfterFirstRender();
       attachAuthSubscription();
     } catch (error) {
       setBackendStatus(errorText(error, "App init failed"), "err");
       state.loading = false;
+      state.booting = false;
+      renderAll();
+      return;
     }
-    renderAll();
   }
 
   function cacheEls() {
@@ -193,7 +198,7 @@
       "editVolunteerDialog", "editVolunteerForm", "editVolunteerIdInput", "editVolunteerNameInput", "editVolunteerTaglineInput", "editVolunteerBioInput", "editVolunteerStatus", "saveVolunteerProfileBtn",
       "activitySuggestionDialog", "activitySuggestionForm", "activitySuggestionTitleInput", "activitySuggestionDetailsInput", "activitySuggestionStatus", "suggestActivityBtn",
       "pulseDialog", "pulseForm", "pulseSessionSelect", "pulseClarityInput", "pulseSupportInput", "pulseStressInput", "pulseNoteInput", "pulseStatus", "submitPulseBtn",
-      "supportDialog", "supportForm", "supportSessionSelect", "supportTypeSelect", "supportUrgencySelect", "supportDetailsInput", "supportStatus", "submitSupportBtn"
+      "supportDialog", "supportDialogTitle", "supportForm", "supportSessionSelect", "supportTypeSelect", "supportUrgencySelect", "supportDetailsInput", "supportStatus", "submitSupportBtn"
     ].forEach((id) => {
       el[id] = document.getElementById(id);
     });
@@ -287,7 +292,6 @@
           storageKey: "mk_chess_volunteer_hub_auth_v1"
         }
       });
-      setBackendStatus("Backend connected.", "ok");
     } catch (error) {
       state.supabase = null;
       setBackendStatus(errorText(error, "Backend connection failed"), "err");
@@ -298,7 +302,14 @@
     if (!state.supabase) return;
     detachAuthSubscription();
     state.authSubscription = state.supabase.auth.onAuthStateChange(async (_event, session) => {
-      state.user = session ? session.user : null;
+      const nextUser = session ? session.user : null;
+      const currentId = state.user ? String(state.user.id || "") : "";
+      const nextId = nextUser ? String(nextUser.id || "") : "";
+      if (currentId === nextId) {
+        state.user = nextUser;
+        return;
+      }
+      state.user = nextUser;
       await syncFromAuth();
     });
   }
@@ -346,7 +357,8 @@
       await ensureAccountProvisioned();
       await loadProfile();
       await loadAllData();
-      await ensureClubScheduleSeeded();
+      renderAll();
+      runAfterFirstRender();
     } catch (error) {
       const text = errorText(error, "Sync failed");
       if (isAuthLockError(text)) setBackendStatus("Sync delayed. Close duplicate tabs, then refresh.", "warn");
@@ -441,7 +453,9 @@
     };
   }
 
-  async function loadAllData() {
+  async function loadAllData(options) {
+    const opts = options || {};
+    const showLoading = opts.showLoading !== false;
     if (!state.supabase) {
       state.volunteers = [];
       state.sessions = [];
@@ -456,11 +470,14 @@
       state.activitySuggestionVotes = [];
       state.metricsRows = [];
       state.metricsByVolunteer = {};
+      state.loading = false;
       return;
     }
 
-    state.loading = true;
-    renderAll();
+    if (showLoading) {
+      state.loading = true;
+      renderAll();
+    }
 
     try {
       if (!state.user) {
@@ -605,8 +622,16 @@
         setBackendStatus("Data load issue: " + text, "err");
       }
     } finally {
-      state.loading = false;
+      if (showLoading) state.loading = false;
     }
+  }
+
+  function runAfterFirstRender() {
+    window.setTimeout(() => {
+      ensureClubScheduleSeeded({ silent: true }).catch((error) => {
+        setBackendStatus(errorText(error, "Schedule sync failed"), "warn");
+      });
+    }, 0);
   }
 
   async function loadPublicFacingData() {
@@ -763,9 +788,74 @@
       setStatus(el.authStatus, "Pending approval", "warn");
     }
   }
+
+  function skeletonLine(width) {
+    return '<span class="skeleton skel-line" style="--w:' + width + ';"></span>';
+  }
+
+  function skeletonButton(width) {
+    return '<span class="skeleton skel-button" style="--w:' + width + ';"></span>';
+  }
+
+  function renderSkeletonRows(count) {
+    return Array.from({ length: count }).map(() => [
+      '<article class="skel-row">',
+      '<div class="row-top">' + skeletonLine("48%") + skeletonButton("54px") + '</div>',
+      skeletonLine("78%"),
+      '</article>'
+    ].join("")).join("");
+  }
+
+  function renderCommandBoardSkeletonHtml() {
+    return [
+      '<section class="skeleton-board" aria-busy="true" aria-hidden="true">',
+      '<div class="skel-card">' + skeletonLine("34%") + renderSkeletonRows(2) + '</div>',
+      '<div class="skel-card">' + skeletonLine("38%") + renderSkeletonRows(2) + '</div>',
+      '</section>'
+    ].join("");
+  }
+
+  function renderSessionExplorerSkeletonHtml() {
+    const cells = Array.from({ length: 35 }).map((_, index) =>
+      '<div class="skel-calendar-cell">' + (index % 9 === 0 ? '<span class="skeleton skel-chip"></span>' : '') + '</div>'
+    ).join("");
+    return [
+      '<section class="session-explorer skeleton-session session-explorer-full" aria-busy="true" aria-hidden="true">',
+      '<div class="session-browser">',
+      '<div class="session-browser-head"><div class="skel-title-stack">' + skeletonLine("190px") + skeletonLine("310px") + '</div><div class="toggle-pills">' + skeletonButton("82px") + skeletonButton("62px") + '</div></div>',
+      '<div class="session-browser-toolbar">' + skeletonButton("64px") + skeletonButton("76px") + skeletonLine("130px") + skeletonButton("64px") + '</div>',
+      '<div class="skel-calendar-head">' + Array.from({ length: 7 }).map(() => skeletonLine("38px")).join("") + '</div>',
+      '<div class="skel-calendar-grid">' + cells + '</div>',
+      '</div>',
+      '</section>'
+    ].join("");
+  }
+
+  function renderVolunteerListSkeletonHtml() {
+    return '<div class="skeleton-list" aria-busy="true" aria-hidden="true">' + Array.from({ length: 6 }).map(() => [
+      '<article class="skel-vol">',
+      '<span class="skeleton skel-avatar"></span>',
+      '<span>' + skeletonLine("130px") + skeletonLine("190px") + '</span>',
+      '</article>'
+    ].join("")).join("") + '</div>';
+  }
+
+  function renderStudioSkeletonHtml() {
+    return [
+      '<section class="skeleton-studio" aria-busy="true" aria-hidden="true">',
+      '<div class="hero"><div class="hero-top"><span class="skeleton skel-avatar big"></span><div class="skel-title-stack">' + skeletonLine("220px") + skeletonLine("320px") + '</div><div class="inline-actions">' + skeletonButton("86px") + skeletonButton("96px") + '</div></div></div>',
+      '<div class="summary-grid"><div class="summary-card">' + skeletonLine("46%") + skeletonLine("70%") + '</div><div class="summary-card">' + skeletonLine("42%") + skeletonLine("62%") + '</div><div class="summary-card">' + skeletonLine("36%") + skeletonLine("54%") + '</div></div>',
+      '</section>'
+    ].join("");
+  }
+
+  function renderMapSkeletonHtml() {
+    return '<div class="session-map-empty skeleton-map" aria-busy="true" aria-hidden="true"><span class="skeleton skel-map-block"></span><span class="skeleton skel-map-pin"></span></div>';
+  }
+
   function renderCommandBoard() {
     if (state.loading) {
-      el.commandBoard.innerHTML = '<div class="empty">Loading overview...</div>';
+      el.commandBoard.innerHTML = renderCommandBoardSkeletonHtml();
       return;
     }
 
@@ -808,26 +898,34 @@
 
     if (state.loading) {
       destroySessionMap();
-      el.sessionExplorer.innerHTML = '<div class="empty">Loading sessions...</div>';
+      el.sessionExplorer.innerHTML = renderSessionExplorerSkeletonHtml();
       return;
     }
 
     if (!sessions.length) {
       state.selectedSessionId = null;
-    } else if (!state.selectedSessionId || !sessions.some((session) => String(session.id) === String(state.selectedSessionId))) {
-      const fallback = upcomingSessions()[0] || sessions[0];
-      state.selectedSessionId = String(fallback.id);
-      state.sessionBrowserYear = new Date(fallback.starts_at).getFullYear();
-      state.sessionBrowserMonth = new Date(fallback.starts_at).getMonth();
+    } else if (state.selectedSessionId && !sessions.some((session) => String(session.id) === String(state.selectedSessionId))) {
+      state.selectedSessionId = null;
     }
 
-    const selected = state.selectedSessionId ? (sessionById(state.selectedSessionId) || sessions[0] || null) : null;
+    const selected = state.selectedSessionId ? (sessionById(state.selectedSessionId) || null) : null;
     const browserHtml = state.sessionBrowserView === "map"
       ? renderSessionMapShellHtml()
       : renderSessionCalendarHtml(sessions);
+    const detailHtml = selected
+      ? [
+        '<div class="session-detail-layer">',
+        '<button type="button" class="session-detail-scrim" data-action="close-session-detail" aria-label="Close session details"></button>',
+        '<div class="session-detail session-detail-overlay" role="dialog" aria-label="Session details">',
+        '<button type="button" class="ghost mini session-detail-close" data-action="close-session-detail" aria-label="Close session details"><svg class="close-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg></button>',
+        renderSelectedSessionDetail(selected),
+        '</div>',
+        '</div>'
+      ].join("")
+      : '';
 
     el.sessionExplorer.innerHTML = [
-      '<section class="session-explorer">',
+      '<section class="session-explorer session-explorer-full' + (selected ? ' has-session-overlay' : '') + '">',
       '<div class="session-browser">',
       '<div class="session-browser-head">',
       '<div><h3>Session Explorer</h3><p class="session-browser-sub">Click a live session to see activities, ownership, and the volunteer profiles behind it.</p></div>',
@@ -838,7 +936,7 @@
       '</div>',
       browserHtml,
       '</div>',
-      '<div class="session-detail">' + renderSelectedSessionDetail(selected) + '</div>',
+      detailHtml,
       '</section>'
     ].join("");
 
@@ -925,10 +1023,10 @@
     return [
       '<div class="calendar-shell">',
       '<div class="session-calendar-head">',
-      '<button type="button" class="ghost mini" data-action="shift-session-month" data-month-delta="-1">Prev</button>',
+      '<button type="button" class="ghost mini icon-btn" data-action="shift-session-month" data-month-delta="-1" aria-label="Previous month"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M15.25 5.25 8.5 12l6.75 6.75"></path></svg></button>',
       '<button type="button" class="ghost mini" data-action="session-month-today">Today</button>',
       '<div class="session-calendar-title">' + esc(monthLabel) + '</div>',
-      '<button type="button" class="ghost mini" data-action="shift-session-month" data-month-delta="1">Next</button>',
+      '<button type="button" class="ghost mini icon-btn" data-action="shift-session-month" data-month-delta="1" aria-label="Next month"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.75 5.25 15.5 12l-6.75 6.75"></path></svg></button>',
       '</div>',
       '<div class="calendar-heads">' + dayLabels.map((label) => '<div class="calendar-head">' + label + '</div>').join("") + '</div>',
       '<div class="calendar-grid">' + cells.join("") + '</div>',
@@ -948,12 +1046,12 @@
     return [
       '<div class="session-map">',
       '<div class="session-calendar-head">',
-      '<button type="button" class="ghost mini" data-action="shift-session-month" data-month-delta="-1">Prev</button>',
+      '<button type="button" class="ghost mini icon-btn" data-action="shift-session-month" data-month-delta="-1" aria-label="Previous month"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M15.25 5.25 8.5 12l6.75 6.75"></path></svg></button>',
       '<button type="button" class="ghost mini" data-action="session-month-today">Today</button>',
       '<div class="session-calendar-title">' + esc(new Date(state.sessionBrowserYear, state.sessionBrowserMonth, 1).toLocaleDateString(undefined, { month: "long", year: "numeric" })) + '</div>',
-      '<button type="button" class="ghost mini" data-action="shift-session-month" data-month-delta="1">Next</button>',
+      '<button type="button" class="ghost mini icon-btn" data-action="shift-session-month" data-month-delta="1" aria-label="Next month"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.75 5.25 15.5 12l-6.75 6.75"></path></svg></button>',
       '</div>',
-      '<div id="sessionMapCanvas" class="session-map-canvas"><div class="session-map-empty">Loading map...</div></div>',
+      '<div id="sessionMapCanvas" class="session-map-canvas">' + renderMapSkeletonHtml() + '</div>',
       legend,
       '</div>'
     ].join("");
@@ -986,6 +1084,7 @@
     const takeShiftButton = canTakeShift
       ? '<button type="button" class="mini ghost" data-action="take-open-shift" data-session-id="' + esc(session.id) + '">Take this shift</button>'
       : "";
+    const reportIssueButton = '<button type="button" class="mini ghost" data-action="open-support-dialog" data-session-id="' + esc(session.id) + '">Report issue</button>';
     const commitmentButtons = sessionStillOpen && actorVolunteerId && assignedIds.includes(String(actorVolunteerId))
       ? [
         '<button type="button" class="mini' + (myStatus === "committed" ? "" : " ghost") + '" data-action="set-commitment" data-session-id="' + esc(session.id) + '" data-status="committed">I can make it</button>',
@@ -993,9 +1092,19 @@
         canCheckIn ? '<button type="button" class="mini ghost" data-action="check-in-session" data-session-id="' + esc(session.id) + '">I\'m on my way</button>' : ""
       ].join("")
       : "";
-    const roleLine = [session.role_brief || "", session.arrival_note || "", session.backup_plan || ""].filter(Boolean);
+    const primaryActions = takeShiftButton + commitmentButtons + attendanceButton;
+    const actionRowHtml = primaryActions
+      ? '<div class="session-detail-actions"><div class="inline-actions">' + primaryActions + '</div></div>'
+      : "";
+    const briefRows = [
+      { label: "Role", text: session.role_brief || "" },
+      { label: "Arrival", text: session.arrival_note || "" },
+      { label: "Backup", text: session.backup_plan || "" }
+    ].filter((item) => item.text);
     const rosterHtml = renderSessionRosterHtml(session);
-    const historyHtml = renderSessionVolunteerHistoryHtml(session);
+    const rosterCardHtml = assignedIds.length
+      ? '<div class="card session-roster-card"><h3>Volunteer Roster</h3><div class="session-roster">' + rosterHtml + '</div></div>'
+      : "";
     const claimAccessHtml = renderSessionClaimAccessHtml(actorVolunteerId);
     const activitiesHtml = renderSessionActivitiesHtml(session.id, {
       actorVolunteerId,
@@ -1011,24 +1120,23 @@
       '<div class="session-detail-meta"><span class="pill">' + esc(formatDateTime(session.starts_at)) + '</span>' + (venue ? '<span class="pill">' + esc(venue.shortLabel) + '</span>' : "") + '</div>',
       '<p class="session-detail-sub">' + esc(venue ? venue.location : "No mapped venue preset yet.") + '</p>',
       '</div>',
-      '<div class="inline-actions">' + takeShiftButton + commitmentButtons + attendanceButton + '</div>',
       '</div>',
-      '<section class="summary-grid">' +
+      actionRowHtml,
+      '<section class="session-detail-panels' + (assignedIds.length ? ' has-roster' : '') + '">',
+      '<div class="card session-activities-card"><h3>Activities</h3>' + claimAccessHtml + '<div class="rows">' + activitiesHtml + '</div></div>',
+      '<div class="session-venue-card session-brief-card"><h3>Session Brief</h3>' +
+      (venue && venue.url ? '<a class="mini ghost session-venue-link" href="' + esc(venue.url) + '" target="_blank" rel="noreferrer">Venue page</a>' : '') +
+      (briefRows.length ? briefRows.map((item) => '<div class="session-brief-row"><span class="session-brief-label">' + esc(item.label) + '</span><p class="soft-note">' + esc(item.text) + '</p></div>').join("") : '<p class="soft-note">Add role clarity, arrival notes, or a backup plan when you create the session.</p>') +
+      '</div>',
+      rosterCardHtml,
+      '</section>',
+      '<section class="summary-grid session-metrics-grid">' +
       summaryCard("Coverage", row.committed + "/" + row.required, row.pendingIds.length ? (row.pendingIds.length + " still need to reply") : "Everyone has responded") +
       summaryCard("Activities", activities.length ? (claimedCount + "/" + activities.length) : "0", activities.length ? (claimedCount === activities.length ? "All responsibilities claimed" : "Some activities still open") : "No activities added yet") +
       summaryCard("Assigned", String(assignedIds.length), assignedIds.length ? "Volunteers linked to this session" : "No one assigned yet") +
       summaryCard("Impact", String(sessionImpactEstimate(session)), "Estimated member touchpoints supported") +
       '</section>',
-      '<section class="session-detail-panels">',
-      '<div class="session-venue-card"><h3>Session Brief</h3>' +
-      (venue && venue.url ? '<p class="soft-note"><a href="' + esc(venue.url) + '" target="_blank" rel="noreferrer">Venue page</a></p>' : '') +
-      roleLine.map((line) => '<p class="soft-note">' + esc(line) + '</p>').join("") +
-      (!roleLine.length ? '<p class="soft-note">Add role clarity, arrival notes, or a backup plan when you create the session.</p>' : '') +
-      '</div>',
-      '<div class="card"><h3>Activities</h3>' + claimAccessHtml + '<div class="rows">' + activitiesHtml + '</div></div>',
-      '<div class="card"><h3>Volunteer Roster</h3><div class="session-roster">' + rosterHtml + '</div></div>',
-      '<div class="card"><h3>Past History</h3><div class="session-history-list">' + historyHtml + '</div></div>',
-      '</section>'
+      '<div class="session-detail-footer-actions inline-actions">' + reportIssueButton + '</div>'
     ].join("");
   }
 
@@ -1065,25 +1173,6 @@
       .join("");
   }
 
-  function renderSessionVolunteerHistoryHtml(session) {
-    const volunteerIds = assignedVolunteerIds(session.id);
-    if (!volunteerIds.length) return '<div class="empty">No volunteer history yet.</div>';
-    const rows = volunteerIds.map((volunteerId) => {
-      const volunteer = state.volunteers.find((row) => String(row.id) === String(volunteerId));
-      const pastCount = pastSessionsForVolunteer(volunteerId).length;
-      const feedbackCount = feedbackForVolunteer(volunteerId).length;
-      const streak = showUpStreak(volunteerId);
-      const milestone = volunteerMilestone(countPositiveAttendance(volunteerId));
-      return [
-        '<article class="session-history-item">',
-        '<div class="session-history-top"><p class="session-roster-name">' + esc(volunteer ? volunteer.display_name : "Volunteer") + '</p><span class="pill">' + esc(milestone.currentLabel) + '</span></div>',
-        '<p class="soft-note">' + esc(pastCount + " past sessions • " + feedbackCount + " feedback notes • streak " + streak) + '</p>',
-        '</article>'
-      ].join("");
-    });
-    return rows.join("");
-  }
-
   function onSelectSession(sessionId, syncMonth) {
     const session = sessionById(sessionId);
     if (!session) return;
@@ -1092,6 +1181,11 @@
       state.sessionBrowserYear = new Date(session.starts_at).getFullYear();
       state.sessionBrowserMonth = new Date(session.starts_at).getMonth();
     }
+    renderSessionExplorer();
+  }
+
+  function closeSessionDetail() {
+    state.selectedSessionId = null;
     renderSessionExplorer();
   }
 
@@ -1275,7 +1369,9 @@
     }, 0);
   }
 
-  async function ensureClubScheduleSeeded() {
+  async function ensureClubScheduleSeeded(options) {
+    const opts = options || {};
+    const silent = Boolean(opts.silent);
     if (!state.supabase || !isAdmin() || state.scheduleSeedInFlight) return;
     state.scheduleSeedInFlight = true;
     try {
@@ -1302,11 +1398,9 @@
       }
 
       if (createdCount) {
-        await loadAllData();
-        if (!state.selectedSessionId && state.sessions.length) {
-          state.selectedSessionId = String(state.sessions[0].id);
-        }
-        setBackendStatus("Club schedule synced from your calendar.", "ok");
+        await loadAllData({ showLoading: false });
+        renderAll();
+        if (!silent) setBackendStatus("Club schedule synced from your calendar.", "ok");
       }
 
       let activitiesAdded = 0;
@@ -1323,8 +1417,9 @@
       }
 
       if (activitiesAdded) {
-        await loadAllData();
-        if (!createdCount) setBackendStatus("Club session activities synced.", "ok");
+        await loadAllData({ showLoading: false });
+        renderAll();
+        if (!createdCount && !silent) setBackendStatus("Club session activities synced.", "ok");
       }
     } finally {
       state.scheduleSeedInFlight = false;
@@ -1489,7 +1584,7 @@
       el.searchInput.style.display = selfFocus ? "none" : "";
     }
     if (state.loading) {
-      el.volunteerList.innerHTML = '<div class="empty">Loading volunteers...</div>';
+      el.volunteerList.innerHTML = renderVolunteerListSkeletonHtml();
       return;
     }
 
@@ -1749,7 +1844,7 @@
 
   function renderStudio() {
     if (state.loading) {
-      el.studioPanel.innerHTML = '<div class="empty">Loading studio...</div>';
+      el.studioPanel.innerHTML = renderStudioSkeletonHtml();
       return;
     }
     if (!state.user) {
@@ -1960,6 +2055,7 @@
     const action = String(target.getAttribute("data-action") || "");
 
     if (action === "select-session") { event.preventDefault(); onSelectSession(target.getAttribute("data-session-id"), String(target.getAttribute("data-sync-month") || "") === "1"); return; }
+    if (action === "close-session-detail") { event.preventDefault(); closeSessionDetail(); return; }
     if (action === "set-session-browser-view") { onSetSessionBrowserView(target.getAttribute("data-view")); return; }
     if (action === "shift-session-month") { onShiftSessionMonth(target.getAttribute("data-month-delta")); return; }
     if (action === "session-month-today") { onJumpSessionMonthToday(); return; }
@@ -2706,7 +2802,8 @@
 
   function openSupportDialog(sessionId) {
     if (!state.user || !state.supabase) {
-      setBackendStatus("Sign in first.", "err");
+      onOpenLogin();
+      setBackendStatus("Log in to report an issue.", "warn");
       return;
     }
     const volunteerId = myVolunteerId();
@@ -2717,11 +2814,14 @@
 
     clearStatus(el.supportStatus);
     el.supportForm.reset();
+    if (el.supportDialogTitle) el.supportDialogTitle.textContent = sessionId ? "Report Issue" : "Request Support";
     el.supportUrgencySelect.value = "normal";
     const upcoming = upcomingSessionsForVolunteer(volunteerId);
     const recentPast = pastSessionsForVolunteer(volunteerId).slice(0, 6);
     const byId = {};
     [...upcoming, ...recentPast].forEach((session) => { byId[String(session.id)] = session; });
+    const forcedSession = sessionId ? sessionById(sessionId) : null;
+    if (forcedSession) byId[String(forcedSession.id)] = forcedSession;
     const options = Object.values(byId).sort((a, b) => new Date(a.starts_at) - new Date(b.starts_at));
     el.supportSessionSelect.innerHTML = '<option value="">No specific session</option>' + options.map((session) =>
       '<option value="' + esc(session.id) + '">' + esc(session.title || "Session") + " • " + esc(formatDateTime(session.starts_at)) + "</option>"
@@ -2729,6 +2829,7 @@
     if (sessionId && options.some((session) => String(session.id) === String(sessionId))) {
       el.supportSessionSelect.value = String(sessionId);
     }
+    if (sessionId) el.supportTypeSelect.value = "other";
     openDialog(el.supportDialog);
   }
 
@@ -3264,7 +3365,7 @@
       const claimedByMe = actorVolunteerId && claimedById === actorVolunteerId;
       const statusBadge = claimedById
         ? (claimedByMe ? '<span class="okpill">You</span>' : '<span class="pill">' + esc(claimedByName) + '</span>')
-        : '<span class="warnpill">Open</span>';
+        : "";
       const actionsHtml = (showClaimActions || showSignedOutClaimActions)
         ? (!claimedById
           ? '<div class="inline-actions"><button type="button" class="mini ghost" data-action="toggle-session-activity-claim" data-activity-id="' + esc(activity.id) + '" data-mode="claim">Claim activity</button></div>'
@@ -3901,6 +4002,10 @@
   }
 
   function setBackendStatus(text, type) {
+    if (state.booting && type === "ok") {
+      clearStatus(el.backendStatus);
+      return;
+    }
     setStatus(el.backendStatus, text, type);
     if (backendStatusClearTimer) {
       clearTimeout(backendStatusClearTimer);
